@@ -15,7 +15,13 @@ vi.mock("@/lib/agents/connections.server", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({ getSupabaseAdmin: () => ({}) }));
 
-import { createToken, sha256Hex, parseAuthHeader, verifyToken } from "./tokens";
+import {
+  TokenLookupUnavailableError,
+  createToken,
+  sha256Hex,
+  parseAuthHeader,
+  verifyToken,
+} from "./tokens";
 import { hasScope, isScope, parseScopes } from "@bcontext-dev/contract/auth/scopes";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -108,20 +114,31 @@ describe("verifyToken (discriminated result)", () => {
   /** Updates that actually ran: a supabase-js builder only fires on `.then`. */
   const executedUpdates: Array<{ table: string; patch: Record<string, unknown> }> = [];
 
+  /** Tables whose lookup actually ran, in order. */
+  const lookedUp: string[] = [];
+
+  /**
+   * A table set to `{ error }` answers like PostgREST does when it fails
+   * (e.g. PGRST003); `{ throws }` rejects like supabase-js on an abort.
+   */
+  type Failure = { error: { code: string; message: string } } | { throws: Error };
+
   function makeMockClient(rows: {
-    api_tokens?: Record<string, unknown> | null;
-    oauth_access_tokens?: Record<string, unknown> | null;
-    user_api_tokens?: Record<string, unknown> | null;
+    api_tokens?: Record<string, unknown> | null | Failure;
+    oauth_access_tokens?: Record<string, unknown> | null | Failure;
+    user_api_tokens?: Record<string, unknown> | null | Failure;
   }): SupabaseClient {
     type Row = Record<string, unknown> | null;
     executedUpdates.length = 0;
-    function tableBuilder(table: string, row: Row) {
+    lookedUp.length = 0;
+    function tableBuilder(table: string, row: Row | Failure) {
       let pendingUpdate: Record<string, unknown> | null = null;
       const builder: {
         select: (cols?: string) => typeof builder;
         eq: (col: string, val: unknown) => typeof builder;
         update: (patch: Record<string, unknown>) => typeof builder;
-        maybeSingle: () => Promise<{ data: Row; error: null }>;
+        abortSignal: (signal: AbortSignal) => typeof builder;
+        maybeSingle: () => Promise<{ data: Row; error: unknown }>;
         then: (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => Promise<unknown>;
       } = {
         select: () => builder,
@@ -130,7 +147,13 @@ describe("verifyToken (discriminated result)", () => {
           pendingUpdate = patch;
           return builder;
         },
-        maybeSingle: async () => ({ data: row, error: null }),
+        abortSignal: () => builder,
+        maybeSingle: async () => {
+          lookedUp.push(table);
+          if (row && "throws" in row) throw row.throws;
+          if (row && "error" in row) return { data: null, error: row.error };
+          return { data: row, error: null };
+        },
         // Mirrors PostgREST's lazy builder: the request goes out on `.then`.
         then: (onOk) => {
           if (pendingUpdate) executedUpdates.push({ table, patch: pendingUpdate });
@@ -197,6 +220,32 @@ describe("verifyToken (discriminated result)", () => {
   it("returns null when no table matches", async () => {
     const client = makeMockClient({});
     expect(await verifyToken(client, authHeader)).toBeNull();
+    expect(lookedUp).toEqual(["api_tokens", "oauth_access_tokens", "user_api_tokens"]);
+  });
+
+  it("throws on a backend error and stops before the remaining lookups", async () => {
+    const client = makeMockClient({
+      api_tokens: {
+        error: { code: "PGRST003", message: "Timed out acquiring connection from connection pool." },
+      },
+    });
+    const err = await verifyToken(client, authHeader).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TokenLookupUnavailableError);
+    expect((err as TokenLookupUnavailableError).table).toBe("api_tokens");
+    expect((err as TokenLookupUnavailableError).code).toBe("PGRST003");
+    // The point of failing fast: no 2nd and 3rd wait on a dead backend.
+    expect(lookedUp).toEqual(["api_tokens"]);
+  });
+
+  it("throws when a later lookup fails after an earlier miss", async () => {
+    const client = makeMockClient({
+      api_tokens: null,
+      oauth_access_tokens: { throws: new DOMException("signal timed out", "TimeoutError") },
+    });
+    await expect(verifyToken(client, authHeader)).rejects.toBeInstanceOf(
+      TokenLookupUnavailableError,
+    );
+    expect(lookedUp).toEqual(["api_tokens", "oauth_access_tokens"]);
   });
 
   it("stamps last_used_at on the token and last_seen_at on its agent", async () => {
