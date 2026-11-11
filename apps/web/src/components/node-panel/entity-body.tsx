@@ -3,7 +3,7 @@
 /**
  * The body of an entity — a person, a customer, a product — in the panel.
  * An entity is mostly what refers to it, so its connections come first:
- * every node that mentions it (Nexo's entity linker adds `references`
+ * every node that mentions it (the entity linker adds `references`
  * edges when prose names the entity or one of its aliases), then the
  * aliases themselves, editable as chips (`data.aliases`, the list the
  * linker matches against), then the prose.
@@ -58,7 +58,7 @@ export function EntityBody(props: PanelBodyProps) {
         <ConnectionsList
           connections={connections}
           onOpen={openNode}
-          emptyText="Nothing mentions this entity yet. Name it in another node's prose and Nexo links it here."
+          emptyText="Nothing mentions this entity yet. Name it in another node's prose and it is linked here."
         />
       </section>
 

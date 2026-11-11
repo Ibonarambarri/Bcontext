@@ -110,7 +110,7 @@ export type ToastKind = "info" | "error";
 
 /**
  * An optional button inside the toast. This is how a change announces itself
- * *and* offers the way back — "Nexo edited X · Undo" — instead of asking
+ * *and* offers the way back — "Edited X · Undo" — instead of asking
  * first. Pressing it dismisses the toast.
  */
 export interface ToastAction {

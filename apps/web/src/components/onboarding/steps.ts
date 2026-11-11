@@ -15,10 +15,10 @@ import {
   type OnboardingStep,
   type OnboardingStepId,
 } from "@bcontext-dev/contract/onboarding";
-import { nexoPath, nexosPath, systemViewPath } from "@/lib/view-shell";
+import { systemViewPath } from "@/lib/view-shell";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 
-export type GuideView = "overview" | "agents" | "nexos" | "nexo";
+export type GuideView = "overview" | "agents";
 
 export interface GuideStep {
   id: OnboardingStepId;
@@ -30,9 +30,8 @@ export interface GuideStep {
   /** What makes the box tick by itself; the person never ticks it. */
   ticks: string;
   /**
-   * The page the step happens in: `overview` (the dashboard), `agents` (the
-   * Agents view, where Add agent lives), `nexos` (the team page, with Add
-   * integration) or `nexo` (the general Nexo's chat).
+   * The page the step happens in: `overview` (the dashboard) or `agents`
+   * (the Agents view, where Add agent lives).
    */
   view: GuideView;
   /** The `data-tour` value of the element the spotlight rings on that view. */
@@ -72,32 +71,10 @@ const COPY: Record<OnboardingStepId, Omit<GuideStep, "id">> = {
     placement: "bottom",
     prompt: FIRST_WRITE_PROMPT,
   },
-  ask_nexo: {
-    title: "Ask Nexo",
-    action: "Type a question; Nexo answers from this workspace, with sources.",
-    body:
-      "Nexo answers from what is in this workspace and cites where it found it. Try \"what did we decide about pricing?\" — or anything your agents have written down.",
-    ticks: "Ticks itself the first time you send Nexo a message.",
-    view: "nexo",
-    anchor: "nexo-composer",
-    placement: "top",
-  },
-  connect_integration: {
-    title: "Feed it",
-    action: "Nexos → open the general Nexo → connect a source: GitHub, Linear, Notion, Slack…",
-    body:
-      "Connect a source and a Nexo starts listening: the general one until you hand it to a specialist. The workspace fills itself, and anything that contradicts what is already here shows up in Conflicts for you to settle.",
-    ticks: "Ticks itself once an integration is installed.",
-    view: "nexos",
-    anchor: "integrations-add",
-    placement: "bottom",
-  },
 };
 
 /** Where a step's page is. */
 export function guideViewHref(address: WorkspaceAddress, view: GuideView): string {
-  if (view === "nexo") return nexoPath(address);
-  if (view === "nexos") return nexosPath(address);
   return systemViewPath(address, view);
 }
 
@@ -124,7 +101,7 @@ export function firstPendingIndex(steps: readonly OnboardingStep[]): number {
   return pending === -1 ? 0 : pending;
 }
 
-/** "2 of 4" style progress for the panel header. */
+/** "1 of 2" style progress for the panel header. */
 export function doneCount(steps: readonly OnboardingStep[]): number {
   return steps.filter((s) => s.done).length;
 }

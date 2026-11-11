@@ -9,10 +9,9 @@
  * Two open triggers, both on `window` so no caller needs a prop or a ref:
  *   - the `bcontext:new-node` custom event (the sidebar's "New" button
  *     dispatches it; any other button that wants the dialog can too);
- *   - ⌘⇧K / Ctrl+Shift+K, which toggles it. ⌘N is taken by the browser and
- *     ⌘J belongs to Nexo (the launcher and the palette both advertise it),
- *     so the create shortcut is the shifted sibling of ⌘K: ⌘K finds a
- *     node, ⌘⇧K makes one — the same ⌘⇧-letter shape as ⌘⇧M (record).
+ *   - ⌘⇧K / Ctrl+Shift+K, which toggles it. ⌘N is taken by the browser, so
+ *     the create shortcut is the shifted sibling of ⌘K: ⌘K finds a node,
+ *     ⌘⇧K makes one.
  */
 import { useEffect, useState } from "react";
 import { CreateNodeDialog } from "./create-node-dialog";

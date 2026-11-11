@@ -1,7 +1,7 @@
 /**
  * A link that names a node — `/n/<id>`, with or without the workspace prefix,
- * `#block` allowed — as written by people in node bodies and by Nexo in its
- * answers. Both renderers open these in the panel instead of navigating, so
+ * `#block` allowed — as written by people and agents in node bodies and in
+ * cited answers. Both renderers open these in the panel instead of navigating, so
  * the parser lives here rather than in either of them.
  */
 const NODE_LINK = /(?:^|\/)n\/([A-Za-z0-9-]+)(?:[?#]([^?#]*))?$/;

@@ -27,7 +27,6 @@ import type { InviteRole } from "@bcontext-dev/contract/workspaces";
 export type SectionId =
   | "overview"
   | "general"
-  | "ai-keys"
   | "users"
   | "invitations"
   | "workspaces";

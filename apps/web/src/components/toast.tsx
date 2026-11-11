@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * The toast stack, bottom-right — lifted above the Nexo bubble whenever the
- * bubble is on the page (`[data-nexo-launcher]`), so neither hides the other. Presentational: the queue and the
+ * The toast stack, bottom-right. Presentational: the queue and the
  * `toast.info/error` API live in the workspace context (`ToastApi`), and
  * `workspace-shell.tsx` bridges the two; the hub's settings modal mounts it
  * with its own local list. Errors are `role="alert"` (assertive), the rest
@@ -35,7 +34,7 @@ export function ToastViewport({
       role="region"
       aria-label="Notifications"
       aria-relevant="additions"
-      className="pointer-events-none fixed bottom-3 right-3 z-50 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-1.5 [body:has([data-nexo-launcher])_&]:bottom-[68px]"
+      className="pointer-events-none fixed bottom-3 right-3 z-50 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-1.5"
     >
       {overflow > 0 && !expanded ? (
         <button
