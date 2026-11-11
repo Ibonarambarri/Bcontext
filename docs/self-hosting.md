@@ -284,8 +284,9 @@ and applies nothing. Test a restore before you need one.
 
 ## Operating
 
-- Status: `docker compose ps -a`. `api` and `web` have health checks; `migrate`
-  shows `Exited (0)` when it is done.
+- Status: `docker compose ps -a`. Every long-running service has a health
+  check (`rest` uses `postgrest --ready`); `migrate` shows `Exited (0)` when
+  it is done. Docker reports an unhealthy container but does not restart it.
 - Logs: `docker compose logs -f api worker` (JSON lines; `worker.job.failed`
   for failed jobs).
 - Health: `curl https://ctx.example.com/api/health` returns
@@ -312,6 +313,11 @@ successfully. `docker compose logs migrate` shows the failing migration;
 `POSTGRES_PASSWORD` in `.env` no longer matches the one the database volume
 was initialised with (the roles take it once, on the first boot). Restore
 the original value. `setup.sh --rotate` never changes it.
+
+**Every API call fails, PostgREST logs `PGRST003 Timed out acquiring
+connection from connection pool`, but Postgres is fine.** PostgREST's
+connection pool is stuck; its own health check does not see this state.
+`docker compose restart rest` clears it.
 
 **The browser shows a certificate error or Caddy logs ACME failures.** The
 DNS record does not point at this machine yet, or ports 80/443 are closed.

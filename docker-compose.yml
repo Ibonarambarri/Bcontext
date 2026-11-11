@@ -249,7 +249,34 @@ services:
       PGRST_DB_USE_LEGACY_GUCS: "false"
       PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
       PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY:-3600}
+      # The admin server backs the healthcheck below. Loopback only: nothing
+      # else on the network needs /metrics or /schema_cache, and `--ready`
+      # refuses the default `!4` host because it cannot build a URL from it.
+      PGRST_ADMIN_SERVER_HOST: 127.0.0.1
+      PGRST_ADMIN_SERVER_PORT: 3001
     command: ["postgrest"]
+    # The image is a single static binary (no shell, curl or wget on x86-64),
+    # so the probe is PostgREST's own client: `postgrest --ready` asks the
+    # admin server's /ready and exits 1 unless it is 200. /ready goes 503
+    # while PostgREST has lost Postgres and is reconnecting, and 500 while the
+    # schema cache is not loaded, so dependents no longer start against a
+    # PostgREST that answers every query with an error.
+    #
+    # It does NOT catch a pool that times out acquiring connections
+    # (PGRST003) while Postgres is fine: in v14 /ready reflects reconnection
+    # state only, and an acquisition timeout does not change it. That
+    # failure shows up as `"rest":"down"` in the API's /api/health, which
+    # is what an uptime monitor should watch. We do not add an autoheal
+    # sidecar: Docker never restarts an unhealthy container by itself, an
+    # autoheal container needs the Docker socket (root on the host), and it
+    # would not see the PGRST003 case either. The fix for that case is
+    # `docker compose restart rest` (docs/self-hosting.md#troubleshooting).
+    healthcheck:
+      test: ["CMD", "postgrest", "--ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   storage:
     image: supabase/storage-api:v1.74.0
@@ -258,7 +285,7 @@ services:
       db:
         condition: service_healthy
       rest:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5000/status"]
       interval: 5s
@@ -290,7 +317,7 @@ services:
       auth:
         condition: service_started
       rest:
-        condition: service_started
+        condition: service_healthy
       storage:
         condition: service_started
     healthcheck:
