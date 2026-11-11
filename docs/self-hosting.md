@@ -290,7 +290,9 @@ and applies nothing. Test a restore before you need one.
 - Logs: `docker compose logs -f api worker` (JSON lines; `worker.job.failed`
   for failed jobs).
 - Health: `curl https://ctx.example.com/api/health` returns
-  `{"status":"ok","db":"ok",…}`.
+  `{"status":"ok","db":"ok","rest":"ok",…}`, or a 503 with `"degraded"`.
+  `db` is Postgres and auth; `rest` is one read through PostgREST, the path
+  every API call takes. Point an uptime monitor at it.
 - Reset everything (destroys all data): `docker compose down -v`.
 
 ## Troubleshooting
@@ -317,7 +319,8 @@ the original value. `setup.sh --rotate` never changes it.
 **Every API call fails, PostgREST logs `PGRST003 Timed out acquiring
 connection from connection pool`, but Postgres is fine.** PostgREST's
 connection pool is stuck; its own health check does not see this state.
-`docker compose restart rest` clears it.
+`docker compose restart rest` clears it. `/api/health` reports
+`"rest":"down"` while it lasts.
 
 **The browser shows a certificate error or Caddy logs ACME failures.** The
 DNS record does not point at this machine yet, or ports 80/443 are closed.
