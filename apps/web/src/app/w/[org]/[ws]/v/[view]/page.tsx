@@ -2,25 +2,23 @@
  * `/w/<org>/<ws>/v/<view>`: every view a workspace has, under one route.
  *
  * `<view>` is either a system surface with a component of its own (the
- * agents, tools and conflicts admin pages) or the slug/id of a saved view,
- * which `ViewCanvas` resolves and renders client-side. Old surface slugs
- * redirect rather than 404 so bookmarks keep working: integrations are
- * connected to a Nexo (the general one owns whatever is unassigned).
+ * agents and webhooks admin pages) or the slug/id of a saved view, which
+ * `ViewCanvas` resolves and renders client-side. The retired `tools` slug
+ * redirects to `webhooks`, the part of it that is still here, so bookmarks
+ * keep working.
  */
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { ViewCanvas } from "@/components/view-canvas";
 import { WorkspaceAdminPage, type WorkspaceAdminSurface } from "@/components/agents-dashboard";
-import { nexoDetailPath, systemViewPath } from "@/lib/view-shell";
+import { systemViewPath } from "@/lib/view-shell";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 
-const ADMIN_SURFACES = new Set<WorkspaceAdminSurface>(["agents", "tools", "conflicts"]);
+const ADMIN_SURFACES = new Set<WorkspaceAdminSurface>(["agents", "webhooks"]);
 
-/** Legacy slugs (nav reorgs 2026-07-21, 2026-09-08 and Nexos) → where that surface lives now. */
+/** Legacy slugs → where that surface lives now. */
 const LEGACY_REDIRECTS: Record<string, (ws: WorkspaceAddress) => Route> = {
-  review: (ws) => systemViewPath(ws, "conflicts"),
-  ingest: (ws) => nexoDetailPath(ws, "general", { tab: "setup", section: "sources" }),
-  integrations: (ws) => nexoDetailPath(ws, "general", { tab: "setup", section: "sources" }),
+  tools: (ws) => systemViewPath(ws, "webhooks"),
 };
 
 export default async function WorkspaceViewPage({

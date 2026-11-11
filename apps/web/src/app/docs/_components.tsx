@@ -34,11 +34,6 @@ export const DOC_SECTIONS: DocSection[] = [
     label: "Skill recipes",
     blurb: "Skill nodes, skills_run, and the AGENTS.md generator.",
   },
-  {
-    href: "/docs/connectors" as Route,
-    label: "Connectors",
-    blurb: "GitHub, Slack, Linear, Notion — install, scopes, webhooks.",
-  },
 ];
 
 export function DocHeader({

@@ -27,7 +27,7 @@ export default function SkeletonGalleryPage() {
         </div>
       </Section>
 
-      <Section title="GridSkeleton (Agents · Tools · Integrations · Workspaces)">
+      <Section title="GridSkeleton (Agents · Webhooks · Workspaces)">
         <GridSkeleton cards={3} className="mt-0" />
       </Section>
 

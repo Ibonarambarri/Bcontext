@@ -1,7 +1,7 @@
 /**
  * The instance settings the web app needs at RUNTIME, so one image serves
  * any domain: the Supabase gateway (server-side and public), the anon key,
- * the realtime WebSocket origin and the Nango hosts.
+ * and the realtime WebSocket origin.
  *
  * Why not plain `NEXT_PUBLIC_*`: those are inlined into the bundle at
  * `next build`, so a prebuilt image would carry somebody else's domain and
@@ -16,7 +16,6 @@
  *   SUPABASE_PUBLIC_URL   gateway as the browser reaches it (https://ctx.example.com)
  *   SUPABASE_ANON_KEY     anon JWT
  *   REALTIME_PUBLIC_URL   API origin as a WebSocket URL (wss://ctx.example.com)
- *   NANGO_PUBLIC_HOST, NANGO_CONNECT_URL   self-hosted Nango, when used
  *
  * Must not break: the session cookie name is derived from the PUBLIC gateway
  * on both sides (`authCookieName`), or the browser and the server would read
@@ -27,8 +26,6 @@ export interface PublicEnv {
   supabaseUrl: string;
   supabaseAnonKey: string;
   realtimeUrl: string;
-  nangoHost: string;
-  nangoConnectUrl: string;
 }
 
 declare global {
@@ -53,8 +50,6 @@ export function serverPublicEnv(): PublicEnv {
     ),
     supabaseAnonKey: runtime("SUPABASE_ANON_KEY") || runtime("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     realtimeUrl: trim(runtime("REALTIME_PUBLIC_URL") || runtime("NEXT_PUBLIC_REALTIME_URL")),
-    nangoHost: trim(runtime("NANGO_PUBLIC_HOST") || runtime("NEXT_PUBLIC_NANGO_HOST")),
-    nangoConnectUrl: trim(runtime("NANGO_CONNECT_URL") || runtime("NEXT_PUBLIC_NANGO_CONNECT_URL")),
   };
 }
 
@@ -64,8 +59,6 @@ function inlined(): PublicEnv {
     supabaseUrl: trim(process.env.NEXT_PUBLIC_SUPABASE_URL),
     supabaseAnonKey: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim(),
     realtimeUrl: trim(process.env.NEXT_PUBLIC_REALTIME_URL),
-    nangoHost: trim(process.env.NEXT_PUBLIC_NANGO_HOST),
-    nangoConnectUrl: trim(process.env.NEXT_PUBLIC_NANGO_CONNECT_URL),
   };
 }
 
@@ -78,8 +71,6 @@ export function publicEnv(): PublicEnv {
     supabaseUrl: fromServer.supabaseUrl || base.supabaseUrl,
     supabaseAnonKey: fromServer.supabaseAnonKey || base.supabaseAnonKey,
     realtimeUrl: fromServer.realtimeUrl || base.realtimeUrl,
-    nangoHost: fromServer.nangoHost || base.nangoHost,
-    nangoConnectUrl: fromServer.nangoConnectUrl || base.nangoConnectUrl,
   };
 }
 

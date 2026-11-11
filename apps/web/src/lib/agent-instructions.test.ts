@@ -30,7 +30,7 @@ describe("agent instructions", () => {
 
   it("teaches the session loop the plugin skill teaches", () => {
     const md = agentInstructions(TARGET, ADDRESS);
-    for (const term of ["`brief`", "ask_nexo", "in_progress", "subtasks", "Result", "if_updated_at", "links_write", "list_changes"]) {
+    for (const term of ["`brief`", "ask_rag", "in_progress", "subtasks", "Result", "if_updated_at", "links_write", "list_changes"]) {
       expect(md, term).toContain(term);
     }
   });

@@ -11,7 +11,6 @@ const STATIC_PAGES = [
   "/docs/quickstart",
   "/docs/api",
   "/docs/skills",
-  "/docs/connectors",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

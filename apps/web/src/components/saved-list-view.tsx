@@ -6,7 +6,7 @@
  * dedicated table renderer) and old `timeline` views, which the contract's
  * view schema coerces to `list` on parse.
  *
- * Anatomy (family look shared with the Integrations queue and Activity):
+ * Anatomy (family look shared with Activity):
  *   header meta + Filter button → collapsible filter panel (grid-rows
  *   0fr→1fr, cubic-bezier(0.16,1,0.3,1), count badge, inert) →
  *   ListView rows (kind glyph · title · tag chips · status · relative time)

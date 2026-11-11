@@ -1,19 +1,16 @@
 "use client";
 
 import { AgentConnectionsTab } from "./agent-connections-tab";
-import { ToolProvidersView } from "./tools/tool-providers-view";
-import { ConflictsView } from "./conflicts/conflicts-view";
+import { WebhooksView } from "./webhooks/webhooks-view";
 import { type WorkspaceAddress } from "@/web/workspace-url";
 
 /**
- * The three admin surfaces that render under `v/<slug>` as system views:
- * `agents` (connected agents, with Add agent), `tools` (tool providers +
- * webhooks) and `conflicts` (what NEXO is not sure about). Integrations have
- * no view of their own: they are connected to a Nexo, and the retired
- * `ingest`/`integrations` slugs redirect to the general Nexo in
- * `v/[view]/page.tsx`, as does `review` to Conflicts.
+ * The two admin surfaces that render under `v/<slug>` as system views:
+ * `agents` (connected agents, with Add agent) and `webhooks` (outbound
+ * signed webhook endpoints). The retired `tools` slug redirects to
+ * `webhooks` in `v/[view]/page.tsx`.
  */
-export type WorkspaceAdminSurface = "agents" | "tools" | "conflicts";
+export type WorkspaceAdminSurface = "agents" | "webhooks";
 
 /** Mounted by `v/[view]/page.tsx` for the admin slugs; the shell's header owns the title. */
 export function WorkspaceAdminPage({ workspace, surface }: { workspace: WorkspaceAddress; surface: WorkspaceAdminSurface }) {
@@ -24,8 +21,7 @@ export function WorkspaceAdminPage({ workspace, surface }: { workspace: Workspac
             config snippets and token creation live inside the Add agent
             modal (add-agent-modal.tsx), not on the agents page. */}
         {surface === "agents" && <AgentConnectionsTab workspace={workspace} />}
-        {surface === "tools" && <ToolProvidersView workspace={workspace} />}
-        {surface === "conflicts" && <ConflictsView workspace={workspace} />}
+        {surface === "webhooks" && <WebhooksView workspace={workspace} />}
       </div>
     </div>
   );
