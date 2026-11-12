@@ -1,10 +1,9 @@
 /**
- * Retrieval entry point for `ask_rag`, `ask_nexo`, Nexo chat and the agent
- * context route. If Supabase + embeddings are configured we search pgvector
+ * Retrieval entry point for `ask_rag` and the agent context route. If Supabase + embeddings are configured we search pgvector
  * through the `hybrid_search` RPC (vector + BM25 with RRF; `match_nodes` as
  * the plain-vector fallback), then apply per-lane scoring, optional rerank,
  * graph expansion and staleness labels. Otherwise we fall back to a
- * keyword scorer over the in-memory demo store so the chat still works
+ * keyword scorer over the in-memory demo store so retrieval still works
  * locally and in tests.
  *
  * The permission boundary lives here: the caller's reach is intersected into
@@ -123,7 +122,7 @@ export async function retrieve(
 }
 
 /**
- * Full retrieval: resolves the workspace (`<org>/<ws>` ref or id), the
+ * Full retrieval: resolves the workspace (slug, legacy pair or id), the
  * scope lanes and the principal's reach, then searches, merges, reranks and
  * annotates. `scope` metadata in the result tells the caller how the answer
  * was narrowed or widened.
@@ -134,9 +133,8 @@ export async function retrieveScoped(
   options: RetrieveOptions = {},
 ): Promise<RagResult> {
   const { getStorage, getStorageById } = await import("@/lib/storage");
-  // `<org>/<workspace>` is how a workspace is named; a bare id is what
-  // internal callers already holding the row pass. A bare slug is neither,
-  // because it names as many workspaces as there are organizations using it.
+  // A slug (or a legacy `<org>/<workspace>` pair) is how a workspace is
+  // named; a bare id is what internal callers already holding the row pass.
   const isId =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(workspaceRef);
   const storage =

@@ -2,8 +2,8 @@
  * Ingest entry queue: signals -> typed node candidates, reviewed via an
  * inbox before becoming real nodes.
  *
- * This is the generic, connector-agnostic pipeline. A source integration
- * (GitHub, meetings, Slack, the Nango connectors) calls
+ * This is the generic, source-agnostic pipeline. A source (today the
+ * meeting refiner, `src/lib/meetings/candidates.ts`) calls
  * `proposeCandidate()` instead of upserting a node directly for
  * high-precision decision/task/bug/adr signals; a human or an agent then
  * reviews the inbox via REST or the MCP tools and calls
@@ -15,11 +15,6 @@
  * silently resurrected by a redelivered signal.
  */
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import {
-  capabilityProvenanceData,
-  invocationIdFromProvenance,
-  linkInvocationToNode,
-} from "@/lib/capabilities/provenance";
 import type { Storage } from "@/lib/storage";
 import { getStorageById } from "@/lib/storage";
 import type { NodeEdge } from "@/lib/storage";
@@ -53,13 +48,6 @@ export interface ProposeCandidateInput {
    * opt in on purpose, there is no implicit auto-accept.
    */
   autoAccept?: boolean;
-  /**
-   * Hand the candidate to NEXO triage right after it lands (contradiction
-   * check → auto-accept above threshold → otherwise a `doubt` conflict).
-   * Opt-in per call site; the Nango batch path and the native extractors
-   * pass it, tests and the REST re-propose paths do not.
-   */
-  triage?: boolean;
 }
 
 function row(): ReturnType<typeof getSupabaseAdmin> {
@@ -115,7 +103,7 @@ export async function proposeCandidate(
 
   const candidate = data as IngestCandidate;
   if (input.autoAccept) {
-    // Auto-accept runs during connector ingestion, which has no principal —
+    // Auto-accept runs inside a background source, which has no principal —
     // there is nobody whose reach could apply. The system grant is explicit so
     // this shows up in an audit rather than being an unscoped storage that
     // happens to look like every other one.
@@ -125,16 +113,9 @@ export async function proposeCandidate(
     const { scopedStorage } = await import("@/lib/storage/scoped");
     const storage = scopedStorage(
       inner,
-      systemGrant(candidate.workspace_id, "connector ingestion auto-accept"),
+      systemGrant(candidate.workspace_id, "ingest auto-accept"),
     );
     return acceptCandidate(storage, candidate.id, null);
-  }
-  if (input.triage && candidate.status === "pending") {
-    const { triageCandidate } = await import("@/lib/nexo/triage");
-    const outcome = await triageCandidate(candidate);
-    if (outcome.kind === "accepted") {
-      return (await getCandidate(candidate.id, candidate.workspace_id)) ?? candidate;
-    }
   }
   return candidate;
 }
@@ -230,17 +211,6 @@ export async function acceptCandidate(
   // the candidate's own workspace_id. Building it here is what let a candidate
   // from another tenant be materialised into that tenant, and it also skipped
   // the write verb entirely.
-  // A candidate that a connector stamped with a gateway receipt converges
-  // with a manual `nodes_write(op=create, provenance)`: same data.provenance
-  // shape on the node, same capability_invocations.node_id link.
-  const invocationId = invocationIdFromProvenance(candidate.provenance);
-  const capabilityProvenance = invocationId
-    ? capabilityProvenanceData({
-        capability: String(candidate.provenance?.capability ?? candidate.source),
-        tool: String(candidate.provenance?.tool ?? candidate.source),
-        invocation_id: invocationId,
-      })
-    : null;
   const node = await storage.createNode({
     parent_id: null,
     kind: candidate.kind,
@@ -250,12 +220,8 @@ export async function acceptCandidate(
       ingest_candidate_id: candidate.id,
       ingest_source: candidate.source,
       ingest_external_id: candidate.external_id,
-      ...(capabilityProvenance ? { provenance: capabilityProvenance } : {}),
     },
   });
-  if (invocationId) {
-    await linkInvocationToNode({ workspaceId: storage.workspace.id, invocationId, nodeId: node.id });
-  }
 
   for (const link of candidate.links) {
     await storage.createEdge({

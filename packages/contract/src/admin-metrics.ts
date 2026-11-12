@@ -2,7 +2,7 @@
  * The instance admin's usage dashboard, as the API computes it and the web
  * renders it: what the whole instance consumed per month. Measured, not
  * modelled — there is no revenue side on a self-hosted instance, only what
- * the operator's AI provider and meeting bot will bill them.
+ * the operator's AI provider will bill them.
  */
 
 export interface PeriodMetrics {

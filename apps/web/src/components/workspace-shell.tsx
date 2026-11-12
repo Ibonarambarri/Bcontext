@@ -1,69 +1,55 @@
 "use client";
 
 /**
- * The chrome around every `/w/<org>/<ws>/**` page, mounted by that route's
+ * The chrome around every `/w/<ws>/**` page, mounted by that route's
  * `layout.tsx` (a Server Component that fetches the workspace, its siblings
  * and the node list through the API and passes them in as props).
  *
  * Provider order matters and is fixed here:
  *   WorkspaceRealtimeProvider — the workspace's WebSocket + presence
  *   └ WorkspaceProvider       — nodes, views, selection, toasts (`useWorkspace`)
- *     └ NexoProvider          — the chat's open state and width
- *       └ ShellBody           — sidebar · header row · active view · overlays
+ *     └ ShellBody             — sidebar · header row · active view · overlays
  *
- * The context must sit below realtime because it broadcasts and subscribes;
- * Nexo sits below the context because it opens nodes through it. Everything
- * heavy that is not visible on first paint (command palette, Nexo, node
- * panel, settings, create dialog) is a `next/dynamic` import.
+ * The context must sit below realtime because it broadcasts and subscribes.
+ * Everything heavy that is not visible on first paint (command palette, node
+ * panel, settings, workspace panel, create dialog) is a `next/dynamic` import.
  */
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { WorkspaceProvider, useWorkspace, type CurrentUser } from "./workspace-context";
 import { Sidebar, activeViewMeta, useSidebarWidth } from "./sidebar";
-import { NexoProvider, useNexo } from "./nexo/nexo-provider";
 import { Breadcrumbs } from "@heroui/react";
 import { Sidebar as SidebarShell } from "@/components/ui/sidebar";
-import { RecordMeetingShortcut } from "./agents/record-meeting-shortcut";
 import { ToastViewport } from "./toast";
 import { WorkspaceRealtimeProvider } from "@/lib/collab/workspace-realtime";
-import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ViewHeaderSlotProvider, useViewHeaderSlotTarget } from "./view-header-slot";
-import { FloatingPanelRootProvider, useFloatingPanelRootTarget } from "./floating-panel";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
 
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
-// The launcher is a button; the panel behind it drags the whole markdown /
-// streaming stack (the chat components → streamdown/remark), so it loads on the
-// first open and never lands in the shell's synchronous chunk group.
-const NexoLauncher = dynamic(() => import("./nexo/nexo-launcher").then((m) => m.NexoLauncher));
 const CreateNodeDialogHost = dynamic(() => import("./create-node-dialog-host").then((m) => m.CreateNodeDialogHost));
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
+const WorkspaceAdminModal = dynamic(() =>
+  import("@/app/workspaces/workspace-admin/workspace-admin-modal").then((m) => m.WorkspaceAdminModal),
+);
 const NodeFloatingPanel = dynamic(() => import("./node-floating-panel").then((m) => m.NodeFloatingPanel));
 // The guide asks the API whether it is wanted before it shows anything, so
 // nothing about it belongs in the first paint. If an element of the sidebar
 // it rings moves or is renamed, the tour moves with it: `onboarding/steps.ts`.
 const GettingStarted = dynamic(() => import("./onboarding/getting-started").then((m) => m.GettingStarted));
 
-/** Air between Nexo and the node panel when both are open, in px. */
-const NEXO_GUTTER = 12;
-
 export function WorkspaceShell({
-  org,
   workspaceSlug,
   workspace,
   workspaces,
-  orgLayer,
   nodes,
   currentUser,
   children,
 }: {
-  org: string;
   workspaceSlug: string;
   workspace: WorkspaceCard | null;
   workspaces: WorkspaceCard[];
-  /** Is the organization level worth showing? See `@/lib/org-layer`. */
-  orgLayer: boolean;
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
   children: React.ReactNode;
@@ -77,17 +63,13 @@ export function WorkspaceShell({
       initialPageId={null}
     >
       <WorkspaceProvider
-        org={org}
         workspaceSlug={workspaceSlug}
         workspace={workspace}
         workspaces={workspaces}
-        orgLayer={orgLayer}
         nodes={nodes}
         currentUser={currentUser}
       >
-        <NexoProvider>
-          <ShellBody>{children}</ShellBody>
-        </NexoProvider>
+        <ShellBody>{children}</ShellBody>
       </WorkspaceProvider>
     </WorkspaceRealtimeProvider>
   );
@@ -98,13 +80,12 @@ export function WorkspaceShell({
  *
  * Desktop: sidebar (offcanvas, resizable) · a 12-unit header row with the
  * sidebar trigger, the active view's title and the view's own header slot ·
- * the active surface, with the floating node panel and Nexo over it.
+ * the active surface, with the floating node panel over it.
  * Mobile (<768px): the surface takes the full width; the same trigger opens
  * the `Sidebar.Mobile` drawer instead of the aside. `zoom-viewport-h`
  * (dvh-based) keeps the layout correct under the iOS URL bar.
  */
 function ShellBody({ children }: { children: React.ReactNode }) {
-  const isMobile = useIsMobile();
   const {
     address,
     sidebarOpen,
@@ -112,15 +93,11 @@ function ShellBody({ children }: { children: React.ReactNode }) {
     activeViewSlug,
     views,
   } = useWorkspace();
-  const { open: nexoOpen, width: nexoWidth } = useNexo();
 
   const viewMeta = activeViewMeta(activeViewSlug, views);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
   // Controls the active view portals next to its title — see view-header-slot.tsx.
   const [headerSlot, setHeaderSlot] = useViewHeaderSlotTarget();
-  // The active-page region, published so a view living inside a scroll
-  // container can float a panel over the whole surface (the conflict panel).
-  const [floatingRoot, setFloatingRoot] = useFloatingPanelRootTarget();
 
   return (
     <div className="field-shell zoom-viewport-h flex w-full flex-col overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
@@ -166,30 +143,10 @@ function ShellBody({ children }: { children: React.ReactNode }) {
             {/* The active view, with the floating node panel over it: half of
                 this surface by default, all of it when expanded, never a
                 modal — the view underneath stays live (the graph re-centers
-                the open node in the free half).
-
-                `--nexo-w` is how the two floating windows share this surface.
-                It is not Nexo's width but the space it claims on the right:
-                its width plus a gutter, so the node panel stops beside it with
-                air between the two instead of edge to edge. Zero when Nexo is
-                closed, and the panel returns to the full edge. */}
-            <div
-              ref={setFloatingRoot}
-              role="region"
-              aria-label="Active page"
-              className="relative min-h-0 flex-1 overflow-hidden"
-              style={
-                {
-                  "--nexo-w":
-                    nexoOpen && !isMobile ? `${nexoWidth + NEXO_GUTTER}px` : "0px",
-                } as React.CSSProperties
-              }
-            >
-              <ViewHeaderSlotProvider target={headerSlot}>
-                <FloatingPanelRootProvider root={floatingRoot}>{children}</FloatingPanelRootProvider>
-              </ViewHeaderSlotProvider>
+                the open node in the free half). */}
+            <div role="region" aria-label="Active page" className="relative min-h-0 flex-1 overflow-hidden">
+              <ViewHeaderSlotProvider target={headerSlot}>{children}</ViewHeaderSlotProvider>
               <NodeFloatingPanel />
-              <NexoLauncher />
               <GettingStarted />
             </div>
           </SidebarShell.Main>
@@ -197,10 +154,37 @@ function ShellBody({ children }: { children: React.ReactNode }) {
       </div>
       <CommandPalette />
       <CreateNodeDialogHost workspace={address} />
-      <RecordMeetingShortcut workspace={address} />
       <SettingsDialog />
+      <WorkspacePanelHost />
       <ToastBridge />
     </div>
+  );
+}
+
+/**
+ * The workspace panel, opened from inside the workspace (settings dialog,
+ * account menu) — the same dialog the hub opens from a card, so letting
+ * somebody in never means leaving the workspace. Closing refreshes the
+ * layout's reads: a rename changes the switcher and the tab title.
+ */
+function WorkspacePanelHost() {
+  const { workspacePanel, closeWorkspacePanel, workspace, workspaceSlug } = useWorkspace();
+  const router = useRouter();
+  if (!workspacePanel) return null;
+  return (
+    <WorkspaceAdminModal
+      workspace={{
+        slug: workspaceSlug,
+        name: workspace?.name ?? workspaceSlug,
+        metadata: workspace?.metadata ?? null,
+        role: workspace?.role ?? "viewer",
+      }}
+      initialSection={workspacePanel}
+      onClose={() => {
+        closeWorkspacePanel();
+        router.refresh();
+      }}
+    />
   );
 }
 

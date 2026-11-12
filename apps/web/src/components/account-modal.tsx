@@ -28,7 +28,7 @@ import { PersonAvatar } from "./person-avatar";
  * publishing the fresh `Me` so every avatar and roster updates at once.
  *
  * The name is the account's own `first_name` / `last_name` — it travels with
- * the account, so the roster of an organization can call somebody by name
+ * the account, so the roster of a workspace can call somebody by name
  * rather than by email — which is why this dialog can afford to be the one
  * place a person is edited.
  *

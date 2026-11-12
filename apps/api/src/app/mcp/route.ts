@@ -1,6 +1,7 @@
 /**
  * The root MCP endpoint: the token (or `X-Bcontext-Workspace`) says which
- * workspace. `/mcp/<org>/<workspace>` is the per-workspace form.
+ * workspace. `/mcp/<slug>` is the per-workspace form (`/mcp/<org>/<workspace>`
+ * still answers, as an alias, for configs written before 0100).
  *
  *   POST /mcp   — JSON-RPC requests
  *   GET  /mcp   — SSE stream for server-pushed messages

@@ -1,9 +1,9 @@
 /**
- * What the per-workspace endpoint adds on top of `/mcp`, tested through the
- * route with auth mocked: the path is the workspace selector (handed to the
- * resolver as `<org>/<workspace>`, normalised), a pair that is not two slugs
- * is a 404 before any token is looked at, and a `ping` answers from the
- * workspace the path named.
+ * The pre-0100 `/mcp/<org>/<workspace>` alias, tested through the route with
+ * auth mocked: it is served (never redirected), the pair is handed to the
+ * resolver normalised — which resolves it through the legacy table — a pair
+ * that is not two slugs is a 404 before any token is looked at, and a `ping`
+ * answers from the workspace the pair named.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspace } from "@/lib/demo-store";
@@ -39,11 +39,6 @@ vi.mock("@/lib/agents/names", () => ({
   agentDisplayName: async () => null,
   agentDisplayNames: async () => new Map<string, string>(),
 }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: async () => [] }));
-vi.mock("@/lib/capabilities/gateway", () => ({
-  CapabilityGatewayError: class extends Error {},
-  invokeAuthorizedCapability: vi.fn(),
-}));
 
 import { POST } from "./route";
 
@@ -64,7 +59,7 @@ beforeEach(() => {
   gateCalls.mockClear();
 });
 
-describe("POST /mcp/:org/:workspace", () => {
+describe("POST /mcp/:org/:workspace (legacy alias)", () => {
   it("hands the path to the resolver as the workspace selector, normalised", async () => {
     const res = await ping("Acme", "Telemetry");
     expect(res.status).toBe(200);

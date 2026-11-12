@@ -2,7 +2,7 @@
  * Root layout of the web app: global CSS, the font variables on `<html>`,
  * the theme script that runs before paint (no flash of the wrong theme), the
  * browser-side error reporter and the UI locale for React Aria (`AppLocale`). Everything below it — auth pages, the
- * hub, `/w/<org>/<ws>` — brings its own shell.
+ * hub, `/w/<ws>` — brings its own shell.
  */
 import type { Metadata, Viewport } from "next";
 import "./globals.css";

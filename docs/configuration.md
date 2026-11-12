@@ -19,8 +19,8 @@ With the bundled `docker-compose.yml` you edit one file, the root `.env`
   `API_ORIGIN` (`http://api:4000`), `NODE_ENV=production` and
   `BCONTEXT_PROCESS`.
 - `web` receives only the variables listed under it in `docker-compose.yml`
-  (Supabase URLs and anon key, `REALTIME_PUBLIC_URL`, `API_ORIGIN`, the
-  error collector and Nango hosts).
+  (Supabase URLs and anon key, `REALTIME_PUBLIC_URL`, `API_ORIGIN` and the
+  error collector).
 
 ## Instance (`.env`)
 
@@ -40,7 +40,7 @@ With the bundled `docker-compose.yml` you edit one file, the root `.env`
 | `ERRORS_INGEST_KEY` | generated | Shared secret between the processes and the error collector |
 | `PG_META_CRYPTO_KEY` | generated | Studio's key for postgres-meta (profile `studio`) |
 | `ADMIN_EMAILS` | — | Comma-separated emails that may open `/admin`. Unset: nobody |
-| `ORG_CREATION` | `open` | `open`: anyone may sign up and create an organization. `admin`: sign-up is closed and only `ADMIN_EMAILS` create organizations and invite their owners |
+| `WORKSPACE_CREATION` | `open` | `open`: anyone may sign up and create a workspace. `admin`: sign-up is closed and only `ADMIN_EMAILS` create workspaces and invite their owners. The pre-0100 name `ORG_CREATION` is still read when this is unset |
 
 ### Email
 
@@ -70,8 +70,8 @@ extraction.
 | `AI_GATEWAY_API_KEY` | — | Vercel AI Gateway key; model ids are `provider/model`. The only backend with rerank |
 | `OPENAI_BASE_URL` | — | Any OpenAI-compatible server (Ollama, LiteLLM, vLLM). Wins over the gateway when set. A server on the Docker host is `http://host.docker.internal:<port>/v1` |
 | `OPENAI_API_KEY` | — | Key for `OPENAI_BASE_URL`, when the server wants one |
-| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: Nexo chat, `ask_nexo` / `ask_rag`, skills, autofix, meeting refine. In the backend's own naming |
-| `EXTRACT_MODEL` | `deepseek/deepseek-v4-flash` | Structured extraction and judging: ingest, conflicts, contradiction sweep, integrations |
+| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: `ask_rag`, skills, autofix, meeting refine. In the backend's own naming |
+| `EXTRACT_MODEL` | `deepseek/deepseek-v4-flash` | Structured extraction: ingest candidates from meeting transcripts |
 | `EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embeddings. **Must return 1536-dimensional vectors** (the columns are `vector(1536)`) |
 
 ### Operations
@@ -85,25 +85,12 @@ extraction.
 | `STUDIO_PORT` | `54323` | Supabase Studio on `127.0.0.1` (profile `studio`) |
 | `ERRORS_INGEST_URL` | — | Set to `http://errors:4100` when running the `errors` profile, so every process reports to it |
 | `JWT_EXPIRY` | `3600` | Session (access token) lifetime in seconds |
-| `DISABLE_SIGNUP` | `true` | `false` re-opens GoTrue's own `/auth/v1/signup`. Accounts are otherwise created only through the API, which enforces `ORG_CREATION` |
-
-### Nango (long-tail integrations)
-
-| Variable | Default | Description |
-|---|---|---|
-| `NANGO_SERVER_URL` | — | Your Nango server as the API reaches it. Without it, Nango-backed integrations are off |
-| `NANGO_SECRET_KEY` | — | Nango environment secret key |
-| `NANGO_WEBHOOK_SECRET` | — | Nango webhook signing key |
-| `NANGO_PUBLIC_URL` | — | Nango as the browser reaches it, when different; also the OAuth callback host |
-| `NANGO_CONNECT_URL` | — | Nango's Connect UI origin, for the web app |
-
-The other integrations (GitHub, Slack, Linear, Notion, Recall) are set with
-the API variables below, added to the same `.env`.
+| `DISABLE_SIGNUP` | `true` | `false` re-opens GoTrue's own `/auth/v1/signup`. Accounts are otherwise created only through the API, which enforces `WORKSPACE_CREATION` |
 
 ## API, worker and error collector (`apps/api/.env.example`)
 
-Variables already listed above (`ADMIN_EMAILS`, `ORG_CREATION`, email, AI,
-Nango, `ERRORS_INGEST_*`) mean the same here. The `NEXT_PUBLIC_SUPABASE_URL`,
+Variables already listed above (`ADMIN_EMAILS`, `WORKSPACE_CREATION`, email, AI,
+`ERRORS_INGEST_*`) mean the same here. The `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL`
 and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 2026-12-31; use the plain names.
@@ -135,7 +122,7 @@ and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 | `REALTIME_SECRET` | — | Shared secret of `POST /realtime/broadcast` (same fallback) |
 | `ALLOWED_ORIGINS` | — | Extra browser origins (comma-separated) the API accepts writes from, besides `APP_URL` |
 
-### Retrieval and Nexo tuning
+### Retrieval tuning
 
 | Variable | Default | Description |
 |---|---|---|
@@ -144,35 +131,6 @@ and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 | `CONTEXT_MODEL` | `anthropic/claude-haiku-4-5` | Model for those prefixes, only with `CONTEXTUAL_RETRIEVAL=1` |
 | `RERANK_MODEL` | `cohere/rerank-v3.5` | Rerank model on the gateway; ignored with `OPENAI_BASE_URL` |
 | `RAG_FORCE_KEYWORD` | — | Measurement only: `1` forces keyword retrieval. Never in production |
-| `NEXO_AUTO_ACCEPT_THRESHOLD` | `0.7` | Triage confidence at or above which extracted candidates are written without review |
-| `NEXO_CONTRADICTIONS_MAX_PAIRS` | `50` | Contradiction-judge model calls per workspace per day; `0` disables it |
-
-### Integrations
-
-Webhook and callback URLs are `<PUBLIC_URL>/api/webhooks/<provider>` and
-`<PUBLIC_URL>/api/connectors/<provider>/callback`; see
-[self-hosting.md](self-hosting.md#integrations-optional). Unset connectors
-answer 503 or 404.
-
-| Variable | Default | Description |
-|---|---|---|
-| `GITHUB_APP_ID` | — | GitHub App id (permissions: Contents read/write, Issues read, Pull requests read) |
-| `GITHUB_APP_SLUG` | — | GitHub App slug, for the install link |
-| `GITHUB_APP_PRIVATE_KEY` | — | GitHub App private key (PEM) |
-| `GITHUB_WEBHOOK_SECRET` | — | GitHub webhook secret |
-| `SLACK_CLIENT_ID` | — | Slack app OAuth client id |
-| `SLACK_CLIENT_SECRET` | — | Slack app OAuth client secret |
-| `SLACK_SIGNING_SECRET` | — | Slack request signing secret |
-| `LINEAR_CLIENT_ID` | — | Linear OAuth client id |
-| `LINEAR_CLIENT_SECRET` | — | Linear OAuth client secret |
-| `LINEAR_WEBHOOK_SECRET` | — | Linear webhook signing secret |
-| `NOTION_CLIENT_ID` | — | Notion OAuth client id (one-shot importer) |
-| `NOTION_CLIENT_SECRET` | — | Notion OAuth client secret |
-| `MEETING_BOT_PROVIDER` | `recall` | Meeting bot provider |
-| `RECALL_API_KEY` | — | Recall.ai API key |
-| `RECALL_WEBHOOK_SECRET` | — | Recall.ai webhook secret |
-| `RECALL_API_BASE` | — | Recall.ai API base, only for a non-default region |
-| `RECALL_TRANSCRIPT_PROVIDER` | `recallai_streaming` | Recall transcript provider |
 
 ### Telemetry
 
@@ -208,5 +166,3 @@ to the browser as `/env.js`), so one image serves any domain; the
 | `NEXT_PUBLIC_APP_URL` | request origin | Public origin of the web app (email links, robots.txt, MCP endpoints in the docs) |
 | `ERRORS_INGEST_URL`, `ERRORS_INGEST_KEY` | — | The error collector; server-side only. Both unset: no-op |
 | `BETTER_STACK_SOURCE_TOKEN`, `BETTER_STACK_INGESTING_URL`, `BETTER_STACK_MIN_LEVEL` | — | Better Stack telemetry |
-| `NANGO_PUBLIC_HOST` / `NEXT_PUBLIC_NANGO_HOST` | — | Nango's API as the browser reaches it |
-| `NANGO_CONNECT_URL` / `NEXT_PUBLIC_NANGO_CONNECT_URL` | — | Nango's Connect UI as the browser reaches it |

@@ -1,15 +1,14 @@
 /**
- * Group: /api/workspaces, /api/nexo, /api/upload, /api/onboarding.
+ * Group: /api/workspaces, /api/upload, /api/onboarding.
  *
  * The workspace routes are where the request stops being JSON: a multipart
- * upload in (`import`, `upload`), a zip out (`export`), a streamed NDJSON
- * body (`nexo`). Hono hands the handler `c.req.raw`, so a body that is read
+ * upload in (`import`, `upload`), a zip out (`export`). Hono hands the handler `c.req.raw`, so a body that is read
  * once and never re-encoded should pass through untouched — this group is
  * where that is proven rather than assumed.
  *
  * Tests run without Supabase, so `gate` resolves every request to the demo
- * actor. Routes that exist only for a signed-in user (onboarding,
- * conversation writes, the member roster) can therefore only be
+ * actor. Routes that exist only for a signed-in user (onboarding, the
+ * member roster) can therefore only be
  * exercised on their refusal paths; the refusal is still a routing result and
  * still has to be the same one.
  */
@@ -35,9 +34,6 @@ import * as digestRoute from "@/app/api/workspaces/[ws]/digest/route";
 import * as exportWsRoute from "@/app/api/workspaces/[ws]/export/route";
 import * as importWsRoute from "@/app/api/workspaces/[ws]/import/route";
 import * as membersRoute from "@/app/api/workspaces/[ws]/members/route";
-import * as nexo from "@/app/api/nexo/route";
-import * as conversations from "@/app/api/nexo/conversations/route";
-import * as conversationRoute from "@/app/api/nexo/conversations/[id]/route";
 import * as upload from "@/app/api/upload/route";
 import * as onboarding from "@/app/api/onboarding/create/route";
 
@@ -51,12 +47,10 @@ const digest = asModule(digestRoute);
 const exportWs = asModule(exportWsRoute);
 const importWs = asModule(importWsRoute);
 const members = asModule(membersRoute);
-const conversation = asModule(conversationRoute);
 
 const app = createApiApp({
   serve: [
     "/api/workspaces",
-    "/api/nexo",
     "/api/upload",
     "/api/onboarding",
   ],
@@ -143,12 +137,14 @@ describe("parity: workspaces", () => {
   // `stable` then blanks the slug and id that legitimately differ.
   it("POST /api/workspaces", () =>
     assertParity(app, workspaces, { method: "POST", path: "/api/workspaces", headers: fromIp(), body: { name: "★★★" } }));
-  it("POST /api/workspaces with a colliding slug", () =>
+  // The slug is derived from the name, so a name that spells an existing
+  // slug is how a collision is asked for.
+  it("POST /api/workspaces with a colliding name", () =>
     assertParity(app, workspaces, {
       method: "POST",
       path: "/api/workspaces",
       headers: fromIp(),
-      body: { name: "Collides", slug: workspace.slug },
+      body: { name: workspace.slug },
     }));
   it("POST /api/workspaces with an invalid body", () =>
     assertParity(app, workspaces, { method: "POST", path: "/api/workspaces", headers: fromIp(), body: { name: "" } }));
@@ -382,125 +378,6 @@ describe("parity: workspaces", () => {
       path: `/api/workspaces/${MISSING}/members`,
       params: { ws: MISSING },
       headers: fromIp(),
-    }));
-});
-
-describe("parity: nexo", () => {
-  const RAG_HEADERS = [
-    "x-rag-scope",
-    "x-rag-scope-size",
-    "x-rag-workspace-size",
-    "x-rag-can-expand",
-    "x-rag-expanded",
-    "x-citations",
-  ];
-
-  // No AI gateway key in tests, so the route answers with its NDJSON stub —
-  // which is the streamed content-type and sidecar headers the UI parses,
-  // and all this process can prove without a model.
-  it("POST /api/nexo", async () => {
-    const direct = await assertParity(app, nexo, {
-      method: "POST",
-      path: "/api/nexo",
-      headers: fromIp(),
-      body: { workspace: workspace.slug, messages: [{ role: "user", content: "What is the parity doc?" }] },
-      responseHeaders: RAG_HEADERS,
-    });
-    expect(direct.status).toBe(200);
-    expect(direct.contentType).toContain("application/x-ndjson");
-    expect(direct.body).toContain('"type":"finish"');
-  });
-  it("POST /api/nexo without a workspace", () =>
-    assertParity(app, nexo, {
-      method: "POST",
-      path: "/api/nexo",
-      headers: fromIp(),
-      body: { messages: [{ role: "user", content: "hi" }] },
-    }));
-  it("POST /api/nexo for a missing workspace", () =>
-    assertParity(app, nexo, {
-      method: "POST",
-      path: "/api/nexo",
-      headers: fromIp(),
-      body: { workspace: MISSING, messages: [{ role: "user", content: "hi" }] },
-    }));
-  it("POST /api/nexo with an invalid scope", () =>
-    assertParity(app, nexo, {
-      method: "POST",
-      path: "/api/nexo",
-      headers: fromIp(),
-      body: { workspace: workspace.slug, messages: [], scope: { type: "bogus" } },
-    }));
-  it("POST /api/nexo with malformed JSON", () =>
-    assertParity(app, nexo, { method: "POST", path: "/api/nexo", headers: fromIp(), body: "{" }));
-
-  it("GET /api/nexo/conversations", () =>
-    assertParity(app, conversations, {
-      method: "GET",
-      path: `/api/nexo/conversations?workspace=${workspace.slug}`,
-      headers: fromIp(),
-    }));
-  it("GET /api/nexo/conversations without a workspace", () =>
-    assertParity(app, conversations, { method: "GET", path: "/api/nexo/conversations", headers: fromIp() }));
-  it("POST /api/nexo/conversations", () =>
-    assertParity(app, conversations, {
-      method: "POST",
-      path: "/api/nexo/conversations",
-      headers: fromIp(),
-      body: { workspace: workspace.slug, title: "Parity" },
-    }));
-  it("POST /api/nexo/conversations from another site", () =>
-    assertParity(app, conversations, {
-      method: "POST",
-      path: "/api/nexo/conversations",
-      headers: { ...fromIp(), ...CROSS_SITE },
-      body: { workspace: workspace.slug },
-    }));
-
-  const convId = "11111111-1111-4111-8111-111111111111";
-  it("GET /api/nexo/conversations/:id", () =>
-    assertParity(app, conversation, {
-      method: "GET",
-      path: `/api/nexo/conversations/${convId}`,
-      params: { id: convId },
-      headers: fromIp(),
-    }));
-  it("GET /api/nexo/conversations/:id with a non-uuid id", () =>
-    assertParity(app, conversation, {
-      method: "GET",
-      path: "/api/nexo/conversations/not-a-conversation",
-      params: { id: "not-a-conversation" },
-      headers: fromIp(),
-    }));
-  it("PATCH /api/nexo/conversations/:id", () =>
-    assertParity(app, conversation, {
-      method: "PATCH",
-      path: `/api/nexo/conversations/${convId}`,
-      params: { id: convId },
-      headers: fromIp(),
-      body: { title: "Renamed" },
-    }));
-  it("PATCH /api/nexo/conversations/:id from another site", () =>
-    assertParity(app, conversation, {
-      method: "PATCH",
-      path: `/api/nexo/conversations/${convId}`,
-      params: { id: convId },
-      headers: { ...fromIp(), ...CROSS_SITE },
-      body: { title: "" },
-    }));
-  it("DELETE /api/nexo/conversations/:id", () =>
-    assertParity(app, conversation, {
-      method: "DELETE",
-      path: `/api/nexo/conversations/${convId}`,
-      params: { id: convId },
-      headers: fromIp(),
-    }));
-  it("DELETE /api/nexo/conversations/:id from another site", () =>
-    assertParity(app, conversation, {
-      method: "DELETE",
-      path: `/api/nexo/conversations/${convId}`,
-      params: { id: convId },
-      headers: { ...fromIp(), ...CROSS_SITE },
     }));
 });
 

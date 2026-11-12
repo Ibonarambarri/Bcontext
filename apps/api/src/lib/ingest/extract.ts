@@ -1,14 +1,13 @@
 /**
- * Generic, connector-agnostic signal -> candidate extractor.
+ * Generic, source-agnostic signal -> candidate extractor.
  *
- * A source integration (GitHub, meetings, Slack, the Nango connectors)
- * hands this raw text plus a hint about where it came from; the
+ * A source (today, meeting transcripts) hands this raw text plus a hint about where it came from; the
  * model classifies it into one of the four high-precision kinds and
  * produces H2-structured Markdown. The caller then passes the result to
  * `proposeCandidate()` — this module never touches the database.
  *
  * Non-goal: this does not decide WHICH signals are worth
- * extracting — that's each source integration's job (only high-precision
+ * extracting — that's each source's job (only high-precision
  * triggers, never a full firehose). This module only turns text that's
  * already been judged worth proposing into a typed candidate shape.
  */

@@ -46,12 +46,9 @@ select ok(position('category' in pg_get_function_result('public.get_node_context
 select ok(to_regprocedure('public.match_nodes(vector,uuid,integer,double precision)') is null, 'legacy vector overload with category is retired');
 select ok(to_regprocedure('public.hybrid_search(text,vector,uuid,integer,integer,integer,integer)') is null, 'legacy hybrid overload with category is retired');
 
-insert into public.organizations(id,slug,name) values
-  ('45000000-0000-4000-8000-000000000001','uix-24-a','UIX-24 A'),
-  ('45000000-0000-4000-8000-000000000002','uix-24-b','UIX-24 B');
-insert into public.workspaces(id,organization_id,slug,name) values
-  ('45000000-0000-4000-8000-000000000003','45000000-0000-4000-8000-000000000001','uix-24-a','UIX-24 A'),
-  ('45000000-0000-4000-8000-000000000004','45000000-0000-4000-8000-000000000002','uix-24-b','UIX-24 B');
+insert into public.workspaces(id,slug,name) values
+  ('45000000-0000-4000-8000-000000000003','uix-24-a','UIX-24 A'),
+  ('45000000-0000-4000-8000-000000000004','uix-24-b','UIX-24 B');
 insert into public.nodes(id,workspace_id,parent_id,kind,slug,title,content_md,data) values
   ('45000000-0000-4000-8000-000000000010','45000000-0000-4000-8000-000000000003',null,'doc','root','Root','','{}'),
   ('45000000-0000-4000-8000-000000000011','45000000-0000-4000-8000-000000000003','45000000-0000-4000-8000-000000000010','task','child','Child','','{}'),

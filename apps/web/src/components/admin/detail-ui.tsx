@@ -9,7 +9,7 @@
  * stops looking like one instrument.
  *
  * Server components only need these to render, so nothing here is a client
- * component — the customer page and the problem page both call them from the
+ * component — the workspace page and the problem page both call them from the
  * server.
  */
 

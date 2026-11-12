@@ -12,7 +12,8 @@ import { assertParity } from "./harness";
 import * as agentsJson from "@/app/.well-known/agents.json/route";
 import * as authServer from "@/app/.well-known/oauth-authorization-server/route";
 import * as protectedResource from "@/app/.well-known/oauth-protected-resource/route";
-import * as protectedWorkspaceModule from "@/app/.well-known/oauth-protected-resource/mcp/[org]/[workspace]/route";
+import * as protectedWorkspaceModule from "@/app/.well-known/oauth-protected-resource/mcp/[workspace]/route";
+import * as protectedLegacyModule from "@/app/.well-known/oauth-protected-resource/mcp/[org]/[workspace]/route";
 import type { RouteModule } from "../adapter";
 import * as health from "@/app/api/health/route";
 import * as llms from "@/app/llms.txt/route";
@@ -22,6 +23,7 @@ const app = createApiApp({ serve: ["/.well-known", "/api/health", "/llms.txt", "
 // Typed params are narrower than the adapter's `Record<string, string>`; the
 // generated table casts for the same reason.
 const protectedWorkspace = protectedWorkspaceModule as unknown as RouteModule;
+const protectedLegacy = protectedLegacyModule as unknown as RouteModule;
 
 describe("parity: discovery documents", () => {
   it("/.well-known/agents.json", () => assertParity(app, agentsJson, { method: "GET", path: "/.well-known/agents.json" }));
@@ -29,8 +31,25 @@ describe("parity: discovery documents", () => {
     assertParity(app, authServer, { method: "GET", path: "/.well-known/oauth-authorization-server" }));
   it("/.well-known/oauth-protected-resource", () =>
     assertParity(app, protectedResource, { method: "GET", path: "/.well-known/oauth-protected-resource" }));
-  it("/.well-known/oauth-protected-resource/mcp/:org/:workspace", async () => {
+  it("/.well-known/oauth-protected-resource/mcp/:workspace", async () => {
     const direct = await assertParity(app, protectedWorkspace, {
+      method: "GET",
+      path: "/.well-known/oauth-protected-resource/mcp/docs",
+      params: { workspace: "docs" },
+    });
+    expect(direct.status).toBe(200);
+    expect((direct.body as { resource: string }).resource).toMatch(/\/mcp\/docs$/);
+  });
+  it("/.well-known/oauth-protected-resource/mcp/:workspace (malformed slug)", () =>
+    assertParity(app, protectedWorkspace, {
+      method: "GET",
+      path: "/.well-known/oauth-protected-resource/mcp/docs%20x",
+      params: { workspace: "docs x" },
+    }));
+  // The legacy alias keeps describing itself: a client configured with the
+  // old URL checks that the document names the resource it called.
+  it("/.well-known/oauth-protected-resource/mcp/:org/:workspace (legacy alias)", async () => {
+    const direct = await assertParity(app, protectedLegacy, {
       method: "GET",
       path: "/.well-known/oauth-protected-resource/mcp/acme/docs",
       params: { org: "acme", workspace: "docs" },
@@ -39,7 +58,7 @@ describe("parity: discovery documents", () => {
     expect((direct.body as { resource: string }).resource).toMatch(/\/mcp\/acme\/docs$/);
   });
   it("/.well-known/oauth-protected-resource/mcp/:org/:workspace (malformed pair)", () =>
-    assertParity(app, protectedWorkspace, {
+    assertParity(app, protectedLegacy, {
       method: "GET",
       path: "/.well-known/oauth-protected-resource/mcp/acme/docs%20x",
       params: { org: "acme", workspace: "docs x" },

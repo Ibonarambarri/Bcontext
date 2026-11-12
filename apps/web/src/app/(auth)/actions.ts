@@ -78,7 +78,7 @@ export async function signInAction(
   // to wherever the query string said is an open redirect.
   if (next) redirect(next as Route);
 
-  // The hub, whatever they have: it sends somebody with no organization to
+  // The hub, whatever they have: it sends somebody with no workspace to
   // create one (or tells them who can invite them), and does it in one place.
   redirect("/workspaces");
 }

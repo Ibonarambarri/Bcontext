@@ -20,7 +20,7 @@ Then connect, one of two ways.
 browser, no secret to manage:
 
 ```bash
-claude mcp add -s project --transport http bcontext-<org>-<ws> https://ctx.example.com/mcp/<org>/<ws>
+claude mcp add -s project --transport http bcontext-<ws> https://ctx.example.com/mcp/<ws>
 ```
 
 This writes a `.mcp.json` in the project folder (it holds only the URL, so
@@ -34,7 +34,7 @@ these variables; set them in the shell that starts Claude Code:
 ```bash
 export BCONTEXT_URL="https://ctx.example.com"   # your instance, without /mcp
 export BCONTEXT_TOKEN="bctx_live_…"             # Agents → Add agent → API key
-export BCONTEXT_WORKSPACE="acme/docs"           # only for a user-scoped token
+export BCONTEXT_WORKSPACE="docs"                # workspace slug; only for a user-scoped token
 ```
 
 `BCONTEXT_URL` has no default: until it is set, `/mcp` shows the plugin's
@@ -49,14 +49,14 @@ instead.
 - `skills/bcontext/SKILL.md`: how an agent works a workspace well: `brief`
   first, H2 blocks and `/n/<id>#<block>` refs, subtasks inside a task,
   goals, datasets, reusable tags, typed edges, the `if_updated_at` rule and
-  the 409 rebase loop, cited retrieval with `ask_nexo` / `ask_rag`, and
+  the 409 rebase loop, cited retrieval with `ask_rag`, and
   `list_changes` re-sync.
 - `commands/brief.md`: `/bcontext:brief [since]`, a standup of the active
   workspace with a `/n/<id>` ref on every item.
 
 ## Keeping it in sync
 
-The skill names concrete MCP tools. When `TOOLS` or
-`CAPABILITY_ROUTING_TOOLS` change in `apps/api/src/lib/mcp/server.ts`,
+The skill names concrete MCP tools. When `TOOLS` changes in
+`apps/api/src/lib/mcp/server.ts`,
 update `SKILL.md` and the tool count in `.claude-plugin/plugin.json` in the
 same pull request, and bump the plugin's version.

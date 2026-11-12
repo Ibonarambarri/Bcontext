@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Inviting from the roster. The route owns the admin check, the personal-zone
- * refusal comes back as a 400 the form can show, and creating an invitation
+ * Inviting from the members screen. The route owns the admin check, a bad
+ * address comes back as a 400 the form can show, and creating an invitation
  * sends nothing: the reply carries the link, and emailing it is the separate
  * `POST .../invites/:id/email`.
  */
@@ -16,8 +16,9 @@ const state: {
 vi.mock("@/lib/auth/workspace", () => ({
   openWorkspace: async () => state.ctx,
 }));
-vi.mock("@/lib/workspaces/orgs", () => ({
-  createInvite: async (input: unknown) => {
+vi.mock("@/lib/workspaces/members", () => ({
+  MembersError: class MembersError extends Error {},
+  createWorkspaceInvite: async (input: unknown) => {
     if (state.fail) throw new Error(state.fail);
     state.created.push(input);
     return {
@@ -25,9 +26,12 @@ vi.mock("@/lib/workspaces/orgs", () => ({
       email: (input as { email: string }).email,
       role: (input as { role: string }).role,
       token: "tok-1",
+      url: "http://localhost:3000/invite/tok-1",
       expires_at: "2030-01-01T00:00:00.000Z",
-      accepted_at: null,
       created_at: "2026-01-01T00:00:00.000Z",
+      email_status: null,
+      email_sent_at: null,
+      email_error: null,
     };
   },
 }));
@@ -43,7 +47,7 @@ import { POST } from "./route";
 
 const userCtx = (backend = "supabase") => ({
   actor: { kind: "user", userId: "admin-1" },
-  storage: { backend, workspace: { id: "ws-1", organization_id: "org-1", slug: "acme", name: "Acme" } },
+  storage: { backend, workspace: { id: "ws-1", slug: "acme", name: "Acme" } },
 });
 const headers = { "content-type": "application/json", origin: "http://localhost", host: "localhost" };
 const post = (body: unknown) =>
@@ -68,29 +72,22 @@ describe("POST /api/workspaces/:ws/invites", () => {
     expect(state.created).toEqual([]);
   });
 
-  it("creates the invitation against the workspace's org, by the caller", async () => {
+  it("creates the invitation into this workspace, by the caller", async () => {
     state.ctx = userCtx();
     const res = await post({ email: "Ana@Example.com", role: "viewer" });
     expect(res.status).toBe(201);
     expect(state.created).toEqual([
-      {
-        organizationId: "org-1",
-        email: "ana@example.com",
-        role: "viewer",
-        invitedBy: "admin-1",
-        // From the roster, the invitation is to this workspace only.
-        workspaceIds: ["ws-1"],
-      },
+      { workspaceId: "ws-1", email: "ana@example.com", role: "viewer", invitedBy: "admin-1" },
     ]);
-    expect(await res.json()).toMatchObject({
-      invite: {
-        id: "inv-1",
-        email: "ana@example.com",
-        role: "viewer",
-        token: "tok-1",
-        url: "http://localhost:3000/invite/tok-1",
-      },
+    const body = (await res.json()) as { invite: Record<string, unknown> };
+    expect(body.invite).toMatchObject({
+      id: "inv-1",
+      email: "ana@example.com",
+      role: "viewer",
+      url: "http://localhost:3000/invite/tok-1",
     });
+    // The link carries the token; the bare token does not travel twice.
+    expect(body.invite).not.toHaveProperty("token");
   });
 
   it("sends nothing — the link is the deliverable", async () => {
@@ -103,19 +100,11 @@ describe("POST /api/workspaces/:ws/invites", () => {
     });
   });
 
-  it("invites an org admin to the organization rather than to this workspace", async () => {
-    // Their role reaches every workspace the organization holds, including
-    // the ones created after they joined — a snapshot of rows never would.
+  it("invites an admin into this workspace like anyone else", async () => {
     state.ctx = userCtx();
     await post({ email: "ana@example.com", role: "admin" });
     expect(state.created).toEqual([
-      {
-        organizationId: "org-1",
-        email: "ana@example.com",
-        role: "admin",
-        invitedBy: "admin-1",
-        workspaceIds: [],
-      },
+      { workspaceId: "ws-1", email: "ana@example.com", role: "admin", invitedBy: "admin-1" },
     ]);
   });
 

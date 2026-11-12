@@ -23,7 +23,7 @@ this app talks to over HTTP like any other client.
 ## Configuration at runtime
 
 The image is not tied to a domain. `src/lib/public-env.ts` reads the
-Supabase URLs, the anon key, the realtime origin and the Nango hosts from the
+Supabase URLs, the anon key and the realtime origin from the
 server's environment when a request runs, and the browser gets them from
 `/env.js` before hydration. `.env.example` lists every variable; `API_ORIGIN`
 is the one read at build time (the rewrites), and the Docker build defaults it
@@ -52,9 +52,9 @@ npm run dev -w bcontext-web     # http://localhost:3000, API at :4000
 ```
 src/
   app/            routes: (auth), start, invite, oauth (agent consent),
-                  w/[org]/[ws] (the workspace shell), workspaces, admin, docs
-  components/     shell, sidebar, editor, views (board/list/graph/browse), nexo,
-                  agents, integrations, tools, admin, skeletons…
+                  w/[ws] (the workspace shell), workspaces, admin, docs
+  components/     shell, sidebar, editor, views (board/list/graph/browse),
+                  agents, webhooks, admin, skeletons…
   web/            api-client (HTTP to the API), session (Supabase Auth), me, workspace
   lib/            client-side helpers: public-env, graph layout/theme, collab, board, settings
   test/           guards, incl. web-speaks-http
@@ -68,6 +68,5 @@ bundle budgets (`scripts/check-performance-budgets.mjs`); `VERIFY_QUICK=1`
 skips the build. CI runs the same script.
 
 The "Getting started" guide (`src/components/onboarding/`) rings real
-controls by `data-tour` anchor (`agents-add`, `dashboard-activity`,
-`nexo-composer`, `integrations-add`): a change that moves or renames one of
+controls by `data-tour` anchor (`agents-add`, `dashboard-activity`): a change that moves or renames one of
 them updates `steps.ts` and `steps.test.ts` in the same PR.

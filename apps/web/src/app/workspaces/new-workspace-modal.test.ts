@@ -6,24 +6,24 @@ describe("apiErrorMessage", () => {
   it("prefers the message the route wrote", () => {
     expect(
       apiErrorMessage(
-        { error: "organization_required", message: "Say which organization the workspace belongs to." },
-        400,
+        { error: "workspace_creation_restricted", message: "Only the instance administrators create workspaces here." },
+        403,
       ),
-    ).toBe("Say which organization the workspace belongs to.");
+    ).toBe("Only the instance administrators create workspaces here.");
   });
 
   it("reads a flattened validation error rather than showing the status", () => {
     expect(
       apiErrorMessage(
-        { error: { formErrors: [], fieldErrors: { organization: ["Required"] } } },
+        { error: { formErrors: [], fieldErrors: { name: ["Required"] } } },
         400,
       ),
-    ).toBe("organization: Required");
+    ).toBe("name: Required");
   });
 
   it("falls back to the code when that is all there is", () => {
-    expect(apiErrorMessage({ error: "organization_not_found" }, 404)).toBe(
-      "organization_not_found",
+    expect(apiErrorMessage({ error: "workspace_creation_restricted" }, 403)).toBe(
+      "workspace_creation_restricted",
     );
   });
 

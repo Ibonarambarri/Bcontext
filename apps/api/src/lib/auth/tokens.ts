@@ -114,6 +114,74 @@ export type VerifyTokenResult =
       agentId: string | null;
     };
 
+/**
+ * A token lookup failed for a reason other than "no such token": PostgREST
+ * answered with an error (e.g. PGRST003, pool exhausted), the gateway
+ * failed, or the request timed out. Distinct from a `null` result so the
+ * auth gate can answer 503 (retry later) instead of 401 (your token is bad):
+ * a 401 sends MCP clients into a re-authorisation loop for a credential that
+ * is perfectly valid.
+ */
+export class TokenLookupUnavailableError extends Error {
+  readonly table: string;
+  readonly code: string | null;
+  constructor(table: string, cause: unknown) {
+    const code =
+      cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string"
+        ? cause.code
+        : null;
+    const message =
+      cause && typeof cause === "object" && "message" in cause
+        ? String(cause.message)
+        : String(cause);
+    super(`token lookup on ${table} failed: ${message}`);
+    this.name = "TokenLookupUnavailableError";
+    this.table = table;
+    this.code = code || null;
+  }
+}
+
+/**
+ * Upper bound for each token lookup. These are single-row reads on a unique
+ * hash index, normally a few ms; PostgREST's own pool wait is 10s, and three
+ * sequential 10s waits used to push MCP clients past their 30s timeout.
+ * Scoped to the auth lookups only: other admin-client queries can be
+ * legitimately slow.
+ */
+const LOOKUP_TIMEOUT_MS = 5000;
+
+type TokenRow = Record<string, unknown> & { id: unknown; revoked_at?: unknown };
+
+/**
+ * One hash lookup. Resolves to the row or null when there is none; throws
+ * TokenLookupUnavailableError when the backend could not answer, so the
+ * caller stops instead of trying the next table against a dead backend.
+ */
+async function lookupByHash(
+  admin: SupabaseClient,
+  table: string,
+  columns: string,
+  hashColumn: string,
+  hash: string,
+): Promise<TokenRow | null> {
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await admin
+      .from(table)
+      .select(columns)
+      .eq(hashColumn, hash)
+      .abortSignal(AbortSignal.timeout(LOOKUP_TIMEOUT_MS))
+      .maybeSingle();
+  } catch (err) {
+    // supabase-js rethrows aborts/timeouts instead of returning `error`.
+    throw new TokenLookupUnavailableError(table, err);
+  }
+  // `maybeSingle` reports zero rows as `data: null, error: null`, so any
+  // error here is the backend failing, never "not found".
+  if (result.error) throw new TokenLookupUnavailableError(table, result.error);
+  return (result.data as TokenRow | null) ?? null;
+}
+
 export async function sha256Hex(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const buffer = await crypto.subtle.digest("SHA-256", encoder.encode(input));
@@ -211,6 +279,8 @@ export async function createToken(
 /**
  * Resolve a bearer token (with `Bearer ` prefix) to its scope + grant.
  * Returns null when the token is missing, malformed, unknown, or revoked.
+ * Throws TokenLookupUnavailableError as soon as one lookup fails (backend
+ * error or timeout): "could not check" must never read as "no such token".
  *
  * Lookup order:
  *   1. `api_tokens` — workspace-scoped tokens.
@@ -233,12 +303,14 @@ export async function verifyToken(
     : suffix;
   const hash = await sha256Hex(justSuffix);
 
-  const { data, error } = await admin
-    .from("api_tokens")
-    .select("id, workspace_id, scopes, revoked_at, created_by, agent_id")
-    .eq("hash", hash)
-    .maybeSingle();
-  if (!error && data && !data.revoked_at) {
+  const data = await lookupByHash(
+    admin,
+    "api_tokens",
+    "id, workspace_id, scopes, revoked_at, created_by, agent_id",
+    "hash",
+    hash,
+  );
+  if (data && !data.revoked_at) {
     // Fire-and-forget last_used_at bump. Failure here is non-fatal.
     fireAndForget(
       admin
@@ -260,11 +332,13 @@ export async function verifyToken(
   // Fallback 1: OAuth-issued access tokens share the `bctx_live_…` shape.
   // The unified verifier lets MCP/REST routes accept either type without
   // changes upstream.
-  const { data: oauthRow } = await admin
-    .from("oauth_access_tokens")
-    .select("id, workspace_id, scopes, revoked_at, expires_at, user_id, agent_id")
-    .eq("token_hash", hash)
-    .maybeSingle();
+  const oauthRow = await lookupByHash(
+    admin,
+    "oauth_access_tokens",
+    "id, workspace_id, scopes, revoked_at, expires_at, user_id, agent_id",
+    "token_hash",
+    hash,
+  );
   if (oauthRow && !oauthRow.revoked_at) {
     const expired =
       oauthRow.expires_at &&
@@ -291,11 +365,13 @@ export async function verifyToken(
   // Fallback 2: multi-workspace tokens. The route picks one per request via
   // X-Bcontext-Workspace header / ?workspace=<slug>, then checks explicit
   // agent access (or legacy user membership when no agent id exists).
-  const { data: userRow } = await admin
-    .from("user_api_tokens")
-    .select("id, user_id, scopes, revoked_at, agent_id")
-    .eq("hash", hash)
-    .maybeSingle();
+  const userRow = await lookupByHash(
+    admin,
+    "user_api_tokens",
+    "id, user_id, scopes, revoked_at, agent_id",
+    "hash",
+    hash,
+  );
   if (userRow && !userRow.revoked_at) {
     fireAndForget(
       admin

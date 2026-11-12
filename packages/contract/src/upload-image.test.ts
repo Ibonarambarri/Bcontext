@@ -127,7 +127,7 @@ describe("uploadImage", () => {
 
     const out = await uploadImage(file, {
       supabaseEnabled: false,
-      workspace: "acme/demo",
+      workspace: "demo",
       nodeId: "n1",
       fetchImpl,
     });
@@ -161,7 +161,7 @@ describe("uploadImage", () => {
 
     const out = await uploadImage(file, {
       supabaseEnabled: true,
-      workspace: "acme/bcontext",
+      workspace: "bcontext",
       nodeId: "node-1",
       fetchImpl,
     });
@@ -191,7 +191,7 @@ describe("uploadImage", () => {
     try {
       await uploadImage(file, {
         supabaseEnabled: true,
-        workspace: "acme/bcontext",
+        workspace: "bcontext",
         nodeId: "n",
         fetchImpl,
       });
@@ -218,7 +218,7 @@ describe("uploadImage", () => {
     try {
       await uploadImage(file, {
         supabaseEnabled: true,
-        workspace: "acme/bcontext",
+        workspace: "bcontext",
         nodeId: "n",
         fetchImpl,
       });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { agentInstructions, rulesFileFor } from "./agent-instructions";
 
-const TARGET = { endpoint: "https://your-bcontext.example/mcp/acme/docs", serverName: "bcontext-acme-docs" };
-const ADDRESS = { org: "acme", slug: "docs" };
+const TARGET = { endpoint: "https://your-bcontext.example/mcp/docs", serverName: "bcontext-docs" };
+const ADDRESS = { slug: "docs" };
 
 describe("rules file per runtime", () => {
   it("names the file each runtime reads at session start", () => {
@@ -23,14 +23,14 @@ describe("rules file per runtime", () => {
 describe("agent instructions", () => {
   it("bakes the workspace address and server name in", () => {
     const md = agentInstructions(TARGET, ADDRESS);
-    expect(md).toContain("**acme/docs**");
-    expect(md).toContain("`bcontext-acme-docs`");
+    expect(md).toContain("**docs**");
+    expect(md).toContain("`bcontext-docs`");
     expect(md).toContain(TARGET.endpoint);
   });
 
   it("teaches the session loop the plugin skill teaches", () => {
     const md = agentInstructions(TARGET, ADDRESS);
-    for (const term of ["`brief`", "ask_nexo", "in_progress", "subtasks", "Result", "if_updated_at", "links_write", "list_changes"]) {
+    for (const term of ["`brief`", "ask_rag", "in_progress", "subtasks", "Result", "if_updated_at", "links_write", "list_changes"]) {
       expect(md, term).toContain(term);
     }
   });

@@ -17,12 +17,7 @@ export const SYSTEM_VIEW_KEYS = [
   "credentials",
   "changes",
   "agents",
-  "tools",
-  // `review` is a legacy slug kept so old links resolve; v/[view]/page.tsx
-  // redirects it to Conflicts. The retired `ingest` and `integrations` slugs
-  // redirect to the general Nexo's Setup → Sources from the same place.
-  "review",
-  "conflicts",
+  "webhooks",
 ] as const;
 
 export type SystemViewKey = (typeof SYSTEM_VIEW_KEYS)[number];
@@ -39,45 +34,6 @@ export const DEFAULT_WORKSPACE_NAVIGATION: WorkspaceNavigationPreference = {
 export function systemViewPath(ws: WorkspaceAddress, key: SystemViewKey): Route {
   if (key === "overview") return workspacePath(ws) as Route;
   return workspacePath(ws, `v/${key}`) as Route;
-}
-
-/** The tabs of a Nexo's page, in display order; `nexos/tabs.ts` resolves a URL to one. */
-export const NEXO_TABS = ["chat", "inbox", "activity", "setup"] as const;
-export type NexoTab = (typeof NEXO_TABS)[number];
-
-/** The sections of a Nexo's Setup tab, top to bottom; each is an anchor (`#nexo-<section>`). */
-export type NexoSetupSection = "sources" | "abilities" | "behaviour" | "escalation" | "instructions" | "budget" | "danger";
-
-/**
- * The Nexos section: the team page and, under it, one page per Nexo. Not a
- * `v/` view — it is not a query over nodes, it is the people-shaped part of
- * the workspace.
- */
-export function nexosPath(ws: WorkspaceAddress): Route {
-  return workspacePath(ws, "nexos") as Route;
-}
-
-/**
- * One Nexo's page. `nexo` is its id, or `general` for the workspace's general
- * Nexo — the one address that never changes, which is what the launcher, the
- * guide and old links need.
- */
-export function nexoDetailPath(
-  ws: WorkspaceAddress,
-  nexo: string,
-  opts: { tab?: NexoTab; section?: NexoSetupSection; conversationId?: string } = {},
-): Route {
-  const params = new URLSearchParams();
-  if (opts.tab && opts.tab !== "chat") params.set("tab", opts.tab);
-  if (opts.tab === "setup" && opts.section) params.set("section", opts.section);
-  if (opts.conversationId) params.set("c", opts.conversationId);
-  const query = params.toString();
-  return `${workspacePath(ws, `nexos/${encodeURIComponent(nexo)}`)}${query ? `?${query}` : ""}` as Route;
-}
-
-/** The general Nexo's chat: where "open in the page" and the guide's "Ask Nexo" land. */
-export function nexoPath(ws: WorkspaceAddress, conversationId?: string): Route {
-  return nexoDetailPath(ws, "general", { conversationId });
 }
 
 export function customViewPath(ws: WorkspaceAddress, viewSlug: string): Route {
@@ -115,15 +71,6 @@ export function viewSlugFromPathname(pathname: string, ws: WorkspaceAddress): st
   const normalized = pathname.replace(/\/$/, "") || "/";
   if (normalized === base) return "overview";
   if (normalized === `${base}/views`) return "overview";
-  // Nexos live outside `v/`, but the sidebar and the header title key off this
-  // slug — without the branch the previous view would stay lit.
-  if (
-    normalized === `${base}/nexo` ||
-    normalized === `${base}/nexos` ||
-    normalized.startsWith(`${base}/nexos/`)
-  ) {
-    return "nexos";
-  }
   const prefix = `${base}/v/`;
   if (!normalized.startsWith(prefix)) return null;
   const segment = normalized.slice(prefix.length).split("/")[0];
@@ -139,9 +86,8 @@ export type LegacyAdminSurface = "agents" | "connections";
 
 /**
  * Map the retired Connections/tabs URLs to where each surface lives now: the
- * `agents` and `tools` views, and the general Nexo's Setup → Sources (an
- * integration is connected to a Nexo; the general one owns anything
- * unassigned). The rest of the query rides along.
+ * `agents` view, or `webhooks` for the old tool-provider tabs (webhooks are
+ * the part of them that remains). The rest of the query rides along.
  */
 export function legacyAdminDestination(
   ws: WorkspaceAddress,
@@ -151,8 +97,7 @@ export function legacyAdminDestination(
   const next = new URLSearchParams(query);
   const tab = next.get("tab");
   next.delete("tab");
-  if (tab === "integrations") return nexoDetailPath(ws, "general", { tab: "setup", section: "sources" });
-  const surface = tab === "providers" || tab === "tools" ? "tools" : "agents";
+  const surface = tab === "providers" || tab === "tools" ? "webhooks" : "agents";
   if (source === "connections" && !tab) next.delete("surface");
   const suffix = next.toString();
   return `${systemViewPath(ws, surface)}${suffix ? `?${suffix}` : ""}` as Route;

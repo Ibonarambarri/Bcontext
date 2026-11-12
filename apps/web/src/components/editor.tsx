@@ -28,15 +28,13 @@
  *     is what stops two simultaneous joiners from seeding twice;
  *   · window events — `bcontext:slash-image` (file picker),
  *     `bcontext:autofix` (rewrite → `AutofixReview`, applied through the
- *     normal save path with a `change_context`),
- *     `bcontext:active-node-may-be-edited` (Nexo wrote to this node: refetch
- *     unless there are unsaved local edits — local always wins);
+ *     normal save path with a `change_context`);
  *   · deep links — `highlightChunk` (RAG citation index, resolved by
  *     re-running the same chunker) and the `#block` hash (durable H2 block
  *     id) scroll to and flash the matching block.
  *
- * `SelectionAsk` ("Ask Nexo" over a text selection), the presence chips
- * and `SaveBadge` are the small UI pieces at the bottom of the file.
+ * The presence chips and `SaveBadge` are the small UI pieces at the bottom
+ * of the file.
  */
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Node } from "@tiptap/core";
@@ -56,9 +54,8 @@ import markdown from "highlight.js/lib/languages/markdown";
 import css from "highlight.js/lib/languages/css";
 import xml from "highlight.js/lib/languages/xml";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Check, Loader2, Sparkles, Users } from "lucide-react";
-import { Avatar, Button, Chip, Kbd, Spinner, Tooltip } from "@heroui/react";
+import { Check, Loader2, Users } from "lucide-react";
+import { Avatar, Chip, Spinner, Tooltip } from "@heroui/react";
 import { htmlToMarkdown, markdownToHtml } from "@/lib/markdown";
 import { buildMentionCandidates } from "@bcontext-dev/contract/mention-search";
 import { chunkMarkdown, extractBlocks } from "@bcontext-dev/contract/rag/chunk";
@@ -167,7 +164,6 @@ export function Editor({
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
   const toast = useToast();
-  const router = useRouter();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [resolvedBlockId, setResolvedBlockId] = useState<string | null>(
     initialBlockId ?? null,
@@ -597,51 +593,6 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, collab, nodeId]);
 
-  // Listen for Nexo-triggered edits to the active node. `nexo-provider.tsx`
-  // dispatches this after a turn that wrote to a node. We refetch the latest
-  // body and apply it only when the editor isn't dirty — local edits always
-  // win to avoid clobbering unsaved work. A router.refresh() keeps the side
-  // panels (backlinks/context) in sync.
-  useEffect(() => {
-    if (!editor) return;
-    const isDirty = () => {
-      const s = saveStateRef.current as SaveState;
-      return s === "dirty" || s === "saving";
-    };
-    async function onMayBeEdited(e: Event) {
-      const detail = (e as CustomEvent<{ nodeId?: string }>).detail;
-      if (!detail || detail.nodeId !== nodeId) return;
-      if (isDirty()) return;
-      try {
-        const res = await fetch(
-          `/api/nodes/${encodeURIComponent(nodeId)}?workspace=${encodeURIComponent(workspaceApiRef(workspace))}`,
-        );
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          node?: { content_md?: string };
-        };
-        const next = json.node?.content_md;
-        if (typeof next !== "string") return;
-        if (next === initialMarkdown) {
-          router.refresh();
-          return;
-        }
-        if (!editor || editor.isDestroyed) return;
-        if (isDirty()) return;
-        editor.commands.setContent(markdownToHtml(next), { emitUpdate: false });
-        router.refresh();
-      } catch {
-        // best-effort
-      }
-    }
-    window.addEventListener("bcontext:active-node-may-be-edited", onMayBeEdited);
-    return () =>
-      window.removeEventListener(
-        "bcontext:active-node-may-be-edited",
-        onMayBeEdited,
-      );
-  }, [editor, nodeId, workspace, initialMarkdown, router]);
-
   // Restore + persist the scroll offset per node. Page only: the panel's
   // pane belongs to the panel, and a zero written from here would wipe the
   // offset the page remembered for the same node.
@@ -770,7 +721,6 @@ export function Editor({
         <EditorFooter editor={editor} />
         {footer}
       </div>
-      <SelectionAsk scrollRef={scrollRef} nodeId={nodeId} />
       {inPanel ? null : (
         <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2">
           {status}
@@ -869,88 +819,6 @@ function PresenceAvatar({ id, label }: { id: string; label: string }) {
         <p>{label}</p>
       </Tooltip.Content>
     </Tooltip>
-  );
-}
-
-/**
- * "Ask Nexo" — anchored above the user's selection once ≥6 characters are
- * highlighted. Pressing it hands Nexo the exact text *and* the node it came
- * from, which is what lets "rewrite this" become a real edit rather than a
- * guess: the text goes straight into the `find` argument of a surgical
- * replace.
- */
-function SelectionAsk({
-  scrollRef,
-  nodeId,
-}: {
-  scrollRef: React.RefObject<HTMLDivElement | null>;
-  nodeId: string;
-}) {
-  const [pos, setPos] = useState<{ x: number; y: number; text: string } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    function recompute() {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return setPos(null);
-      const text = sel.toString().trim();
-      if (text.length < 6) return setPos(null);
-      const range = sel.getRangeAt(0);
-      const container = scrollRef.current;
-      if (!container) return setPos(null);
-      // Confine to selections that originate inside the editor's scroll pane.
-      const node =
-        range.commonAncestorContainer instanceof Element
-          ? range.commonAncestorContainer
-          : range.commonAncestorContainer.parentElement;
-      if (!node || !container.contains(node)) return setPos(null);
-      const rect = range.getBoundingClientRect();
-      const parent = container.getBoundingClientRect();
-      setPos({
-        x: rect.left + rect.width / 2 - parent.left,
-        y: rect.top - parent.top - 36 + container.scrollTop,
-        text,
-      });
-    }
-
-    document.addEventListener("selectionchange", recompute);
-    const el = scrollRef.current;
-    el?.addEventListener("scroll", () => setPos(null), { passive: true });
-    return () => {
-      document.removeEventListener("selectionchange", recompute);
-    };
-  }, [scrollRef]);
-
-  if (!pos) return null;
-  return (
-    <Button
-      size="sm"
-      variant="primary"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        window.dispatchEvent(
-          new CustomEvent("bcontext:nexo-selection", {
-            detail: { text: pos.text, node_id: nodeId },
-          }),
-        );
-        setPos(null);
-        // Drop the selection so the floater goes away.
-        window.getSelection()?.removeAllRanges();
-      }}
-      className="fade-in z-20 gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] shadow-lg"
-      style={{
-        position: "absolute",
-        left: pos.x,
-        top: pos.y,
-        transform: "translateX(-50%)",
-      }}
-    >
-      <Sparkles size={12} /> Ask Nexo
-      <Kbd className="border-white/25 bg-white/15 text-white/80">
-        <Kbd.Content>↵</Kbd.Content>
-      </Kbd>
-    </Button>
   );
 }
 

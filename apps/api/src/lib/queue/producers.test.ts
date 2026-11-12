@@ -55,7 +55,7 @@ describe("enqueue", () => {
   });
 
   it("does not pass a db option when there is no transaction", async () => {
-    await enqueue("connector.drain", { a: 1 });
-    expect(send).toHaveBeenCalledWith("connector.drain", { a: 1 }, {});
+    await enqueue("webhook.drain", { a: 1 });
+    expect(send).toHaveBeenCalledWith("webhook.drain", { a: 1 }, {});
   });
 });

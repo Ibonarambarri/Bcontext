@@ -25,7 +25,7 @@ export async function register(): Promise<void> {
  * that is not an accident: this app has no data of its own and therefore
  * almost no try/catch worth instrumenting. Everything that breaks here breaks
  * while rendering a route, and Next hands us the route *pattern*
- * (`context.routePath`, e.g. `/w/[org]/[ws]`) rather than the URL — which is
+ * (`context.routePath`, e.g. `/w/[ws]`) rather than the URL — which is
  * exactly the grouping key the panel wants, for free. `request.path` is the
  * concrete URL and rides along as `path` for the one-row view.
  *

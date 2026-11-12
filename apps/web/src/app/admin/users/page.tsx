@@ -1,5 +1,5 @@
 import { apiJson, ApiError } from "@/web/api-client";
-import type { AdminUserPage } from "@bcontext-dev/contract/admin-orgs";
+import type { AdminUserPage } from "@bcontext-dev/contract/admin-workspaces";
 import { Alert } from "@heroui/react";
 import { AdminPage } from "@/components/admin/admin-shell";
 import { UsersList } from "./users-list";
@@ -25,7 +25,7 @@ function one(value: string | string[] | undefined): string {
 /**
  * Everyone with an account, and where they belong.
  *
- * Search, organization, role and state are query parameters and reach the
+ * Search, workspace, role and state are query parameters and reach the
  * API, which applies them to every account it can see before cutting the
  * page. Narrowing them here would answer about the fifty rows that happened
  * to arrive — an address on page four would read as an address nobody has —
@@ -40,7 +40,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const { page, error } = await readUsers({
     q: one(sp.q),
-    organization: one(sp.organization),
+    workspace: one(sp.workspace),
     role: one(sp.role),
     state: one(sp.state),
     offset: Math.max(0, Number.parseInt(one(sp.offset), 10) || 0),
@@ -64,7 +64,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
 interface UsersQuery {
   q: string;
-  organization: string;
+  /** A workspace id, as the API filters on it. */
+  workspace: string;
   role: string;
   state: string;
   offset: number;
@@ -80,7 +81,7 @@ async function readUsers(
 ): Promise<{ page: AdminUserPage; error: string | null }> {
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
-  if (query.organization) params.set("organization", query.organization);
+  if (query.workspace) params.set("workspace", query.workspace);
   if (query.role) params.set("role", query.role);
   if (query.state) params.set("state", query.state);
   if (query.offset > 0) params.set("offset", String(query.offset));

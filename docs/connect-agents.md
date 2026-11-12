@@ -4,11 +4,13 @@ Agents use Bcontext through its MCP server (Streamable HTTP). Every
 workspace has its own endpoint:
 
 ```
-https://ctx.example.com/mcp/<org>/<workspace>
+https://ctx.example.com/mcp/<workspace>
 ```
 
-`ctx.example.com` stands for your instance's `PUBLIC_URL`; `<org>` and
-`<workspace>` are the slugs in the web app's URL (`/w/<org>/<workspace>`).
+`ctx.example.com` stands for your instance's `PUBLIC_URL`; `<workspace>` is
+the workspace's slug, the one in the web app's URL (`/w/<workspace>`).
+Endpoints written before workspaces stood alone, `/mcp/<org>/<workspace>`,
+keep working: the server answers them as the same workspace.
 There is also a root endpoint, `/mcp`, that takes the workspace from the
 token (see [Workspace tokens and user tokens](#workspace-tokens-and-user-tokens)).
 
@@ -22,7 +24,7 @@ are the same configurations by hand.
 - **OAuth 2.1** (recommended when the client supports it): no token to copy.
   The client discovers the authorization server from the endpoint, registers
   itself, and opens a browser for you to sign in and approve. Through
-  `/mcp/<org>/<workspace>` the consent and the token are for that workspace
+  `/mcp/<workspace>` the consent and the token are for that workspace
   only (30-day access token with refresh).
 - **Agent token** (`bctx_live_…`): created in **Agents → Add agent** with the
   API-key method, shown once. Send it as `Authorization: Bearer <token>`. Its
@@ -64,10 +66,10 @@ skill and `/bcontext:brief`. The plugin's source is in [`plugin/`](../plugin).
 
 ```bash
 # OAuth: Claude Code opens the browser the first time (or run /mcp)
-claude mcp add --transport http bcontext https://ctx.example.com/mcp/acme/docs
+claude mcp add --transport http bcontext https://ctx.example.com/mcp/docs
 
 # Agent token
-claude mcp add --transport http bcontext https://ctx.example.com/mcp/acme/docs \
+claude mcp add --transport http bcontext https://ctx.example.com/mcp/docs \
   --header "Authorization: Bearer bctx_live_…"
 ```
 
@@ -79,7 +81,7 @@ for a per-workspace endpoint: the folder says which workspace it works in.
   "mcpServers": {
     "bcontext": {
       "type": "http",
-      "url": "https://ctx.example.com/mcp/acme/docs",
+      "url": "https://ctx.example.com/mcp/docs",
       "headers": { "Authorization": "Bearer ${BCONTEXT_MCP_TOKEN}" }
     }
   }
@@ -89,7 +91,7 @@ for a per-workspace endpoint: the folder says which workspace it works in.
 The instance also serves an installer that writes that entry:
 
 ```bash
-curl -sSL https://ctx.example.com/install/mcp | node - --workspace acme/docs --token bctx_live_…
+curl -sSL https://ctx.example.com/install/mcp | node - --workspace docs --token bctx_live_…
 ```
 
 Restart Claude Code; `/mcp` should list the server as connected.
@@ -105,7 +107,7 @@ OAuth or the bearer header.
   {
     "mcpServers": {
       "bcontext": {
-        "url": "https://ctx.example.com/mcp/acme/docs",
+        "url": "https://ctx.example.com/mcp/docs",
         "headers": { "Authorization": "Bearer bctx_live_…" }
       }
     }
@@ -117,10 +119,10 @@ OAuth or the bearer header.
 
   ```bash
   # OAuth
-  codex mcp add bcontext --url https://ctx.example.com/mcp/acme/docs
+  codex mcp add bcontext --url https://ctx.example.com/mcp/docs
   # Agent token, read from an environment variable
   export BCONTEXT_MCP_TOKEN=bctx_live_…
-  codex mcp add bcontext --url https://ctx.example.com/mcp/acme/docs \
+  codex mcp add bcontext --url https://ctx.example.com/mcp/docs \
     --bearer-token-env-var BCONTEXT_MCP_TOKEN
   ```
 
@@ -131,15 +133,15 @@ OAuth or the bearer header.
 
 ## Workspace tokens and user tokens
 
-- On `/mcp/<org>/<workspace>`, a workspace token must belong to that
-  workspace (any other pair answers 404), and a user-scoped token is checked
-  for membership.
+- On `/mcp/<workspace>`, a workspace token must belong to that workspace
+  (any other answers 404), and a user-scoped token is checked for
+  membership.
 - On `/mcp`, a workspace token is bound to its own workspace. A user-scoped
   token (OAuth through `/mcp`) chooses the workspace per request with the
-  header `X-Bcontext-Workspace: <org>/<workspace>` (or `?workspace=`); this
+  header `X-Bcontext-Workspace: <workspace>` (or `?workspace=`); this
   is what the plugin's `BCONTEXT_WORKSPACE` sets.
 
-`initialize` reports `Bcontext · <org>/<workspace>` as the server title, so
+`initialize` reports `Bcontext · <workspace>` as the server title, so
 you can check which workspace a session landed in.
 
 ## The working loop
@@ -167,7 +169,7 @@ they describe:
    is left, then set the task to `done`. That section is what the next agent
    reads instead of the transcript.
 
-Questions about the workspace go to `ask_nexo` (a cited answer with
-confidence, freshness and gaps) or `ask_rag` (the ranked passages). Tools
-from other MCP servers connected to the workspace, and the workspace's
-skills, are found with `capability_search` and run with `capability_call`.
+Questions about the workspace go to `ask_rag` (a cited answer over the
+ranked passages; `synthesize: false` for the passages alone). The
+workspace's skills are listed with `skills({ op: "list" })` and fetched as
+instructions with `skills({ op: "get" })`.

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Self-service signup is the instance's choice: closed (403) when
- * `ORG_CREATION=admin`, where accounts arrive by invitation. The account
+ * `WORKSPACE_CREATION=admin`, where accounts arrive by invitation. The account
  * creation itself needs the auth server, so without Supabase the open path
  * stops at 503 — after validation, which is what is under test here.
  */
@@ -29,12 +29,12 @@ const post = (body: unknown, ip = "10.0.0.1") =>
 const VALID = { email: "ana@acme.test", password: "correct horse", first_name: "Ana" };
 
 afterEach(() => {
-  delete process.env.ORG_CREATION;
+  delete process.env.WORKSPACE_CREATION;
 });
 
 describe("POST /api/signup", () => {
-  it("is closed when organizations are created by an administrator", async () => {
-    process.env.ORG_CREATION = "admin";
+  it("is closed when workspaces are created by an administrator", async () => {
+    process.env.WORKSPACE_CREATION = "admin";
     const res = await post(VALID, "10.0.0.2");
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ error: "signup_closed" });

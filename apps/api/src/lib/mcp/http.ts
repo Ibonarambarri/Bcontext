@@ -2,9 +2,9 @@
  * The MCP Streamable HTTP transport: bearer auth, workspace resolution,
  * permission narrowing, then one fresh server per request.
  *
- * Called by the two route families that serve it — `/mcp`, where the token
- * (or a header) says which workspace, and `/mcp/<org>/<workspace>`, where
- * the path does. Everything else is the same request, which is why the
+ * Called by the route families that serve it — `/mcp`, where the token (or
+ * a header) says which workspace, and `/mcp/<slug>` (plus its pre-0100 alias
+ * `/mcp/<org>/<workspace>`), where the path does. Everything else is the same request, which is why the
  * routes are two lines each and this is where the behaviour lives.
  *
  * Stateless mode: every request creates a fresh transport. This trades
@@ -25,9 +25,10 @@ import { annotateRequest } from "@bcontext-dev/contract/correlation";
 
 export interface McpRequestOptions {
   /**
-   * `<org>/<workspace>` when the path names the workspace. For a user token
-   * it replaces the `X-Bcontext-Workspace` header; for a workspace token it
-   * must be the token's own workspace.
+   * The workspace the path names: its slug, or the legacy `<org>/<workspace>`
+   * pair on the alias route — which is also the path the 401 advertises. For
+   * a user token it replaces the `X-Bcontext-Workspace` header; for a
+   * workspace token it must be the token's own workspace.
    */
   workspaceRef?: string;
 }
@@ -47,7 +48,7 @@ function workspaceNotFound(workspaceRef?: string): Response {
     {
       error: "workspace_not_found",
       message: workspaceRef
-        ? `workspace "${workspaceRef}" not found. Generate a token for it or check the /mcp/<organization>/<workspace> path.`
+        ? `workspace "${workspaceRef}" not found. Generate a token for it or check the /mcp/<workspace> path.`
         : "workspace not found. Generate a new token or pass a valid X-Bcontext-Workspace header.",
     },
     { status: 404 },
@@ -72,6 +73,9 @@ export async function handleMcpRequest(req: Request, options: McpRequestOptions 
         headers,
       });
     }
+    // 503 upstream_unavailable (token store unreachable) passes through
+    // untouched, Retry-After included: no OAuth hint, because re-authorising
+    // cannot fix it and would only send the client into a consent loop.
     return gated;
   }
   if (gated.kind !== "agent" && gated.kind !== "agent_user") {
@@ -121,15 +125,12 @@ export async function handleMcpRequest(req: Request, options: McpRequestOptions 
   }
   const storage = scopedStorage(inner, grant);
 
-  const { workspaceRefFor } = await import("@/lib/workspaces/ref");
-  const [workspaceRef, agentLabel] = await Promise.all([
-    // The full `<org>/<workspace>` name: what the agent echoes back, writes
-    // into a config, or hands to a person. A bare slug would name several.
-    workspaceRefFor(storage.workspace),
-    // Who is writing, by name. Cached, never throws; null leaves the feed on
-    // its labelled-id fallback. See `@/lib/agents/names`.
-    agentDisplayName(gated.agentId),
-  ]);
+  // Who is writing, by name. Cached, never throws; null leaves the feed on
+  // its labelled-id fallback. See `@/lib/agents/names`.
+  const agentLabel = await agentDisplayName(gated.agentId);
+  // The slug is the workspace's whole name now: what the agent echoes back,
+  // writes into a config, or hands to a person.
+  const workspaceRef = storage.workspace.slug;
   const server = buildMcpServer({
     workspaceId: resolved.workspaceId,
     workspaceRef,

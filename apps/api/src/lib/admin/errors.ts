@@ -67,7 +67,7 @@ const GROUP_COLUMNS =
 const EVENT_COLUMNS =
   "id, received_at, occurred_at, service, operation, level, error_type, " +
   "message, stack, cause, release, environment, instance, user_id, " +
-  "organization_id, workspace_id, actor_type, token_id, request_id, " +
+  "workspace_id, actor_type, token_id, request_id, " +
   "correlation_id, method, path, status_code, duration_ms, user_agent, url, " +
   "job_id, job_name, attempt, context";
 
@@ -169,7 +169,6 @@ function toAdminErrorEvent(row: EventRow): AdminErrorEvent {
     environment: str("environment"),
     instance: str("instance"),
     user_id: str("user_id"),
-    organization_id: str("organization_id"),
     workspace_id: str("workspace_id"),
     actor_type: (row.actor_type as ErrorActorType | null) ?? null,
     token_id: str("token_id"),
@@ -392,7 +391,7 @@ export async function getAdminErrorGroup(
 /**
  * How far the address lookup reaches. Addresses live in the auth server,
  * which offers a paged list and nothing else — no join, no search — so this
- * is one walk of it, exactly as the organizations panel walks it, stopping as
+ * is one walk of it, exactly as the workspaces panel walks it, stopping as
  * soon as everyone asked for has been found.
  *
  * Past the cap the answer is the id and a null address, which the contract

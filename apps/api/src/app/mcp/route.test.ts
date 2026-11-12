@@ -41,11 +41,6 @@ vi.mock("@/lib/agents/names", () => ({
   agentDisplayName: async (id: string | null) => (id === AGENT_ID ? state.agentName : null),
   agentDisplayNames: async () => new Map<string, string>(),
 }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: async () => [] }));
-vi.mock("@/lib/capabilities/gateway", () => ({
-  CapabilityGatewayError: class extends Error {},
-  invokeAuthorizedCapability: vi.fn(),
-}));
 
 import { POST } from "./route";
 

@@ -7,9 +7,8 @@
  * creation, disambiguated with a number when it collides, and then frozen —
  * renaming a workspace changes what it is called, not where it lives.
  *
- * Two scopes, because that is what the schema enforces: organization slugs
- * are unique across the product, workspace slugs only inside their
- * organization (`unique (organization_id, slug)`, migration 0001).
+ * Workspace slugs are unique across the instance (`workspaces_slug_key`,
+ * migration 0101): the slug alone is the workspace's address.
  */
 import { slugify } from "@bcontext-dev/contract/utils";
 

@@ -102,7 +102,7 @@ export function inspectorSelectionUrl(
 }
 
 export function fullNodeUrl(args: {
-  /** `<org>/<workspace>` — a bare slug names one workspace per organization. */
+  /** The workspace slug. */
   workspace: string;
   nodeId: string;
   blockId?: string | null;

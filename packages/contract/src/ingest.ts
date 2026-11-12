@@ -1,5 +1,6 @@
 /**
- * Ingest candidates — what a connector proposed and a person has to review.
+ * Ingest candidates — what an ingested source (a meeting transcript) proposed
+ * and a person or an agent has to review.
  * Contract between bcontext-api and bcontext-web.
  */
 export type IngestCandidateKind = "decision" | "task" | "bug" | "adr";

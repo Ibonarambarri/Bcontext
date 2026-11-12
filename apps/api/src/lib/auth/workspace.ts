@@ -69,7 +69,7 @@ export async function openWorkspace(
 
 /**
  * Same, for the six routes that address the workspace by UUID because the id
- * arrives in the request body (connector config, ingest candidates). Resolving
+ * arrives in the request body (ingest candidates). Resolving
  * a slug they do not have would mean inventing one; giving them an exemption
  * would mean an exemption that is not true.
  */

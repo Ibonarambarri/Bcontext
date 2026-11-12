@@ -9,19 +9,14 @@
 -- the app when a person creates or joins a workspace, so seeding them here
 -- would bypass the exact code paths local development exists to exercise.
 
-insert into organizations (id, slug, name)
-values ('00000000-0000-0000-0000-000000000001', 'demo', 'Demo Org')
-on conflict (slug) do nothing;
-
-insert into workspaces (id, organization_id, slug, name, description)
+insert into workspaces (id, slug, name, description)
 values (
   '00000000-0000-0000-0000-000000000010',
-  '00000000-0000-0000-0000-000000000001',
   'bcontext',
   'Context OS',
   'Reference workspace demonstrating Bcontext knowledge structure.'
 )
-on conflict (organization_id, slug) do nothing;
+on conflict (slug) do nothing;
 
 -- A starter taxonomy for the local development workspace.
 insert into tags (workspace_id, name, normalized_name, slug, description)

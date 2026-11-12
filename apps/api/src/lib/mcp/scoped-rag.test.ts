@@ -1,12 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createWorkspace } from "@/lib/demo-store";
 import { resolveDemoStorage } from "@/lib/storage/demo";
 
-const mocks = vi.hoisted(() => ({ listAuthorizedCapabilityTools: vi.fn() }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: mocks.listAuthorizedCapabilityTools }));
-vi.mock("@/lib/capabilities/gateway", () => ({ CapabilityGatewayError: class extends Error {}, invokeAuthorizedCapability: vi.fn() }));
 import { buildMcpServer } from "./server";
 
 function payload(result: Awaited<ReturnType<Client["callTool"]>>) {
@@ -20,7 +17,6 @@ describe("MCP scoped RAG", () => {
   let ids: { product: string; tech: string };
 
   beforeEach(async () => {
-    mocks.listAuthorizedCapabilityTools.mockResolvedValue([]);
     const workspace = createWorkspace({ name: "Scoped RAG", slug: `scoped-rag-${Date.now()}-${Math.random()}` });
     const storage = resolveDemoStorage(workspace.slug)!;
     const product = await storage.createNode({ title: "Product launch", kind: "doc", parent_id: null, content_md: "launch strategy shared" });

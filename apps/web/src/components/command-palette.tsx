@@ -10,7 +10,7 @@
  * (one word: titles), `search` (spaces: titles + body with a snippet) and
  * `tag` (`#…`: direct tag membership) — with Tab cycling them explicitly.
  * Picking a hit opens the node in the floating panel. Semantic search is
- * Nexo's job (⌘J), which the empty state points at.
+ * the agents' job (`ask_rag` over MCP).
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -261,7 +261,7 @@ export function CommandPalette() {
               }}
               renderEmptyState={() => (
                 <div className="px-8 py-8 text-center text-[12px] text-[var(--ink-3)]">
-                  No matches. Nexo can look for it — ⌘J.
+                  No matches.
                 </div>
               )}
             >

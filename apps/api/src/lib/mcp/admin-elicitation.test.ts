@@ -12,12 +12,9 @@ import { createWorkspace } from "@/lib/demo-store";
 import { resolveDemoStorage } from "@/lib/storage/demo";
 
 const mocks = vi.hoisted(() => ({
-  listAuthorizedCapabilityTools: vi.fn(),
   grantAccess: vi.fn(),
   inviteToWorkspace: vi.fn(),
 }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: mocks.listAuthorizedCapabilityTools }));
-vi.mock("@/lib/capabilities/gateway", () => ({ CapabilityGatewayError: class extends Error {}, invokeAuthorizedCapability: vi.fn() }));
 vi.mock("@/lib/auth/admin", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/admin")>()),
   grantAccess: mocks.grantAccess,
@@ -54,7 +51,6 @@ describe("admin_write elicitation on privilege widening", () => {
   let close: () => Promise<void> = async () => {};
 
   beforeEach(() => {
-    mocks.listAuthorizedCapabilityTools.mockReset().mockResolvedValue([]);
     mocks.grantAccess.mockReset().mockResolvedValue({ principal_kind: "agent", principal_id: "agent-2", verbs: ["read", "write"] });
     mocks.inviteToWorkspace.mockReset().mockResolvedValue({ status: "pending", email: "new@example.com" });
   });

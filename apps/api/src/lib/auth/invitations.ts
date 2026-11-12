@@ -30,7 +30,7 @@
  *
  * Granting, revoking, deleting, expiring — every other action in this system is
  * reversible inside the database. An email is not: it leaves, it carries the
- * organisation's name and the sender's reputation, and no amount of admin
+ * workspace's name and the sender's reputation, and no amount of admin
  * undoes it in the recipient's inbox. That asymmetry is why an agent does not
  * get to send one on its own judgement.
  *
@@ -39,7 +39,7 @@
  * left the building. A person with `admin` releases it (`releaseInvitation`),
  * which is a two-second act with full context — who, what verbs, what reach —
  * rather than a blanket "agents may email people" decision made once. Agents
- * are additionally rate limited per organisation, because the failure mode of a
+ * are additionally rate limited per workspace, because the failure mode of a
  * prompt-injected agent is not one bad invitation, it is two hundred of them
  * sent from our domain in a minute.
  *
@@ -82,7 +82,7 @@ const DEFAULT_TTL_DAYS = 14;
 const MAX_TTL_DAYS = 90;
 
 /**
- * How many invitations one organisation may have an agent create per hour.
+ * How many invitations one workspace may have an agent create per hour.
  * Small on purpose: legitimate agent-driven onboarding is a handful of people,
  * and a compromised agent is a mailing list.
  */
@@ -180,7 +180,7 @@ function checkReach(reach: Reach): void {
 }
 
 /**
- * The organisation role written alongside the verbs.
+ * The membership role written alongside the verbs.
  *
  * It is derived, never asked for. The grant is authoritative now, so the role no
  * longer clamps it — but the two still travel together, and a `viewer` role
@@ -209,32 +209,29 @@ function receipt(expiresAt: string, held: boolean): InvitationReceipt {
 
 interface WorkspaceRef {
   id: string;
-  organization_id: string;
+  slug: string;
 }
 
 async function loadWorkspace(workspaceId: string): Promise<WorkspaceRef> {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("workspaces")
-    .select("id, organization_id")
+    .select("id, slug")
     .eq("id", workspaceId)
     .maybeSingle();
   if (error) throw new InvitationError("invalid", `workspace lookup: ${error.message}`);
   if (!data) throw new InvitationError("not_found", "workspace not found");
-  return {
-    id: data.id as string,
-    organization_id: data.organization_id as string,
-  };
+  return { id: data.id as string, slug: data.slug as string };
 }
 
 /**
- * Email → user id, service-role only. The function is named for the waitlist
- * flow it was written for (0019/0020) but it is a plain lookup, and reusing it
- * avoids paginating `auth.admin.listUsers` on every invitation.
+ * Email → user id, service-role only (`invite_user_state`, 0100). A database
+ * function rather than `auth.admin.listUsers`, which would have to be paged
+ * through on every invitation.
  */
 async function userIdForEmail(email: string): Promise<string | null> {
   const admin = getSupabaseAdmin();
-  const { data, error } = await admin.rpc("waitlist_invite_user_state", {
+  const { data, error } = await admin.rpc("invite_user_state", {
     p_email: email,
   });
   if (error) {
@@ -255,13 +252,13 @@ async function alreadyHasAccess(userId: string, workspaceId: string): Promise<bo
   return !isDenied(current);
 }
 
-async function agentInvitesInWindow(organizationId: string): Promise<number> {
+async function agentInvitesInWindow(workspaceId: string): Promise<number> {
   const admin = getSupabaseAdmin();
   const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
   const { count, error } = await admin
     .from("workspace_invites")
     .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId)
+    .eq("workspace_id", workspaceId)
     .eq("invited_by_kind", "agent")
     .gte("created_at", since);
   if (error) {
@@ -304,11 +301,11 @@ export async function inviteToWorkspace(
 
   const fromAgent = granter.principal.kind === "agent";
   if (fromAgent) {
-    const used = await agentInvitesInWindow(workspace.organization_id);
+    const used = await agentInvitesInWindow(workspace.id);
     if (used >= AGENT_INVITE_RATE_LIMIT) {
       throw new InvitationError(
         "rate_limited",
-        `agents may create at most ${AGENT_INVITE_RATE_LIMIT} invitations per hour in this organisation`,
+        `agents may create at most ${AGENT_INVITE_RATE_LIMIT} invitations per hour in this workspace`,
       );
     }
   }
@@ -334,7 +331,6 @@ export async function inviteToWorkspace(
   const admin = getSupabaseAdmin();
   const token = newToken();
   const row = {
-    organization_id: workspace.organization_id,
     workspace_id: workspace.id,
     email,
     invitee_name: input.name?.trim() || null,
@@ -352,12 +348,12 @@ export async function inviteToWorkspace(
     delivery_state: fromAgent ? "held" : "pending",
   };
 
-  // One pending invitation per (organisation, address): refreshing beats
-  // stacking duplicates, exactly as `createInvite` already does.
+  // One pending invitation per (workspace, address): refreshing beats
+  // stacking duplicates, exactly as the members screen's invitations do.
   const { data: existing } = await admin
     .from("workspace_invites")
     .select("id")
-    .eq("organization_id", workspace.organization_id)
+    .eq("workspace_id", workspace.id)
     .eq("email", email)
     .is("accepted_at", null)
     .maybeSingle();
@@ -414,7 +410,7 @@ export async function listHeldInvitations(grant: Grant): Promise<PendingDelivery
     .select(
       "id, email, invitee_name, role, token, verbs, expires_at, delivery_state, invited_by_kind",
     )
-    .eq("organization_id", workspace.organization_id)
+    .eq("workspace_id", workspace.id)
     .eq("delivery_state", "held")
     .is("accepted_at", null)
     .order("created_at", { ascending: false });
@@ -446,7 +442,7 @@ export async function releaseInvitation(
     .from("workspace_invites")
     .update({ delivery_state: "pending" })
     .eq("id", inviteId)
-    .eq("organization_id", workspace.organization_id)
+    .eq("workspace_id", workspace.id)
     .eq("delivery_state", "held")
     .is("accepted_at", null)
     .select(
@@ -467,9 +463,8 @@ export async function releaseInvitation(
 
 interface StoredInvitation {
   id: string;
-  organization_id: string;
-  organization_slug: string;
-  workspace_id: string | null;
+  workspace_id: string;
+  workspace_slug: string;
   email: string;
   role: string;
   verbs: Verb[] | null;
@@ -485,19 +480,18 @@ async function loadInvitation(token: string): Promise<StoredInvitation | null> {
   const { data } = await admin
     .from("workspace_invites")
     .select(
-      "id, organization_id, workspace_id, email, role, verbs, reach, invited_by, invited_by_kind, invited_by_agent_id, expires_at, accepted_at, organization:organizations(slug)",
+      "id, workspace_id, email, role, verbs, reach, invited_by, invited_by_kind, invited_by_agent_id, expires_at, accepted_at, workspace:workspaces(slug)",
     )
     .eq("token", token)
     .maybeSingle();
   if (!data) return null;
   if (data.accepted_at) return null;
   if (new Date(data.expires_at as string).getTime() < Date.now()) return null;
-  const org = (data as { organization?: { slug: string } }).organization;
+  const workspace = (data as { workspace?: { slug: string } | null }).workspace;
   return {
     id: data.id as string,
-    organization_id: data.organization_id as string,
-    organization_slug: org?.slug ?? "",
-    workspace_id: (data.workspace_id as string | null) ?? null,
+    workspace_id: data.workspace_id as string,
+    workspace_slug: workspace?.slug ?? "",
     email: data.email as string,
     role: data.role as string,
     verbs: (data.verbs as Verb[] | null) ?? null,
@@ -509,7 +503,7 @@ async function loadInvitation(token: string): Promise<StoredInvitation | null> {
   };
 }
 
-export type AcceptResult = { orgSlug: string } | { error: string };
+export type AcceptResult = { workspaceSlug: string } | { error: string };
 
 /**
  * Accept an invitation that carries a permission.
@@ -555,10 +549,10 @@ export async function acceptInvitation(
   }
 
   // A role-only invitation (everything written before this module, and
-  // everything the members screen still writes) keeps the old path exactly.
-  if (!invite.verbs || invite.verbs.length === 0 || !invite.workspace_id) {
-    const { acceptInvite } = await import("@/lib/workspaces/orgs");
-    return acceptInvite(token, user);
+  // everything the members screen still writes) keeps the role path.
+  if (!invite.verbs || invite.verbs.length === 0) {
+    const { acceptRoleInvite } = await import("@/lib/workspaces/members");
+    return acceptRoleInvite(token, user);
   }
 
   const admin = getSupabaseAdmin();
@@ -605,19 +599,8 @@ export async function acceptInvitation(
     };
   }
 
-  // Organisation membership: needed to see the organisation at all, and it
-  // carries no node access on its own.
-  await admin
-    .from("organization_memberships")
-    .upsert(
-      { user_id: user.id, organization_id: invite.organization_id, role: invite.role },
-      { onConflict: "user_id,organization_id" },
-    );
-
-  // Project membership for the invited workspace ONLY. `acceptInvite` adds one
-  // for every project in the organisation, which is right for a role invite and
-  // wrong here: an invitation that names a workspace grants that workspace, not
-  // whatever else the organisation happens to hold.
+  // The membership row (node RLS and the roster read it) beside the grant,
+  // which is what actually carries the verbs and reach.
   await admin
     .from("memberships")
     .upsert(
@@ -669,7 +652,7 @@ export async function acceptInvitation(
     });
   }
 
-  return { orgSlug: invite.organization_slug };
+  return { workspaceSlug: invite.workspace_slug };
 }
 
 /**

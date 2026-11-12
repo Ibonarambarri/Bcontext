@@ -1,33 +1,31 @@
 /**
- * The MCP endpoint of one workspace: `/mcp/<org>/<workspace>`.
+ * The pre-0100 MCP endpoint of one workspace: `/mcp/<org>/<workspace>`.
  *
- *   POST /mcp/:org/:workspace   — JSON-RPC requests
- *   GET  /mcp/:org/:workspace   — SSE stream for server-pushed messages
- *
- * The path fixes the workspace, so a project folder can carry its own
- * `.mcp.json` and the OAuth a client runs from here is bound to that
- * workspace (the 401 advertises this endpoint's own protected-resource
- * document). A user token is checked for membership like an explicit
- * `X-Bcontext-Workspace`; a workspace token must belong to this workspace.
- * A pair that is not well-formed is a 404 like a workspace that does not
- * exist — the path is public, the answer must not say more than that.
+ * Organizations are gone and the address is `/mcp/<slug>` now, but this path
+ * is written into `.mcp.json` files and client configs we cannot reach. It
+ * is served, not redirected: MCP clients POST JSON-RPC here and many do not
+ * follow a redirect on POST, and their OAuth grant is bound to this exact URL
+ * (RFC 8707 `resource`). So it behaves exactly as `/mcp/<slug>` for the
+ * workspace the pair resolves to (`workspace_legacy_refs`, see
+ * `@/lib/workspaces/resolve`), and its 401 points at this path's own
+ * protected-resource document.
  */
 import { handleMcpRequest } from "@/lib/mcp/http";
 import { withRoute } from "@/lib/route";
-import { parseWorkspaceRef, workspaceRefName } from "@bcontext-dev/contract/workspace-ref";
+import { legacyRefName, parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 
 type Params = { params: Promise<{ org: string; workspace: string }> };
 
 async function handle(req: Request, { params }: Params): Promise<Response> {
   const { org, workspace } = await params;
-  const ref = parseWorkspaceRef(workspaceRefName(org, workspace));
-  if (!ref) {
+  const ref = parseWorkspaceRef(legacyRefName(org, workspace));
+  if (ref?.kind !== "legacy") {
     return Response.json(
       { error: "workspace_not_found", message: `workspace "${org}/${workspace}" not found` },
       { status: 404 },
     );
   }
-  return handleMcpRequest(req, { workspaceRef: workspaceRefName(ref.org, ref.workspace) });
+  return handleMcpRequest(req, { workspaceRef: ref.name });
 }
 
 export const POST = withRoute(handle);

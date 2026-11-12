@@ -1,9 +1,7 @@
 /**
  * GET /api/admin/users — a page of everyone with an account and where they
- * belong. `q` (address), `organization`, `role` and `state` are applied
- * before the page is cut. Platform admins only. Personal zones are left out
- * of the org list: they are private space, not a place anyone is onboarded
- * into.
+ * belong. `q` (address), `workspace` (id), `role` and `state` are applied
+ * before the page is cut. Instance admins only.
  *
  * The payload also says how far the answer reached. Accounts live in the
  * auth server, which pages and cannot be searched, so this list walks it and
@@ -13,12 +11,12 @@
  */
 import { gateAdmin } from "@/lib/admin/access";
 import { readListParams } from "@/lib/admin/list-params";
-import { listAdminUsers } from "@/lib/admin/orgs";
+import { listAdminUsers } from "@/lib/admin/workspaces";
 import { withRoute } from "@/lib/route";
 import {
   ADMIN_USER_STATES,
   type AdminUserState,
-} from "@bcontext-dev/contract/admin-orgs";
+} from "@bcontext-dev/contract/admin-workspaces";
 import type { InviteRole } from "@bcontext-dev/contract/workspaces";
 
 const ROLES: readonly InviteRole[] = ["owner", "admin", "editor", "viewer"];
@@ -40,7 +38,7 @@ export const GET = withRoute(async (req: Request) => {
   return Response.json(
     await listAdminUsers({
       ...readListParams(url),
-      organization: url.searchParams.get("organization") ?? undefined,
+      workspace: url.searchParams.get("workspace") ?? undefined,
       role: (role as InviteRole | null) ?? undefined,
       state: (state as AdminUserState | null) ?? undefined,
     }),

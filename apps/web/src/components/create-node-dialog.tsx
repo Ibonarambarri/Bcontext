@@ -21,14 +21,9 @@
  *       context (`createNode`, optimistic) and navigates to it.
  *     • Credential: also type + environment, so the node is created already
  *       shaped (`CredentialShape`).
- *     • Meeting: a sub-picker — Paste transcript (textarea →
- *       `POST /api/meetings/attach-transcript/:id`) or Record with Recall
- *       (meeting URL + consent → `POST /api/connectors/meeting-bot/schedule`).
- *
- * "Record with Recall" creates the meeting node first (so the canonical
- * surfaces can show it immediately in a "Recording…" state) and then
- * schedules the bot with `attachToNodeId` pointing at it. The webhook
- * landing the transcript clears the lock.
+ *     • Meeting: an optional title and the pasted transcript; the node is
+ *       created, then `POST /api/meetings/attach-transcript/:id` attaches
+ *       the transcript and starts the refine job.
  *
  * Workspace tags are read once per open (`GET /api/tags`, the same call
  * `tag-picker.tsx` makes); the workspace context does not carry them.
@@ -47,7 +42,6 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import {
-  Bot,
   Bug,
   CheckSquare,
   ClipboardPaste,
@@ -62,7 +56,6 @@ import {
 } from "lucide-react";
 import {
   Button,
-  Checkbox,
   Description,
   Input,
   Label,
@@ -80,7 +73,7 @@ import type { NodeKind, WorkspaceTag } from "@bcontext-dev/contract/types";
 import { workspacePath, workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
 import { ConnectPicker, type ConnectValue } from "./connect-picker";
 
-type Step = "kind" | "form" | "meeting-choose" | "meeting-paste" | "meeting-record";
+type Step = "kind" | "form" | "meeting-paste";
 
 interface KindOption {
   kind: NodeKind;
@@ -105,7 +98,7 @@ export const KIND_OPTIONS: KindOption[] = [
   {
     kind: "meeting",
     label: "Meeting",
-    description: "Paste a transcript or drop a Recall bot into the call.",
+    description: "Paste a transcript; it is refined into notes.",
     Icon: Mic,
   },
   {
@@ -198,8 +191,6 @@ export function CreateNodeDialog({
 
   // Meeting-specific
   const [transcript, setTranscript] = useState("");
-  const [meetingUrl, setMeetingUrl] = useState("");
-  const [consent, setConsent] = useState(false);
 
   // Reset on close
   useEffect(() => {
@@ -210,15 +201,13 @@ export function CreateNodeDialog({
       setBusy(false);
       setConnect(EMPTY_CONNECT);
       setTranscript("");
-      setMeetingUrl("");
-      setConsent(false);
       setCredentialType("api_key");
       setCredentialEnv("");
     }
   }, [open, defaultKind]);
 
   const advanceFromKind = useCallback(() => {
-    if (kind === "meeting") setStep("meeting-choose");
+    if (kind === "meeting") setStep("meeting-paste");
     else setStep("form");
   }, [kind]);
 
@@ -288,60 +277,6 @@ export function CreateNodeDialog({
     }
   }, [title, transcript, connection, createNode, onClose, router, workspace, toast]);
 
-  const submitMeetingRecord = useCallback(async () => {
-    const t = title.trim() || defaultMeetingTitle();
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(meetingUrl);
-    } catch {
-      toast.error("Invalid meeting URL");
-      return;
-    }
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      toast.error("Meeting URL must be http(s)://");
-      return;
-    }
-    if (!consent) return;
-    setBusy(true);
-    try {
-      const node = await createNode({ title: t, kind: "meeting", ...connection });
-      if (!node) return;
-      const res = await fetch("/api/connectors/meeting-bot/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspace: workspaceApiRef(workspace),
-          meetingUrl: parsedUrl.toString(),
-          attachToNodeId: node.id,
-          consent: true,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-          error?: unknown;
-        };
-        const msg =
-          typeof body.message === "string"
-            ? body.message
-            : typeof body.error === "string"
-              ? body.error
-              : `Recording failed to start (${res.status})`;
-        toast.error(msg);
-        // Best-effort: the placeholder node is left in the tree; the user
-        // can delete it or attach a transcript manually.
-        return;
-      }
-      toast.info("Bot scheduled — recording will begin shortly.");
-      onClose();
-      router.push(workspacePath(workspace, `n/${node.id}`) as Route);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [title, meetingUrl, consent, connection, createNode, onClose, router, workspace, toast]);
-
   if (!open) return null;
 
   const { heading, subtitle } = stepCopy(step, kind);
@@ -393,13 +328,6 @@ export function CreateNodeDialog({
               </>
             ) : null}
 
-            {step === "meeting-choose" ? (
-              <>
-                <TitleField label="Title" optional value={title} onChange={setTitle} autoFocus />
-                <MeetingChoose onPaste={() => setStep("meeting-paste")} onRecord={() => setStep("meeting-record")} />
-              </>
-            ) : null}
-
             {step === "meeting-paste" ? (
               <>
                 <TitleField label="Title" optional value={title} onChange={setTitle} />
@@ -418,32 +346,6 @@ export function CreateNodeDialog({
                 {picker}
               </>
             ) : null}
-
-            {step === "meeting-record" ? (
-              <>
-                <TitleField label="Title" optional value={title} onChange={setTitle} />
-                <TextField type="url" value={meetingUrl} onChange={setMeetingUrl} fullWidth>
-                  <Label>Meeting URL</Label>
-                  <Input autoFocus placeholder="https://zoom.us/j/123…" />
-                </TextField>
-                <Checkbox
-                  isSelected={consent}
-                  onChange={setConsent}
-                  className="rounded-md border border-[var(--line)] bg-[var(--paper-2)] p-3"
-                >
-                  <Checkbox.Content className="items-start gap-2.5">
-                    <Checkbox.Control className="mt-0.5">
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <span className="text-[12px] leading-[1.55] text-[var(--ink-2)]">
-                      I confirm participants will be informed of recording. The bot announces itself on
-                      join; in two-party-consent regions, the requester is responsible for verbal consent.
-                    </span>
-                  </Checkbox.Content>
-                </Checkbox>
-                {picker}
-              </>
-            ) : null}
           </Modal.Body>
 
           <Modal.Footer>
@@ -455,7 +357,7 @@ export function CreateNodeDialog({
               <Button
                 variant="secondary"
                 isDisabled={busy}
-                onPress={() => setStep(step === "meeting-paste" || step === "meeting-record" ? "meeting-choose" : "kind")}
+                onPress={() => setStep("kind")}
               >
                 Back
               </Button>
@@ -477,16 +379,6 @@ export function CreateNodeDialog({
                 Create + attach
               </SubmitButton>
             ) : null}
-            {step === "meeting-record" ? (
-              <SubmitButton
-                busy={busy}
-                isDisabled={!consent || !isHttpUrl(meetingUrl)}
-                icon={<Bot size={12} />}
-                onPress={submitMeetingRecord}
-              >
-                Create + start recording
-              </SubmitButton>
-            ) : null}
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
@@ -500,26 +392,14 @@ function defaultMeetingTitle(): string {
   return `Meeting · ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function isHttpUrl(value: string): boolean {
-  try {
-    return ["http:", "https:"].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
-}
-
 function stepCopy(step: Step, kind: NodeKind): { heading: string; subtitle: string } {
   switch (step) {
     case "kind":
       return { heading: "Create a new node", subtitle: "Pick a kind. You can change content later." };
     case "form":
       return { heading: `New ${KIND_OPTIONS.find((option) => option.kind === kind)?.label.toLowerCase() ?? "node"}`, subtitle: "Give it a title and, if you like, connect it." };
-    case "meeting-choose":
-      return { heading: "New meeting", subtitle: "Drop in a transcript or schedule a bot." };
     case "meeting-paste":
-      return { heading: "Paste a transcript", subtitle: "Plain text or Markdown. Speaker labels keep their format." };
-    case "meeting-record":
-      return { heading: "Record with Recall", subtitle: "A bot joins the call and writes the transcript when it ends." };
+      return { heading: "New meeting", subtitle: "Paste the transcript. Plain text or Markdown; speaker labels keep their format." };
   }
 }
 
@@ -645,27 +525,6 @@ function KindGrid({
           description={description}
         />
       ))}
-    </div>
-  );
-}
-
-/* ─── Step 2 (meeting): choose source ─────────────────────────────────── */
-
-function MeetingChoose({ onPaste, onRecord }: { onPaste: () => void; onRecord: () => void }) {
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <ChoiceTile
-        onPress={onPaste}
-        icon={<ClipboardPaste size={14} />}
-        title="Paste transcript"
-        description="You already have it from Otter / Granola / a manual export. Refines in the background after submit."
-      />
-      <ChoiceTile
-        onPress={onRecord}
-        icon={<Mic size={14} />}
-        title="Record with Recall"
-        description="A bot joins the live call, records, and writes the transcript here when it ends."
-      />
     </div>
   );
 }

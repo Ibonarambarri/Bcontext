@@ -1,23 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * One person, read the way the platform grants access rather than the way the
- * membership table is shaped.
+ * One person, everything the instance knows about them.
  *
- * Three things are load-bearing. The platform-admin gate runs before anything
- * is read — the stub records every table it is asked for, so that is
- * observable. A workspace reached because the person owns its organization is
- * in the answer, marked, and appears once even when they also hold a
- * membership there. And an agent nothing has ever used stays in the list with
- * a null stamp, because "never used" is the state an operator came to see.
+ * Load-bearing: the instance-admin gate runs before anything is read — the
+ * stub records every table it is asked for, so that is observable. Every
+ * workspace the person holds a membership in is in the answer with its role.
+ * And an agent nothing has ever used stays in the list with a null stamp,
+ * because "never used" is the state an operator came to see.
  */
 let sessionUser: { id: string; email: string } | null = null;
 const reads: string[] = [];
 
 const USER_ID = "3f6c1b52-0a4d-4e11-9c8a-7b2d5e6f1a90";
-const ORG_ID = "9c2f1a4b-2d3e-4f5a-8b7c-1d2e3f4a5b6c";
 const WS_JOINED = "11111111-2222-3333-4444-555555555555";
-const WS_VIA_ORG = "66666666-7777-8888-9999-aaaaaaaaaaaa";
+const WS_OTHER = "66666666-7777-8888-9999-aaaaaaaaaaaa";
 const AGENT_ID = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff";
 
 const AUTH_USERS = [
@@ -31,15 +28,12 @@ const AUTH_USERS = [
 ];
 
 const TABLES: Record<string, Array<Record<string, unknown>>> = {
-  organization_memberships: [{ organization_id: ORG_ID, role: "owner", user_id: USER_ID }],
-  // The person joined one of the organization's two workspaces; the other is
-  // reached only through the org role.
-  memberships: [{ workspace_id: WS_JOINED, role: "editor", user_id: USER_ID }],
-  workspaces: [
-    { id: WS_JOINED, slug: "alpha", name: "Alpha", organization_id: ORG_ID },
-    { id: WS_VIA_ORG, slug: "beta", name: "Beta", organization_id: ORG_ID },
+  // Two memberships, read with the workspace joined in (sorted by slug in the
+  // answer, whatever order the rows come back in).
+  memberships: [
+    { user_id: USER_ID, role: "owner", workspace: { id: WS_OTHER, slug: "beta", name: "Beta" } },
+    { user_id: USER_ID, role: "editor", workspace: { id: WS_JOINED, slug: "alpha", name: "Alpha" } },
   ],
-  organizations: [{ id: ORG_ID, slug: "acme", name: "Acme" }],
   agents: [
     {
       id: AGENT_ID,
@@ -69,6 +63,10 @@ function makeAdmin() {
     };
     b.in = (column: string, values: unknown[]) => {
       rows = rows.filter((r) => values.includes(r[column]));
+      return b;
+    };
+    b.neq = (column: string, value: unknown) => {
+      rows = rows.filter((r) => r[column] !== value);
       return b;
     };
     b.is = () => b;
@@ -112,10 +110,9 @@ const asAdmin = () => {
 };
 
 interface Body {
-  workspaces: Array<{ slug: string; role: string; via_org_role: boolean }>;
+  workspaces: Array<{ slug: string; role: string }>;
   agents: Array<{ id: string; last_used_at: string | null; workspace_count: number }>;
   last_activity_at: string | null;
-  orgs: Array<{ slug: string; role: string }>;
   email: string;
   confirmed: boolean;
 }
@@ -153,18 +150,15 @@ describe("GET /api/admin/users/[id]", () => {
     expect(await res.json()).toMatchObject({ error: "not_found" });
   });
 
-  it("reports the workspace reached through the org role, once and marked", async () => {
+  it("reports every workspace the person belongs to, with its role", async () => {
     asAdmin();
     const res = await GET(request(), ctx());
     expect(res.status).toBe(200);
     const body = (await res.json()) as Body;
     expect(body).toMatchObject({ email: "ana@acme.test", confirmed: true });
-    expect(body.orgs).toEqual([{ id: ORG_ID, slug: "acme", name: "Acme", role: "owner" }]);
-    // Both workspaces of the organization they own, and the one they also
-    // joined is not counted twice — the membership is what names its role.
-    expect(body.workspaces.map((w) => [w.slug, w.role, w.via_org_role])).toEqual([
-      ["alpha", "editor", false],
-      ["beta", "owner", true],
+    expect(body.workspaces).toEqual([
+      { id: WS_JOINED, slug: "alpha", name: "Alpha", role: "editor" },
+      { id: WS_OTHER, slug: "beta", name: "Beta", role: "owner" },
     ]);
   });
 

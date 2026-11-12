@@ -1,20 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
-import { ALL_WORKSPACES_PATH, workspacesOfOrganization } from "./workspace-switcher";
+import { ALL_WORKSPACES_PATH, sortedWorkspaces } from "./workspace-switcher";
 
-function workspace(slug: string, org: { id: string; name: string }): WorkspaceCard {
+function workspace(slug: string, name = slug): WorkspaceCard {
   return {
-    id: `${org.id}-${slug}`,
-    organization_id: org.id,
+    id: `id-${slug}`,
     slug,
-    name: slug,
+    name,
     description: null,
     github_repo: null,
     metadata: {},
     created_at: "2026-07-18T00:00:00.000Z",
     role: "owner",
-    organization: { id: org.id, slug: org.id, name: org.name, role: "owner" },
     member_count: 1,
     open_task_count: 0,
     node_count: 0,
@@ -42,29 +40,26 @@ describe("sidebar workspace selector", () => {
   });
 });
 
-describe("one organization at a time", () => {
-  const acme = { id: "acme", name: "Acme" };
-  const bolt = { id: "bolt", name: "Bolt" };
+describe("every workspace, one flat list", () => {
+  it("lists every workspace the person belongs to, by name", () => {
+    const list = sortedWorkspaces([
+      workspace("product", "Product"),
+      workspace("docs", "Docs"),
+      workspace("archive", "Archive"),
+    ]);
 
-  it("lists only the workspaces of the organization you are in, by name", () => {
-    const list = workspacesOfOrganization(
-      [
-        workspace("product", acme),
-        workspace("docs", bolt),
-        workspace("archive", acme),
-      ],
-      "acme",
-    );
-
-    expect(list.map((w) => w.slug)).toEqual(["archive", "product"]);
+    expect(list.map((w) => w.slug)).toEqual(["archive", "docs", "product"]);
   });
 
-  it("falls back to everything when the workspace has no organization yet", () => {
-    const list = workspacesOfOrganization(
-      [workspace("docs", bolt), workspace("product", acme)],
-      null,
-    );
+  it("breaks a tie on the name by slug, so the order is stable", () => {
+    const list = sortedWorkspaces([workspace("docs-2", "Docs"), workspace("docs", "Docs")]);
 
-    expect(list.map((w) => w.slug)).toEqual(["docs", "product"]);
+    expect(list.map((w) => w.slug)).toEqual(["docs", "docs-2"]);
+  });
+
+  it("does not reorder the list it was given", () => {
+    const input = [workspace("b"), workspace("a")];
+    sortedWorkspaces(input);
+    expect(input.map((w) => w.slug)).toEqual(["b", "a"]);
   });
 });

@@ -35,7 +35,7 @@ const PEOPLE = [
     email_confirmed_at: LONG_AGO,
   },
   // No membership anywhere: invited and never arrived, which is exactly the
-  // person a list built on `organization_memberships` could not show.
+  // person a list built on `memberships` could not show.
   {
     id: "u-invited",
     email: "carla@other.test",
@@ -46,18 +46,17 @@ const PEOPLE = [
 ];
 
 const DATA: Record<string, Array<Record<string, unknown>>> = {
-  organization_memberships: [
-    { user_id: "u-live", organization_id: "org-1", role: "owner" },
-    { user_id: "u-never", organization_id: "org-1", role: "viewer" },
+  memberships: [
+    { user_id: "u-live", role: "owner", workspace: { id: "ws-1", slug: "acme", name: "Acme" } },
+    { user_id: "u-never", role: "viewer", workspace: { id: "ws-1", slug: "acme", name: "Acme" } },
   ],
-  organizations: [{ id: "org-1", slug: "acme", name: "Acme" }],
 };
 
 function makeAdmin() {
   const from = (table: string) => {
     reads.push(table);
     const b: Record<string, unknown> = {};
-    for (const k of ["select", "order", "limit", "eq", "in", "is", "range"]) b[k] = () => b;
+    for (const k of ["select", "order", "limit", "eq", "neq", "in", "is", "range"]) b[k] = () => b;
     b.then = (resolve: (v: unknown) => unknown) =>
       resolve({ data: DATA[table] ?? [], error: null });
     return b;
@@ -141,7 +140,7 @@ describe("GET /api/admin/users", () => {
     expect(body.items.map((u) => u.id)).toEqual(["u-live", "u-never", "u-invited"]);
     expect(body.items[0]).toMatchObject({
       email: "ana@acme.test",
-      orgs: [{ slug: "acme", role: "owner" }],
+      workspaces: [{ slug: "acme", role: "owner" }],
     });
     expect(body.total).toBe(3);
   });
@@ -165,7 +164,7 @@ describe("GET /api/admin/users", () => {
     expect(search.items.map((u) => u.id)).toEqual(["u-invited"]);
     expect(search.total).toBe(1);
 
-    expect((await list("?organization=org-1")).items.map((u) => u.id)).toEqual([
+    expect((await list("?workspace=ws-1")).items.map((u) => u.id)).toEqual([
       "u-live",
       "u-never",
     ]);

@@ -26,7 +26,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "chat.thread.completed",
   "job.completed",
   "skill.invoked",
-  /** NEXO published a weekly digest doc (src/lib/skills/digest.ts). */
+  /** The weekly digest skill published a doc (src/lib/skills/digest.ts). */
   "digest.published",
 ] as const;
 

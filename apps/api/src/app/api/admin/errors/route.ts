@@ -13,7 +13,7 @@
  *     a default rather than a wall. See `listAdminErrors`.
  *
  * A `service`, `status` or `level` nobody defined is a 400, exactly as an
- * unknown `state` is on the organizations list: answering a typo with the
+ * unknown `state` is on the workspaces list: answering a typo with the
  * unfiltered list would read as "no such problem exists".
  *
  * Platform admins only.

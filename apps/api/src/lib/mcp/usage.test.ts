@@ -46,7 +46,7 @@ describe("recordMcpToolCall", () => {
   });
 
   it("buckets by the UTC YYYY-MM the counters use", async () => {
-    recordMcpToolCall(WS, "nodes", {}, new Date("2026-03-31T23:30:00Z"));
+    recordMcpToolCall(WS, "nodes", new Date("2026-03-31T23:30:00Z"));
     await flushMcpUsage();
     expect(rpc).toHaveBeenCalledWith(
       "increment_mcp_usage",

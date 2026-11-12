@@ -12,7 +12,6 @@ type Mode = "signup" | "signin";
 interface Props {
   token: string;
   invitedEmail: string;
-  organizationName: string;
   role: string;
 }
 
@@ -24,12 +23,7 @@ interface Props {
  * The address is fixed: the invitation was issued to it, so the field shows it
  * and cannot be edited.
  */
-export function InviteAuthForm({
-  token,
-  invitedEmail,
-  organizationName,
-  role,
-}: Props) {
+export function InviteAuthForm({ token, invitedEmail, role }: Props) {
   const [mode, setMode] = useState<Mode>("signup");
   const action = mode === "signup" ? inviteSignUpAction : inviteSignInAction;
   const [state, formAction, pending] = useActionState<InviteAuthState, FormData>(
@@ -40,7 +34,7 @@ export function InviteAuthForm({
   return (
     <>
       <p className="pa-sub">
-        You&apos;ll join {organizationName} as {role}.
+        You&apos;ll join as {role}.
       </p>
 
       <form action={formAction} className="pa-form">

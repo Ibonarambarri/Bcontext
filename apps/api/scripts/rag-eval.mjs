@@ -19,7 +19,7 @@
  * Dataset — a JSON file you keep next to your workspace:
  *
  *   {
- *     "workspace": "org/workspace",           // or null: pass --workspace
+ *     "workspace": "my-workspace",           // or null: pass --workspace
  *     "questions": [
  *       { "id": "short-name",
  *         "question": "why did we choose webhooks?",
@@ -34,7 +34,7 @@
  * (`docs/ops/local-stack.md`) the same script with `BCONTEXT_API_URL`.
  *
  * Options: --dataset <path> (required),
- * --workspace <org/ws>, --mode embeddings|keyword|both (default both),
+ * --workspace <slug>, --mode embeddings|keyword|both (default both),
  * --k <n> (default 10, max 20), --only <question id>, --json,
  * --fail-under <mrr> (exit 1 when a scored mode's MRR is below it).
  */
@@ -50,7 +50,7 @@ if (!args.dataset) fail("--dataset <path> is required");
 const datasetPath = resolve(args.dataset);
 const dataset = JSON.parse(await readFile(datasetPath, "utf8"));
 const workspace = args.workspace ?? dataset.workspace;
-if (!workspace) fail(`dataset ${datasetPath} names no workspace; pass --workspace org/ws`);
+if (!workspace) fail(`dataset ${datasetPath} names no workspace; pass --workspace <slug>`);
 const k = Math.min(20, Math.max(1, Number(args.k ?? 10)));
 const modes = args.mode === "both" || !args.mode ? ["embeddings", "keyword"] : [args.mode];
 if (modes.some((m) => m !== "embeddings" && m !== "keyword")) fail(`--mode must be embeddings, keyword or both`);

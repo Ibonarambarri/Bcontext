@@ -12,37 +12,21 @@ worker | errors`). The web app is `apps/web`; the types both share are
 
 ## What's inside
 
-- **MCP server** at `/mcp` and, per workspace, `/mcp/<org>/<workspace>`
-  (Streamable HTTP, stateless): 28 native tools —
+- **MCP server** at `/mcp` and, per workspace, `/mcp/<workspace>`
+  (Streamable HTTP, stateless; the pre-0100 `/mcp/<org>/<workspace>` path is
+  still served as an alias): 25 tools —
   `brief`, `nodes` / `nodes_write`, `subtasks` / `subtasks_write`, `goals` /
   `goals_write`, `data` / `data_write`, `tags` / `tags_write`, `views` /
   `views_write`, `links_write`, `ingest` / `ingest_write`, `skills` /
-  `skills_write` / `skills_run`, `admin` / `admin_write`, `capabilities` /
-  `capabilities_write`, `ask_nexo`, `ask_rag`, `list_changes`,
-  `list_workspaces`, `ping` — plus `capability_search` / `capability_call`,
-  the two through which external tools and skills are found and run (30 in
-  all; `admin`, `admin_write`, `capabilities` and `capabilities_write` need
-  the admin scope). `tools/list` is per-principal: what a token cannot do is not shown. This is
-  the agent surface; the server `instructions` from `initialize` are the
-  manual.
-- **`ask_nexo`** (`src/lib/nexo`): the question tool for agents, with
-  `ask_rag` as the retrieval primitive under it. A cited answer plus
-  `confidence`, `freshness` (stale / superseded hits), open `conflicts`,
-  `knowledge_gaps` and `suggested_actions`; `mode` is `fast`, `deep` (walks
-  `blocked_by` / `supersedes` / `references` one level) or `auto`. Grants
-  apply before rerank and before any model context.
-- **External capabilities** (`src/lib/capabilities`): other MCP servers and
-  webhooks connected per workspace, with grants per principal, versions,
-  managed OAuth, pinned egress and an invocation ledger. Self-service from
-  the product: Tools → Add provider → paste the MCP URL and its token → the
-  tools are imported → grant. A static token (bearer or custom header) is
-  write-only — stored in Supabase Vault on connect, the connection row keeps
-  a `vault:<uuid>` reference, and no read path or audit row ever returns it;
-  nothing is configured on the API process. Their tools are never inlined
-  in `tools/list`: an agent finds them (and the workspace's skills) with
-  `capability_search` and runs one with `capability_call(ref, args)`, where
-  `ref` is a stable `<provider>/<capability>/<tool>` or `skill/<slug>`,
-  re-authorized on every call.
+  `skills_write` / `skills_run`, `admin` / `admin_write`, `ask_rag`,
+  `list_changes`, `list_workspaces`, `ping` (`admin` and `admin_write` need
+  the admin verb). `tools/list` is per-principal: what a token cannot do is
+  not shown. This is the agent surface; the server `instructions` from
+  `initialize` are the manual.
+- **`ask_rag`** (`src/lib/rag`): the question tool for agents — retrieval
+  within the caller's grant, rerank, and a cited answer (`synthesize:false`
+  for the hits only). Grants apply before rerank and before any model
+  context.
 - **REST** under `/api/*` for humans and automations that cannot speak MCP —
   the web app, scripts, CI hooks, curl. Not an agent surface (stated in
   `/.well-known/agents.json` and `/llms.txt`); `/api/agents/{context,write}`
@@ -52,40 +36,28 @@ worker | errors`). The web app is `apps/web`; the types both share are
   RLS is not evaluated at runtime — the grant model is the authorisation.
   Agent tokens (`bctx_live_…`) or OAuth 2.1 with PKCE, dynamic client
   registration and resource indicators (RFC 8707): a grant made through
-  `/mcp/<org>/<workspace>` is that workspace's alone.
-- **Organizations and accounts**: a signed-in person creates an
-  organization with its first workspace (`POST /api/organizations`) and
-  becomes its owner; others join by invitation. `ORG_CREATION=open` (default)
-  also allows self-service signup (`POST /api/signup`); `admin` keeps both to
-  the instance admins (`ADMIN_EMAILS`), who create organizations and invite
-  their owners. No plans, quotas or billing: usage is counted per
-  organization for administrators to read, never enforced.
+  `/mcp/<workspace>` is that workspace's alone.
+- **Workspaces and accounts**: the workspace is the only top-level entity —
+  members with a role (`owner`, `admin`, `editor`, `viewer`), agents,
+  invitations and usage all belong to one, and its slug is unique across the
+  instance. A signed-in person creates a workspace (`POST /api/workspaces`)
+  and becomes its owner; others join by invitation.
+  `WORKSPACE_CREATION=open` (default) also allows self-service signup
+  (`POST /api/signup`); `admin` keeps both to the instance admins
+  (`ADMIN_EMAILS`), who create workspaces and invite their owners. No plans,
+  quotas or billing: usage is counted per workspace for administrators to
+  read, never enforced.
 - **Knowledge graph**: docs, tasks (with subtasks), decisions, meetings, bugs,
   ADRs, goals, datasets, skills, credentials as typed nodes; H2 headings
   become addressable blocks (`/n/<id>#<slug>`); typed edges (`blocked_by`,
   `references`, `supersedes`, `contributes_to`…).
 - **Retrieval**: pgvector + keyword fallback, scoped (`view`, `tags`,
   `selection`, `neighborhood`), every hit carries a paste-ready `ref`.
-- **Nexos** (`src/lib/nexos`): the workspace's own agents. One general
-  Nexo plus specialists created from a short questionnaire (Bcontext writes
-  the prompt). Each one acts through its own principal (an `agents` row with
-  provider `nexo` and its grant), owns integrations through bindings, and
-  works on its own: a heartbeat in active hours, and messages on its
-  channels collected per thread and fed to the brain in one batch when the
-  thread goes quiet. Autonomy `observe` | `draft` | `act` decides whether it
-  replies, files a draft in its inbox or only escalates. Runs are budgeted
-  per Nexo; an org may bring its own model key (BYOK). REST under
-  `/api/nexos/*`; no MCP tools of its own.
-- **Integrations** (`src/lib/connectors`): first-party connectors (GitHub
-  App, Slack, Linear, Notion, meeting bots) and a self-hosted **Nango** for
-  the long tail (auth + proxy only, `docs/integrations-nango.md`). In the
-  product an integration is connected *to a Nexo*; unbound sources keep the
-  workspace-wide ingest.
 - **Realtime** on the same listener (`ws`): presence, events and Yjs frames
   at `/realtime/ws/:workspaceId` and `/realtime/collab/:nodeId`, authorised
   by the same grants; fan-out between processes over Postgres `LISTEN/NOTIFY`.
-- **Worker** (`pg-boss`): webhook drain, connector runs, capability health
-  checks, Nexo heartbeats, window flushes and runs, auto-archive — same image as the API, `BCONTEXT_PROCESS=worker`.
+- **Worker** (`pg-boss`): webhook drain, scheduled skills, error retention,
+  auto-archive — same image as the API, `BCONTEXT_PROCESS=worker`.
 - **Error collector** (`src/errors`): the third process of the image
   (`BCONTEXT_PROCESS=errors`); API, worker, web and browser report to it,
   the admin panel reads `error_groups` / `error_events`.
@@ -144,8 +116,7 @@ ones that matter first:
 | `REALTIME_SECRET` | api, worker | `POST /realtime/broadcast` for a process without `DATABASE_URL` |
 | `ERRORS_INGEST_URL`, `ERRORS_INGEST_KEY`, `ERRORS_*` | all | the error collector; unset = reporting is a no-op |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `INSTANCE_NAME` | api, worker | email: no sender default, so without both nothing is sent |
-| `GITHUB_APP_*`, `SLACK_*`, `LINEAR_*`, `NOTION_*`, `NANGO_*`, `RECALL_*` | api, worker | the connectors; `NANGO_SERVER_URL` has no default |
-| `ORG_CREATION` (`open` \| `admin`) | api | who may sign up and create organizations (`admin` = only `ADMIN_EMAILS`) |
+| `WORKSPACE_CREATION` (`open` \| `admin`) | api | who may sign up and create workspaces (`admin` = only `ADMIN_EMAILS`). The pre-0100 name `ORG_CREATION` is still read when this is unset |
 
 ## Repo layout
 
@@ -157,19 +128,18 @@ src/
   lib/
     auth/                 grants, scopes, tokens, OAuth 2.1 — the permission engine
     mcp/                  the MCP server, its tools and its HTTP transport
-    nexo/, rag/           ask_nexo, retrieval and scoping
-    capabilities/         external MCP servers and webhooks behind the gateway
-    connectors/, nango/   first-party connectors and the Nango catalogue
+    rag/                  ask_rag, retrieval and scoping
+    graph/                graph snapshots and entity linking after each write
     realtime/, collab/    hub + client (ws), Yjs
     queue/                pg-boss queues and cadence
     storage/, supabase/   the data layer (service role; grants do the scoping)
   worker/                 the queue worker entrypoint
   errors/                 the error collector process
-supabase/migrations/      the schema, 0001 … 0098 (applied by deploy/migrate/migrate.sh in compose)
+supabase/migrations/      the schema, 0001 … 0099 (applied by deploy/migrate/migrate.sh in compose)
 scripts/                  verify.sh, build-*, gen-api-routes, mcp-client, rag-eval…
 docs/
   ops/                    local-stack, worker
-  credentials.md, integrations-nango.md
+  credentials.md
 ```
 
 ## Development rules
@@ -202,7 +172,7 @@ for uptime.
 
 ## Agents, in one paragraph
 
-Connect an MCP host to `https://<your domain>/mcp/<org>/<workspace>` with a
+Connect an MCP host to `https://<your domain>/mcp/<workspace>` with a
 workspace agent token (`bctx_live_…`, created in the web app under Agents) or
 through OAuth 2.1 — the per-workspace URL is the one for a project's own
 `.mcp.json`, and OAuth through it yields a token bound to that workspace.

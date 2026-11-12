@@ -15,7 +15,7 @@ function node(id: string, patch: Partial<KnowledgeNode> = {}): KnowledgeNode {
 function storage(nodes: KnowledgeNode[], edges: NodeEdge[] = [], aliases: Record<string, string> = {}, tagRelations: TagRelation[] = []): Storage {
   return {
     backend: "demo",
-    workspace: { id: "ws-1", organization_id: "org", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: stamp },
+    workspace: { id: "ws-1", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: stamp },
     listNodes: async () => nodes,
     listEdges: async () => edges,
     resolveTagIds: async (names: string[]) => new Map(names.flatMap((name) => aliases[name] ? [[name, aliases[name]]] : [])),

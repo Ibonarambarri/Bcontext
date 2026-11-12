@@ -379,7 +379,7 @@ export function missingCredentialSlots(credential: Credential): CredentialSlot[]
 
 /**
  * `bx://credential/<node_id>#<field_key>` — how a credential is named in
- * prose, in a capability config or in a shell command. A reference is not
+ * prose, in a config file or in a shell command. A reference is not
  * secret: it says WHICH value is wanted, never the value.
  */
 export function credentialRef(nodeId: string, fieldKey: string): string {

@@ -22,7 +22,7 @@ key" into "we leaked everything". It also cannot be referenced: every
 mechanism below addresses a credential by node id.
 
 Classification is the tag taxonomy, like everything else in the graph —
-`#billing`, `#infra`, `#nango`. Tags say what a credential is about;
+`#billing`, `#infra`, `#ci`. Tags say what a credential is about;
 `environment` says where it is valid; the title says which one it is.
 
 ## Shape
@@ -124,7 +124,5 @@ reporter.
 
 ## What is still open
 
-Server-side injection — `{{credential:<id>#<field>}}` resolved by the
-capability gateway at invocation time, so the value never reaches even the
-agent's shell — is the next step, not this one. Today the shell recipe is the
-boundary.
+Nothing on the server injects a value into a call on an agent's behalf: the
+shell recipe is the boundary.

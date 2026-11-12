@@ -1,7 +1,7 @@
 /**
  * The workspace change feed (`list_changes` tool, `GET /api/activity`, the
  * "Changes" view): snapshot shape recorded per node write, provenance (who —
- * user, agent token, connector — and through which surface), the realtime
+ * user, agent token, system — and through which surface), the realtime
  * event names that invalidate it, cursor encoding, and the redaction that
  * keeps credential values and private reasoning out of the feed.
  *

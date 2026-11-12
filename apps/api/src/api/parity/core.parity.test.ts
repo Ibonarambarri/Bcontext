@@ -44,7 +44,6 @@ import * as nodeExportRoute from "@/app/api/nodes/[id]/export/route";
 import * as nodeInspectorRoute from "@/app/api/nodes/[id]/inspector/route";
 import * as nodeTagsRoute from "@/app/api/nodes/[id]/tags/route";
 import * as nodeSubtasksRoute from "@/app/api/nodes/[id]/subtasks/route";
-import * as skillsPush from "@/app/api/skills/push/route";
 import * as skillRunRoute from "@/app/api/skills/[id]/run/route";
 import * as tags from "@/app/api/tags/route";
 import * as tagRoute from "@/app/api/tags/[id]/route";
@@ -624,17 +623,6 @@ describe("parity: /api/activity", () => {
 });
 
 describe("parity: /api/skills", () => {
-  it("POST /api/skills/push", async () => {
-    const { slug } = workspace("skills-push");
-    // Demo storage has no GitHub connection to push to; the route says so
-    // with a 400 that is the same on both sides.
-    const demo = await assertParity(app, skillsPush, { method: "POST", path: "/api/skills/push", body: { workspace: slug } });
-    expect(demo.status).toBe(400);
-    expect(demo.body).toEqual({ error: "supabase_required" });
-    expect((await assertParity(app, skillsPush, { method: "POST", path: "/api/skills/push", body: {} })).status).toBe(400);
-    expect((await assertParity(app, skillsPush, { method: "POST", path: "/api/skills/push", body: { workspace: "no-such-workspace" } })).status).toBe(404);
-  });
-
   it("POST /api/skills/:id/run", async () => {
     const { slug, storage } = workspace("skill-run");
     const doc = await storage.createNode({ title: "Not a skill", kind: "doc", parent_id: null });

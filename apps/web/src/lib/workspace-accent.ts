@@ -213,7 +213,7 @@ function deriveWorkspaceAccent(gradient: WorkspaceGradient): WorkspaceAccent {
 const PRODUCT_INFO = "oklch(62.04% 0.195 253.83)";
 
 /**
- * CSS emitted SERVER-SIDE by the workspace layout (`app/w/[org]/[ws]/layout.tsx`)
+ * CSS emitted SERVER-SIDE by the workspace layout (`app/w/[ws]/layout.tsx`)
  * as an inline `<style>` so the accent ships in the first HTML chunk — the
  * accent must be live BEFORE first paint or buttons flash HeroUI blue for a
  * frame (FOUC reported against PR #120).

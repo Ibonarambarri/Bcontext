@@ -8,7 +8,7 @@
  * regenerated from the node that is its single source.
  *
  * Usage:
- *   BCONTEXT_MCP_TOKEN=... node scripts/export-skill.mjs <org/workspace> <skill-name> <out-path>
+ *   BCONTEXT_MCP_TOKEN=... node scripts/export-skill.mjs <workspace> <skill-name> <out-path>
  *
  * Env:
  *   BCONTEXT_MCP_TOKEN   agent token (required)
@@ -22,7 +22,7 @@ import process from "node:process";
 
 const [workspaceRef, skillName, outPath] = process.argv.slice(2);
 if (!workspaceRef || !skillName || !outPath || workspaceRef.startsWith("-")) {
-  console.error("usage: export-skill.mjs <org/workspace> <skill-name> <out-path>");
+  console.error("usage: export-skill.mjs <workspace> <skill-name> <out-path>");
   process.exit(2);
 }
 const token = process.env.BCONTEXT_MCP_TOKEN;

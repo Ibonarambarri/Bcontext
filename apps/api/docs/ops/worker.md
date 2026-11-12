@@ -13,17 +13,10 @@ against that file (creates what is declared, removes what was dropped).
 | Queue | Cron | Domain code |
 |---|---|---|
 | `webhook.drain` | `* * * * *` (+ on demand) | `src/lib/webhooks/worker.ts` → `processDeliveries` |
-| `connector.drain` | `* * * * *` | `src/lib/connectors/worker.ts` → `processConnectorJobs` |
-| `connector.schedule` | `* * * * *` | `src/lib/connectors/scheduler.ts` → `scheduleDueSyncs` (queues a `full_sync` when `config.next_run_at` is due) |
-| `capability.health-check` | `* * * * *` | `src/lib/capabilities/health-check.ts` → `runCapabilityHealthChecks` |
 | `errors.retention` | `20 4 * * *` | `src/lib/errors/retention.ts` → `purgeErrorTelemetry` (`ERRORS_EVENT_RETENTION_DAYS`, `ERRORS_GROUP_RETENTION_DAYS`) |
 | `tasks.auto-archive` | `40 4 * * *` | `src/lib/tasks/auto-archive.ts` → `archiveStaleDoneTasks` (tasks and bugs `done` and untouched for `TASKS_AUTO_ARCHIVE_DAYS`, default 30) |
-| `nexo.contradictions` | `0 5 * * *` (+ on demand) | `src/lib/nexo/contradictions.ts` → `runContradictionScan` (compares recently edited H2 blocks with the nearest blocks of other nodes; a contradiction opens a `nexo_conflicts` row, never edits a node; capped by `NEXO_CONTRADICTIONS_MAX_PAIRS` model calls per workspace per day) |
 | `skills.schedule` | `*/5 * * * *` | `src/lib/skills/schedules.ts` → `scheduleDueSkills` |
 | `skills.run-scheduled` | on demand | `src/lib/skills/schedules.ts` → `runScheduledSkill` (e.g. the weekly digest) |
-| `nexos.heartbeat` | `* * * * *` | `src/lib/nexos/triggers/heartbeat.ts` → `scheduleDueHeartbeats` (active hours in the Nexo's own time zone) |
-| `nexos.run` | on demand | `src/lib/nexos/triggers/run-job.ts` → `runNexo` (one turn; at most one queued and one active per key) |
-| `nexos.flush-windows` | `* * * * *` | `src/lib/nexos/triggers/flush.ts` → `flushDueWindows` (thread windows closed by silence, size or age: extract, triage, then one `batch` turn) |
 
 On boot it logs `worker.boot.ready` with the registered queues and schedules.
 

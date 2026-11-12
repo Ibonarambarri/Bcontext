@@ -69,7 +69,7 @@ const DATA: Record<string, Array<Record<string, unknown>>> = {
     group({
       id: "g-ignored",
       service: "web",
-      operation: "web.route:/w/[org]/[ws]",
+      operation: "web.route:/w/[ws]",
       level: "warning",
       message: "hydration noise",
       status: "ignored",

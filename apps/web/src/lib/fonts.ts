@@ -1,15 +1,17 @@
 /**
- * The two Google-font sets the app loads through `next/font`, exposed as CSS
+ * The two font sets the app loads through `next/font`, exposed as CSS
  * variable class strings the root layout puts on `<html>`. Which family a
  * surface uses is decided in CSS (`globals.css`), not here.
+ *
+ * The files are vendored in `src/fonts/` (latin subset, variable woff2,
+ * SIL Open Font License — see `src/fonts/README.md`) and loaded with
+ * `next/font/local`. `next/font/google` downloaded them from Google at build
+ * time, which made `next build` (CI and the self-hosted image build) fail
+ * whenever Google Fonts answered slowly or oddly, and made every
+ * self-hosted build call Google. Must not break: the CSS variable names,
+ * which `globals.css` reads.
  */
-import {
-  Bricolage_Grotesque,
-  Figtree,
-  IBM_Plex_Sans,
-  IBM_Plex_Serif,
-  Martian_Mono,
-} from "next/font/google";
+import localFont from "next/font/local";
 
 /**
  * The field type system, shared with the landing:
@@ -19,23 +21,26 @@ import {
  * Loaded once in the root layout; surfaces adopt them progressively.
  */
 
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["400", "700"],
+const bricolage = localFont({
+  src: "../fonts/bricolage-grotesque-latin.woff2",
+  weight: "400 700",
+  style: "normal",
   variable: "--f-bricolage",
   display: "swap",
 });
 
-const figtree = Figtree({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const figtree = localFont({
+  src: "../fonts/figtree-latin.woff2",
+  weight: "400 600",
+  style: "normal",
   variable: "--f-figtree",
   display: "swap",
 });
 
-const martianMono = Martian_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const martianMono = localFont({
+  src: "../fonts/martian-mono-latin.woff2",
+  weight: "400 500",
+  style: "normal",
   variable: "--f-martian-mono",
   display: "swap",
 });
@@ -48,17 +53,18 @@ export const fieldFontVars = `${bricolage.variable} ${figtree.variable} ${martia
  * highlighted word in a title.
  */
 
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const plexSans = localFont({
+  src: "../fonts/ibm-plex-sans-latin.woff2",
+  weight: "400 500",
+  style: "normal",
   variable: "--f-plex-sans",
   display: "swap",
 });
 
-const plexSerif = IBM_Plex_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["italic"],
+const plexSerif = localFont({
+  src: "../fonts/ibm-plex-serif-latin.woff2",
+  weight: "400",
+  style: "italic",
   variable: "--f-plex-serif",
   display: "swap",
 });

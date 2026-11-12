@@ -48,7 +48,7 @@ flowchart LR
     CX[Codex / any MCP client]
   end
   subgraph Bcontext
-    MCP["/mcp/org/workspace<br/>OAuth 2.1 · scoped tokens"]
+    MCP["/mcp/workspace<br/>OAuth 2.1 · scoped tokens"]
     G[("Workspace graph<br/>tasks · decisions · docs<br/>meetings · bugs · ADRs")]
     R[Hybrid search<br/>pgvector + keyword]
   end
@@ -97,8 +97,7 @@ and a status lifecycle. Every `##` heading is an addressable block
 **🔌 An MCP server built for agents**<br>
 Per-workspace endpoints, OAuth 2.1 or scoped agent tokens, and a
 `tools/list` filtered to what each caller may do. Optimistic concurrency on
-writes, a change feed to re-sync cheaply, and other MCP servers proxied
-behind `capability_search` / `capability_call`.
+writes and a change feed to re-sync cheaply.
 
 </td>
 </tr>
@@ -115,7 +114,7 @@ Ollama or LiteLLM.
 <td valign="top">
 
 **👥 Built for teams, with an audit trail**<br>
-Organizations, workspaces, invitations and per-principal grants. Every
+Workspaces with members, roles, invitations and per-principal grants. Every
 write records who made it, person or agent, in an append-only log with a
 hash chain. A collaborative editor for the humans.
 
@@ -124,19 +123,18 @@ hash chain. A collaborative editor for the humans.
 <tr>
 <td valign="top">
 
-**🤖 Nexos: the workspace's own agents**<br>
-Agents that live inside a workspace with a shared brain: an inbox, a
-heartbeat, a monthly budget and a chat. They triage, flag contradictions
-between decisions and answer questions about the workspace.
+**🧩 Skills the whole team's agents share**<br>
+Skills are nodes: import one from a `SKILL.md`, and any connected agent can
+fetch it as instructions to run with its own model. Skills can also run on a
+schedule, like the built-in weekly digest.
 
 </td>
 <td valign="top">
 
-**🔗 Integrations**<br>
-Native connectors for GitHub, Slack, Linear and Notion, plus a long tail
-through a self-hosted [Nango](https://nango.dev). What they bring in is
-extracted into candidates in a review inbox, accepted by a person or
-auto-accepted above a confidence threshold you set.
+**🎙️ Meetings into decisions**<br>
+Paste a meeting transcript and it is refined into a meeting node; the
+decisions, tasks and bugs it contains are proposed into a review inbox that
+an agent or a person accepts or dismisses.
 
 </td>
 </tr>
@@ -185,14 +183,14 @@ git clone https://github.com/Ibonarambarri/bcontext.git && cd bcontext
 docker compose up -d
 ```
 
-Open <http://localhost>, create your account and organization at `/start`,
+Open <http://localhost>, create your account and your first workspace at `/start`,
 and you're in. The first `up` builds the images from source when no release
 image is available, which takes a few minutes. Port 80 taken? Add
 `--http-port 8080` to `setup.sh`.
 
 On a server with a real domain, Caddy gets the HTTPS certificate
 automatically: see [docs/self-hosting.md](docs/self-hosting.md) for DNS, email,
-AI keys, backups and updates.
+the AI backend, backups and updates.
 
 ## Connect your agent
 
@@ -200,7 +198,7 @@ In the web app, **Agents → Add agent** gives you a ready-to-paste snippet for
 each client. For Claude Code by hand:
 
 ```bash
-claude mcp add --transport http bcontext https://your-host/mcp/<org>/<workspace>
+claude mcp add --transport http bcontext https://your-host/mcp/<workspace>
 ```
 
 Claude Code opens the browser to approve the connection (OAuth). For the
@@ -220,7 +218,7 @@ plugin, which adds the working conventions as a skill and a
 | `caddy` | A single origin for everything: the web app, the API, `/mcp` and the Supabase gateway, with automatic HTTPS |
 | `web` | The Next.js app (`apps/web`). It has no data of its own and calls the API over HTTP |
 | `api` | REST, the MCP server and realtime WebSockets (`apps/api`) |
-| `worker` | pg-boss queues: webhooks, connector syncs, Nexo runs, retention (same image as `api`) |
+| `worker` | pg-boss queues: outbound webhooks, scheduled skills, retention (same image as `api`) |
 | `migrate` | One-shot: applies pending migrations, then exits; `api` and `worker` wait for it |
 | `db` | Postgres 15 with pgvector (`supabase/postgres`) |
 | `auth`, `rest`, `storage`, `kong` | Supabase Auth, PostgREST, Storage (files on a volume) and its gateway |

@@ -33,7 +33,7 @@ const UpdateTagSchema = z.object({
 
 /**
  * Deleting a tag drops it from every node it classifies, so on top of the
- * verb it keeps the org-role bar this route always had: the grant model is
+ * verb it keeps the owner/admin role bar this route always had: the grant model is
  * not allowed to lower it.
  */
 async function adminStorage(

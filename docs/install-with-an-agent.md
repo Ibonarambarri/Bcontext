@@ -118,21 +118,20 @@ the failing one and see Troubleshooting.
 Creating the account needs a password only they should know. Tell them:
 
 > Open **<PUBLIC_URL>/start**, create your account with **<admin email>**
-> and name your organization (its first workspace, `general`, is created
-> for you). Tell me when you are in.
+> and name your first workspace. Tell me when you are in.
 
 When they confirm, ask for the URL they see in the browser; it looks like
-`<PUBLIC_URL>/w/<org>/<workspace>`. The two slugs are what you need.
+`<PUBLIC_URL>/w/<workspace>`. The slug is what you need.
 
 ## 7. Connect yourself
 
-The workspace's MCP endpoint is `<PUBLIC_URL>/mcp/<org>/<workspace>`.
+The workspace's MCP endpoint is `<PUBLIC_URL>/mcp/<workspace>`.
 
 **Claude Code** (run in the folder where the person works, so the server is
 scoped to that project):
 
 ```bash
-claude mcp add --transport http bcontext <PUBLIC_URL>/mcp/<org>/<workspace>
+claude mcp add --transport http bcontext <PUBLIC_URL>/mcp/<workspace>
 ```
 
 It authenticates with OAuth: tell the person to run `/mcp` in Claude Code
@@ -154,7 +153,7 @@ Finish with a short summary:
 - the URL of the instance, and that `/admin` is open to the admin email;
 - where the checkout and `.env` live, and that `.env` must be backed up and
   kept private;
-- what was left out (AI, email, integrations) and the
+- what was left out (AI, email) and the
   [self-hosting guide](self-hosting.md) section for each;
 - day-to-day commands: `docker compose ps`, `docker compose logs -f api`,
   and to update: `git pull && docker compose pull && docker compose up -d`.

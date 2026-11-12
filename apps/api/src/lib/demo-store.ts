@@ -15,7 +15,6 @@ export function isSupabaseConfigured(): boolean {
   return envIsSupabaseConfigured();
 }
 
-const ORG_ID = "00000000-0000-0000-0000-000000000001";
 const DEMO_SEED_TIME = "2026-01-01T00:00:00.000Z";
 
 /** Canonical first-class tag used by the in-memory seed and taxonomy store. */
@@ -43,7 +42,6 @@ function makeWorkspace(
 ): Workspace {
   return {
     id,
-    organization_id: ORG_ID,
     slug,
     name,
     description,
@@ -158,7 +156,6 @@ Slack, and a dozen Google Docs.
 \`\`\`
 Next.js (App Router) ── /app
   ├── /(workspace)/[ws] — three-zone layout
-  ├── /api/nexo         — Nexo, the in-app assistant (streaming, tool-using)
   ├── /api/nodes        — CRUD over knowledge graph
   └── /api/agents/*     — structured agent surface
 
@@ -337,7 +334,6 @@ export function createWorkspace(input: {
   const id = crypto.randomUUID();
   const ws: Workspace = {
     id,
-    organization_id: ORG_ID,
     slug,
     name: input.name,
     description: input.description ?? null,

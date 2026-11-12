@@ -35,28 +35,22 @@ function fakeAdmin(counts: Record<string, number | null>, failing?: string) {
   return { admin: { from } as unknown as SupabaseClient, calls };
 }
 
-const subject = { workspaceId: "ws-1", userId: "u-1" };
+const subject = { workspaceId: "ws-1" };
 
 describe("readOnboardingFacts", () => {
   it("answers each step from its own table, scoped to the workspace", async () => {
     const { admin, calls } = fakeAdmin({
       agent_workspace_access: 1,
       activity: 0,
-      chat_sessions: 2,
-      connector_installs: 0,
     });
     const facts = await readOnboardingFacts(admin, subject);
     expect(facts).toEqual({
       connect_agent: true,
       first_agent_write: false,
-      ask_nexo: true,
-      connect_integration: false,
     });
     for (const call of calls) expect(call.filters).toContain("workspace_id=ws-1");
     expect(calls.find((c) => c.table === "agent_workspace_access")?.filters).toContain("revoked_at is null");
     expect(calls.find((c) => c.table === "activity")?.filters).toContain("actor_kind=agent");
-    expect(calls.find((c) => c.table === "chat_sessions")?.filters).toContain("user_id=u-1");
-    expect(calls.find((c) => c.table === "connector_installs")?.filters).toContain("status!=uninstalled");
   });
 
   it("treats a null count as nothing done rather than as done", async () => {
@@ -66,7 +60,7 @@ describe("readOnboardingFacts", () => {
   });
 
   it("fails loudly when a fact cannot be read, naming the fact", async () => {
-    const { admin } = fakeAdmin({}, "chat_sessions");
-    await expect(readOnboardingFacts(admin, subject)).rejects.toThrow(/ask_nexo: boom/);
+    const { admin } = fakeAdmin({}, "activity");
+    await expect(readOnboardingFacts(admin, subject)).rejects.toThrow(/first_agent_write: boom/);
   });
 });

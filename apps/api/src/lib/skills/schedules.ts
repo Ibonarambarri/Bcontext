@@ -1,12 +1,12 @@
 /**
- * Skill schedules — the clock behind NEXO's proactivity.
+ * Skill schedules — skills that run on a clock.
  *
  * A row in `skill_schedules` says "run this, in this workspace, on this
  * cron, in this timezone". Two kinds today: the built-in `digest_weekly`
  * (no skill node; see `./digest`) and `skill`, which runs a skill node with
  * an empty input and publishes its output as a doc.
  *
- * Same shape as the connector cadence scheduler: every five minutes the
+ * Every five minutes the
  * worker (`skills.schedule`) scans for enabled rows whose `next_run_at` is
  * due, advances `next_run_at` under a CAS — so two runners cannot both fire
  * — and enqueues one `skills.run-scheduled` job per row. A row with no

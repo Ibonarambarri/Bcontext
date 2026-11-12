@@ -56,13 +56,13 @@ describe("node inspector selection and deep links", () => {
 
   it("opens the exact H2 in the full editor and carries a return route", () => {
     const href = fullNodeUrl({
-      workspace: "acme/docs",
+      workspace: "docs",
       nodeId: "node-1",
       blockId: "acceptance-criteria",
-      returnTo: "/w/acme/docs/views/tasks?group=status&inspect=node-1",
+      returnTo: "/w/docs/views/tasks?group=status&inspect=node-1",
     });
-    expect(href).toContain("/w/acme/docs/n/node-1?");
-    expect(href).toContain("return_to=%2Fw%2Facme%2Fdocs%2Fviews%2Ftasks");
+    expect(href).toContain("/w/docs/n/node-1?");
+    expect(href).toContain("return_to=%2Fw%2Fdocs%2Fviews%2Ftasks");
     expect(href.endsWith("#acceptance-criteria")).toBe(true);
     expect(blockIdFromHash("#acceptance-criteria")).toBe("acceptance-criteria");
     expect(blockIdFromHash("#why%20now")).toBe("why now");
@@ -120,7 +120,7 @@ describe("node inspector relations, permissions, realtime and responsive", () =>
     expect(nodeFreshness(node("a"), now)).toMatchObject({ state: "stale", age_days: 104 });
   });
 
-  it("demotes staleness by one tier when the node was read recently (NEXO-05)", () => {
+  it("demotes staleness by one tier when the node was read recently", () => {
     const now = new Date("2026-04-15T00:00:00.000Z").getTime();
     const recentRead = new Date(now - 5 * 86_400_000).toISOString();
     expect(

@@ -9,7 +9,7 @@
  *     same as any other node).
  *   - "Transcript" view → read-only Markdown render of data.transcript_md.
  *
- * The transcript is derived from the recording — it's never editable. We
+ * The transcript is the meeting's source record — it's never editable. We
  * deliberately render it through `markdownToHtml` (no Yjs, no TipTap) so
  * collab traffic stays focused on the refined notes.
  *
@@ -24,7 +24,6 @@ import { Editor } from "@/components/editor";
 import { markdownToHtml } from "@/lib/markdown";
 import { useWorkspaceBroadcast } from "@/lib/collab/workspace-realtime";
 import { MeetingEmptyState } from "./meeting-empty-state";
-import { MeetingRecordingView } from "./meeting-recording-view";
 import { MeetingViewSelector } from "./meeting-view-selector";
 import { resolveDefaultView, type MeetingView } from "@/lib/meetings/view";
 import type { RefineStatus } from "@bcontext-dev/contract/meetings";
@@ -38,8 +37,6 @@ export function MeetingNodeView({
   transcriptMd,
   refineStatus,
   refineError,
-  recordingStatus,
-  recordingMeetingUrl,
   initialView,
   header,
   footer,
@@ -51,12 +48,6 @@ export function MeetingNodeView({
   transcriptMd: string;
   refineStatus: RefineStatus | undefined;
   refineError: string | null;
-  /**
-   * When set to `"recording"` the bot is in the call right now. The view
-   * locks into MeetingRecordingView until the webhook clears the flag.
-   */
-  recordingStatus: string | null;
-  recordingMeetingUrl: string | null;
   initialView: MeetingView;
   header: React.ReactNode;
   footer?: React.ReactNode;
@@ -89,31 +80,12 @@ export function MeetingNodeView({
     [view, refineStatus, refineError, nodeId],
   );
 
-  const isRecording = recordingStatus === "recording";
-
   const composedHeader = (
     <>
       {header}
-      {isRecording
-        ? null
-        : hasTranscript
-          ? selectorNode
-          : (
-            <MeetingEmptyState workspace={workspace} nodeId={nodeId} />
-          )}
+      {hasTranscript ? selectorNode : <MeetingEmptyState nodeId={nodeId} />}
     </>
   );
-
-  if (isRecording) {
-    return (
-      <MeetingRecordingView
-        nodeId={nodeId}
-        meetingUrl={recordingMeetingUrl}
-        initialStatus={null}
-        header={composedHeader}
-      />
-    );
-  }
 
   if (view === "transcript" && hasTranscript) {
     return (

@@ -59,11 +59,11 @@ export function rulesFileFor(providerSlug: string): RulesFile {
  */
 export function agentInstructions(
   target: McpTarget,
-  address: { org: string; slug: string },
+  address: { slug: string },
   providerSlug = "claude-code",
 ): string {
   const { frontmatter = "" } = rulesFileFor(providerSlug);
-  const workspace = `${address.org}/${address.slug}`;
+  const workspace = address.slug;
   return (
     frontmatter +
     `# Bcontext — how this project keeps its memory
@@ -80,7 +80,7 @@ on the team.
 
 1. Start with \`brief\` — one call: the unblocked queue by priority, open
    decisions, what is assigned to you and what changed since your last brief.
-2. Before researching anything, \`ask_nexo({ question })\`: what the team
+2. Before researching anything, \`ask_rag({ question })\`: what the team
    already knows, cited. Follow a \`/n/<id>#<block>\` ref with
    \`nodes({ op: "get" })\` before acting on it.
 3. Work inside one task: pick it from the queue or create it, set
@@ -109,8 +109,8 @@ on the team.
 ## Re-sync
 
 In a long session, \`list_changes({ since })\` instead of re-reading the
-workspace. External tools and the workspace's skills are found with
-\`capability_search\` and called with \`capability_call\`.
+workspace. The workspace's skills are listed with \`skills\` and run with
+\`skills_run\`.
 `
   );
 }

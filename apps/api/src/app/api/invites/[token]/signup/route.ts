@@ -18,7 +18,7 @@ import { gate } from "@/lib/auth/require";
 import { readJsonBody } from "@/lib/parse-json";
 import { withRoute } from "@/lib/route";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { findInviteByToken } from "@/lib/workspaces/orgs";
+import { findInviteByToken } from "@/lib/workspaces/members";
 import { nameMetadata } from "@/lib/auth/profile";
 import { MAX_NAME_LENGTH } from "@bcontext-dev/contract/me";
 
@@ -61,7 +61,7 @@ export const POST = withRoute(async (
 
   const admin = getSupabaseAdmin();
   const { data: existing, error: lookupErr } = await admin.rpc(
-    "waitlist_invite_user_state",
+    "invite_user_state",
     { p_email: invite.email },
   );
   if (lookupErr) {

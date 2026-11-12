@@ -5,17 +5,13 @@
  * inside the `Sidebar.Provider` of `ui/sidebar` (offcanvas on desktop, the
  * `Sidebar.Mobile` drawer under 768px — one tree of content rendered twice).
  *
- * Structure: workspace switcher · Find (⌘K) · Dashboard, Nexos (with the
- * open-inbox count polled from `/api/nexos/inbox`) and Conflicts (open count
- * polled from `/api/nexo/conflicts`) · the Knowledge group (Brain first, then
+ * Structure: workspace switcher · Find (⌘K) · Dashboard · the Knowledge
+ * group (Brain first, then
  * Tasks, Roadmap, Browse, Credentials, and "New" last: the create-node
  * dialog, ⌘⇧K, dispatched as the `bcontext:new-node` window event that
  * `create-node-dialog-host.tsx` listens for — it sits with the knowledge it
- * creates, not with Find) · the Agents & Tools group (connected agents and
- * tool providers) · the account row (user menu).
- *
- * Integrations have no entry of their own: an integration is connected to a
- * Nexo, from the Nexos page.
+ * creates, not with Find) · the Agents & Webhooks group (connected agents
+ * and outbound webhook endpoints) · the account row (user menu).
  *
  * What is deliberately NOT here: saved custom views (their routes still
  * render for direct links), Activity (in the user menu), Tags and Decisions
@@ -46,21 +42,18 @@ import {
   Network,
   Plus,
   Search,
-  ShieldQuestion,
   Table2,
-  Wrench,
+  Webhook,
 } from "lucide-react";
 import { Button, Kbd } from "@heroui/react";
 import { Sidebar as SidebarPrimitive, useSidebar } from "@/components/ui/sidebar";
-import { nexosPath, systemViewPath, type SystemViewKey } from "@/lib/view-shell";
-import { NexosMark } from "./nexos/nexos-mark";
+import { systemViewPath, type SystemViewKey } from "@/lib/view-shell";
 import type { SavedView } from "@bcontext-dev/contract/views/types";
 import type { ViewRenderer } from "@bcontext-dev/contract/views/schema";
 import { useWorkspace } from "./workspace-context";
 import { UserMenu } from "./user-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { OPEN_GUIDE_EVENT } from "./onboarding/events";
-import { workspaceApiRef } from "@/web/workspace-url";
 
 /** The Knowledge group, in display order. Brain first: it is the workspace. */
 const KNOWLEDGE_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Home }[] = [
@@ -84,58 +77,11 @@ const VIEW_RENDERER_ICONS: Record<ViewRenderer, typeof Home> = {
 
 const ADMIN_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", Icon: Bot },
-  { key: "tools", label: "Tools", Icon: Wrench },
+  { key: "webhooks", label: "Webhooks", Icon: Webhook },
 ];
 
-const BADGE_POLL_MS = 60_000;
-
 /**
- * An open-item count for a sidebar badge, polled once a minute; null until
- * known or when the read fails (the badge simply stays hidden). `url` null
- * means there is nothing to ask yet (no persisted workspace).
- */
-function usePolledCount(url: string | null, field: string): number | null {
-  const [count, setCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (!url) {
-      setCount(null);
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) return;
-        const body = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-        const list = body[field];
-        if (!cancelled) setCount(Array.isArray(list) ? list.length : null);
-      } catch {
-        // Badge simply stays hidden.
-      }
-    };
-    void load();
-    const timer = setInterval(() => void load(), BADGE_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [url, field]);
-  return count;
-}
-
-/** The small count chip at the end of a menu row; nothing when there is nothing open. */
-function CountChip({ count, label }: { count: number | null; label: string }) {
-  if (!count) return null;
-  return (
-    <SidebarPrimitive.MenuChip aria-label={`${count} ${label}`} className="tabular-nums">
-      {count > 99 ? "99+" : count}
-    </SidebarPrimitive.MenuChip>
-  );
-}
-
-/**
- * A nav icon is anything that draws itself at a size — the lucide set, and
- * the Nexos team mark, a plain SVG kept dependency-free for the shell budget.
+ * A nav icon is anything that draws itself at a size (the lucide set).
  */
 export type NavIcon = ComponentType<{ size?: number; className?: string }>;
 
@@ -150,14 +96,11 @@ export function activeViewMeta(
 ): { label: string; Icon: NavIcon; section?: string } | null {
   if (!slug) return null;
   if (slug === "overview") return { label: "Dashboard", Icon: Home };
-  if (slug === "nexos") return { label: "Nexos", Icon: NexosMark };
   if (slug === "changes") return { label: "Activity", Icon: Activity };
-  // `review` is a legacy slug that redirects (see v/[view]/page.tsx); label it for the frame it passes through.
-  if (slug === "conflicts" || slug === "review") return { label: "Conflicts", Icon: ShieldQuestion };
   const knowledge = KNOWLEDGE_VIEWS.find((view) => view.key === slug);
   if (knowledge) return { label: knowledge.label, Icon: knowledge.Icon, section: "Knowledge" };
   const admin = ADMIN_VIEWS.find((view) => view.key === slug);
-  if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Tools" };
+  if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Webhooks" };
   const custom = views.find((view) => view.slug === slug);
   if (custom) return { label: custom.name, Icon: VIEW_RENDERER_ICONS[custom.presentation.renderer] ?? Bookmark, section: "Knowledge" };
   return null;
@@ -208,20 +151,11 @@ export function Sidebar({
   const {
     address,
     activeViewSlug,
-    workspace,
     openSettings,
+    openWorkspacePanel,
   } = useWorkspace();
   const router = useRouter();
   const { setMobileOpen } = useSidebar();
-  const workspaceId = workspace?.id ?? null;
-  const openConflicts = usePolledCount(
-    workspaceId ? `/api/nexo/conflicts?workspace_id=${encodeURIComponent(workspaceId)}&status=open` : null,
-    "conflicts",
-  );
-  const openInbox = usePolledCount(
-    workspaceId ? `/api/nexos/inbox?workspace=${encodeURIComponent(workspaceApiRef(address))}&status=open` : null,
-    "items",
-  );
   // Width state lives in the shell (the offcanvas wrapper reads
   // --sidebar-width at the Provider level); props arrive on desktop only.
   const sidebarWidth = width ?? SIDEBAR_DEFAULT_W;
@@ -278,30 +212,6 @@ export function Sidebar({
                       <SidebarPrimitive.MenuLabel>Dashboard</SidebarPrimitive.MenuLabel>
                     </SidebarPrimitive.MenuItemContent>
                   </SidebarPrimitive.MenuItem>
-                  <SidebarPrimitive.MenuItem
-                    id="nexos"
-                    aria-label="Nexos"
-                    href={nexosPath(address)}
-                    isCurrent={activeViewSlug === "nexos"}
-                  >
-                    <SidebarPrimitive.MenuIcon><NexosMark /></SidebarPrimitive.MenuIcon>
-                    <SidebarPrimitive.MenuItemContent>
-                      <SidebarPrimitive.MenuLabel>Nexos</SidebarPrimitive.MenuLabel>
-                    </SidebarPrimitive.MenuItemContent>
-                    <CountChip count={openInbox} label="items waiting in the Nexos' inbox" />
-                  </SidebarPrimitive.MenuItem>
-                  <SidebarPrimitive.MenuItem
-                    id="conflicts"
-                    aria-label="Conflicts"
-                    href={systemViewPath(address, "conflicts")}
-                    isCurrent={activeViewSlug === "conflicts"}
-                  >
-                    <SidebarPrimitive.MenuIcon><ShieldQuestion size={13} /></SidebarPrimitive.MenuIcon>
-                    <SidebarPrimitive.MenuItemContent>
-                      <SidebarPrimitive.MenuLabel>Conflicts</SidebarPrimitive.MenuLabel>
-                    </SidebarPrimitive.MenuItemContent>
-                    <CountChip count={openConflicts} label="open conflicts" />
-                  </SidebarPrimitive.MenuItem>
                 </SidebarPrimitive.Menu>
               </SidebarPrimitive.Group>
 
@@ -339,8 +249,8 @@ export function Sidebar({
               </SidebarPrimitive.Group>
 
               <SidebarPrimitive.Group className="mt-4">
-                <SidebarPrimitive.GroupLabel>Agents & Tools</SidebarPrimitive.GroupLabel>
-                <SidebarPrimitive.Menu aria-label="Agents & Tools">
+                <SidebarPrimitive.GroupLabel>Agents & Webhooks</SidebarPrimitive.GroupLabel>
+                <SidebarPrimitive.Menu aria-label="Agents & Webhooks">
                   {ADMIN_VIEWS.map(({ key, label, Icon }) => (
                     <SidebarPrimitive.MenuItem key={key} id={key} href={systemViewPath(address, key)} isCurrent={activeViewSlug === key}>
                       <SidebarPrimitive.MenuIcon><Icon size={13} /></SidebarPrimitive.MenuIcon>
@@ -361,6 +271,7 @@ export function Sidebar({
               align="up"
               profileCard
               onOpenSettings={openSettings}
+              onOpenMembers={() => openWorkspacePanel("members")}
               onOpenActivity={() => navigate(systemViewPath(address, "changes"))}
               onOpenGuide={() => window.dispatchEvent(new CustomEvent(OPEN_GUIDE_EVENT))}
             />

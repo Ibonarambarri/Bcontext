@@ -20,8 +20,8 @@ const PREFIX = "bx:view-renderer:";
 
 export type ViewRendererHint = "graph" | "board" | "changes" | "list" | "table" | "browse" | "credentials" | "roadmap";
 
-/* The `<org>~<workspace>` ref, not the slug: `acme/docs` and `globex/docs`
-   are different workspaces and their views are not the same views. */
+/* Keyed by the workspace slug as well as the view: two workspaces' views
+   with the same key are not the same views. */
 function keyFor(workspace: WorkspaceAddress, viewKey: string): string {
   return `${PREFIX}${workspaceApiRef(workspace)}:${viewKey}`;
 }

@@ -33,7 +33,7 @@ describe("graph view presentation", () => {
   it("uses exactly two batch reads and rejects foreign-workspace resources", async () => {
     const calls: string[] = [];
     const storage = {
-      workspace: { id: "ws", organization_id: "org", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
+      workspace: { id: "ws", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
       listNodeSummaries: async () => { calls.push("nodes"); return [summary("own", "ws"), summary("foreign", "other")]; },
       listEdges: async () => { calls.push("edges"); return []; },
     } as unknown as Storage;
@@ -59,7 +59,7 @@ describe("graph view presentation", () => {
     const calls: string[] = [];
     const product = assignedTag("product-id", "Product");
     const storage = {
-      workspace: { id: "ws", organization_id: "org", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
+      workspace: { id: "ws", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
       listNodeSummaries: async () => { calls.push("nodes"); return [summary("one", "ws", [product])]; },
       listEdges: async () => { calls.push("edges"); return []; },
       resolveTagIds: async () => { throw new Error("current tag should not need alias resolution"); },
@@ -96,7 +96,7 @@ describe("graph view presentation", () => {
     const product = assignedTag("product-id", "Product");
     const tech = assignedTag("tech-id", "Tech");
     const storage = {
-      workspace: { id: "ws", organization_id: "org", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
+      workspace: { id: "ws", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
       listNodeSummaries: async () => {
         calls.push("nodes");
         return [summary("one", "ws", [product, tech]), summary("two", "ws", [product])];
@@ -138,7 +138,7 @@ describe("graph view presentation", () => {
     const tech = assignedTag("tech-id", "Tech");
     const calls: string[] = [];
     const storage = {
-      workspace: { id: "ws", organization_id: "org", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
+      workspace: { id: "ws", slug: "ws", name: "WS", description: null, github_repo: null, metadata: {}, created_at: "now" },
       // "one" matched via the descendant Graph tag and drags in a co-tag from
       // another family (Tech); "two" carries the filter directly. Nobody
       // carries Icebox — its descriptor only exists in the taxonomy read.

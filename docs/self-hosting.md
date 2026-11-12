@@ -54,7 +54,7 @@ generated, and the options you pass are updated.
 | `--https-port <port>` | Caddy's HTTPS port (default 443). A public domain needs 443 |
 | `--resend-key <key>` | Turns on email through [Resend](https://resend.com); needs `--email-from` |
 | `--email-from "<Name> <address>"` | Sender of every email; the domain must be verified in Resend |
-| `--org-creation open\|admin` | Who may sign up and create organizations (see below) |
+| `--workspace-creation open\|admin` | Who may sign up and create workspaces (see below). `--org-creation` is the old name, still accepted |
 | `--rotate` | Regenerates every secret except `POSTGRES_PASSWORD`; signs everyone out |
 | `-y`, `--yes` | Never prompt: use the flags and the defaults |
 
@@ -100,21 +100,24 @@ Supabase gateway (`/auth/v1`, `/rest/v1`, `/storage/v1`). See
 ## The first admin and who may sign up
 
 `ADMIN_EMAILS` lists the people who may open `/admin` (users,
-organizations, and errors when the collector runs). Being an admin
+workspaces, and errors when the collector runs). Being an admin
 comes from the email alone, so the admin signs up like anyone else:
 
 1. Open `PUBLIC_URL` and go to `/start`.
-2. Create the account with the admin email, then the organization; its first
-   workspace is created with it.
+2. Create the account with the admin email, then name your first workspace.
 
-`ORG_CREATION` decides who else can do that:
+`WORKSPACE_CREATION` decides who else can do that:
 
 - `open` (default): anyone who reaches the instance may sign up and create
-  an organization; others join existing organizations by invitation.
-- `admin`: sign-up is closed and only `ADMIN_EMAILS` create organizations
+  a workspace; others join existing workspaces by invitation.
+- `admin`: sign-up is closed and only `ADMIN_EMAILS` create workspaces
   and invite their owners. Because sign-up is closed too, create the admin
   account first with `open`, then switch:
-  `./setup.sh --org-creation admin -y && docker compose up -d`.
+  `./setup.sh --workspace-creation admin -y && docker compose up -d`.
+
+An `.env` written before workspaces stood alone (migration 0100) has
+`ORG_CREATION` instead; the API still reads it when `WORKSPACE_CREATION` is
+unset, so upgrading does not reopen a closed instance.
 
 Accounts are created by the API. GoTrue's own `/auth/v1/signup` is disabled
 (`DISABLE_SIGNUP=true`) so it cannot be used to bypass this policy.
@@ -127,8 +130,8 @@ reset emails are not sent.
 
 There are two senders:
 
-- **Bcontext's own emails** (sign-up confirmation, invitations, Nexo
-  escalations, the weekly digest) go through the Resend API:
+- **Bcontext's own emails** (sign-up confirmation, invitations, the weekly
+  digest) go through the Resend API:
   `RESEND_API_KEY` and `EMAIL_FROM`.
 - **Auth's emails** (password reset, email change) go through SMTP:
   `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`.
@@ -147,9 +150,9 @@ without it they are skipped and invitations stay copyable links.
 
 ## AI
 
-Optional. Without an AI backend, search is keyword-only and `ask_nexo`
-answers with retrieval alone; embeddings, extraction from integrations and
-meetings, skills and the Nexos' chat need one. Choose one backend in `.env`:
+Optional. Without an AI backend, search is keyword-only and `ask_rag`
+answers with retrieval alone; embeddings, extraction from meeting
+transcripts and skills need one. Choose one backend in `.env`:
 
 - **Vercel AI Gateway**: `AI_GATEWAY_API_KEY`. Model ids are
   `provider/model`; the defaults are `CHAT_MODEL=anthropic/claude-sonnet-5`,
@@ -172,34 +175,6 @@ meetings, skills and the Nexos' chat need one. Choose one backend in `.env`:
 > `apps/api/scripts/reembed-stale.ts` re-embeds a workspace.
 
 Then `docker compose up -d`.
-
-## Integrations (optional)
-
-Each integration is off until its variables are set; the rest of the product
-runs without them. Add the variables to the root `.env` (the `api`,
-`worker` and `errors` containers read the whole file) and run
-`docker compose up -d`. Webhook and OAuth callback URLs are on your public
-origin:
-
-| Integration | Variables | URLs to register with the provider |
-|---|---|---|
-| GitHub App | `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` | webhook `/api/webhooks/github`, setup/callback `/api/connectors/github/callback` |
-| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET` | events `/api/webhooks/slack`, OAuth redirect `/api/connectors/slack/callback` |
-| Linear | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET`, `LINEAR_WEBHOOK_SECRET` | webhook `/api/webhooks/linear`, OAuth redirect `/api/connectors/linear/callback` |
-| Notion (importer) | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | OAuth redirect `/api/connectors/notion/callback` |
-| Meeting bots (Recall.ai) | `RECALL_API_KEY`, `RECALL_WEBHOOK_SECRET`, `RECALL_API_BASE` (non-default region) | webhook `/api/connectors/meeting-bot/webhook` |
-| Nango (long tail) | `NANGO_SERVER_URL`, `NANGO_SECRET_KEY`, `NANGO_WEBHOOK_SECRET`, `NANGO_PUBLIC_URL`, `NANGO_CONNECT_URL` | webhook `/api/webhooks/nango` (in Nango) |
-
-[Nango](https://nango.dev) handles auth and proxying for the long tail of
-providers (Jira, HubSpot, Google, Microsoft and many more). It is **not
-bundled**: it needs its own Postgres, Redis and two public origins, so run it
-next to Bcontext with Nango's self-hosting guide.
-`apps/api/docs/integrations-nango.md` describes the setup, the OAuth apps
-and every provider. Without it, Nango-backed integrations answer 503.
-
-External MCP servers and webhooks need no configuration on the instance:
-workspace admins add them in the web app (Tools), and their secrets are
-stored in Supabase Vault.
 
 ## Optional services
 
@@ -241,11 +216,19 @@ the code and the images must move together.
 Either way `migrate` applies the new migrations before `api` and `worker`
 start again. Check it with `docker compose logs migrate`.
 
+**Upgrading past migration 0100** (workspaces without organizations): every
+workspace is addressed by its slug alone, which has to be unique across the
+instance. If two organizations had a workspace with the same slug, the oldest
+keeps it and the others are renamed to `<org>-<slug>`; each rename is printed
+as a `WARNING` in `docker compose logs migrate`. Old addresses keep working —
+`/w/<org>/<workspace>` redirects, `/mcp/<org>/<workspace>` is still served
+and OAuth connections made through it keep their grant — but update
+`.mcp.json` files to `/mcp/<slug>` when convenient.
+
 ## Backups
 
 State lives in three named volumes: `db-data` (Postgres), `db-config` (the
-database's Vault key, which encrypts the secrets of connected MCP servers and
-integrations) and `storage-data` (uploaded files). `caddy-data` only holds
+database's Vault key) and `storage-data` (uploaded files). `caddy-data` only holds
 certificates, which Caddy can obtain again. Keep a copy of `.env` too: its
 secrets sign every session and key.
 
@@ -254,7 +237,7 @@ While the stack runs:
 ```bash
 # Database (as supabase_admin, the only role that can read every schema)
 docker compose exec -T db pg_dump -U supabase_admin -Fc postgres > bcontext-$(date +%F).dump
-# Vault key: without it, restored integration secrets cannot be decrypted
+# Vault key: without it, anything restored into Vault cannot be decrypted
 docker compose exec -T db cat /etc/postgresql-custom/pgsodium_root.key > pgsodium_root.key
 # Uploaded files
 docker run --rm -v bcontext_storage-data:/data -v "$PWD":/backup alpine \
@@ -284,12 +267,15 @@ and applies nothing. Test a restore before you need one.
 
 ## Operating
 
-- Status: `docker compose ps -a`. `api` and `web` have health checks; `migrate`
-  shows `Exited (0)` when it is done.
+- Status: `docker compose ps -a`. Every long-running service has a health
+  check (`rest` uses `postgrest --ready`); `migrate` shows `Exited (0)` when
+  it is done. Docker reports an unhealthy container but does not restart it.
 - Logs: `docker compose logs -f api worker` (JSON lines; `worker.job.failed`
   for failed jobs).
 - Health: `curl https://ctx.example.com/api/health` returns
-  `{"status":"ok","db":"ok",…}`.
+  `{"status":"ok","db":"ok","rest":"ok",…}`, or a 503 with `"degraded"`.
+  `db` is Postgres and auth; `rest` is one read through PostgREST, the path
+  every API call takes. Point an uptime monitor at it.
 - Reset everything (destroys all data): `docker compose down -v`.
 
 ## Troubleshooting
@@ -312,6 +298,14 @@ successfully. `docker compose logs migrate` shows the failing migration;
 `POSTGRES_PASSWORD` in `.env` no longer matches the one the database volume
 was initialised with (the roles take it once, on the first boot). Restore
 the original value. `setup.sh --rotate` never changes it.
+
+**Every API call fails, PostgREST logs `PGRST003 Timed out acquiring
+connection from connection pool`, but Postgres is fine.** PostgREST's
+connection pool is stuck; its own health check does not see this state.
+`docker compose restart rest` clears it. `/api/health` reports
+`"rest":"down"` while it lasts, and requests with an API or MCP token get
+`503 upstream_unavailable` (with `Retry-After`) rather than `401`, so agents
+keep their tokens and retry.
 
 **The browser shows a certificate error or Caddy logs ACME failures.** The
 DNS record does not point at this machine yet, or ports 80/443 are closed.

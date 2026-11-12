@@ -4,34 +4,41 @@ import { mcpServerName, parseMcpResource, workspaceMcpEndpoint } from "./mcp-end
 const ORIGIN = "https://your-bcontext.example";
 
 describe("workspace MCP endpoint", () => {
-  it("builds <origin>/mcp/<org>/<workspace>", () => {
-    expect(workspaceMcpEndpoint(ORIGIN, { org: "acme", slug: "docs" })).toBe(
-      "https://your-bcontext.example/mcp/acme/docs",
+  it("builds <origin>/mcp/<slug>", () => {
+    expect(workspaceMcpEndpoint(ORIGIN, { slug: "docs" })).toBe(
+      "https://your-bcontext.example/mcp/docs",
     );
-    expect(workspaceMcpEndpoint(`${ORIGIN}/`, { org: "acme", slug: "docs" })).toBe(
-      "https://your-bcontext.example/mcp/acme/docs",
+    expect(workspaceMcpEndpoint(`${ORIGIN}/`, { slug: "docs" })).toBe(
+      "https://your-bcontext.example/mcp/docs",
     );
   });
 
   it("names the client config entry per workspace", () => {
-    expect(mcpServerName({ org: "acme", slug: "docs" })).toBe("bcontext-acme-docs");
+    expect(mcpServerName({ slug: "docs" })).toBe("bcontext-docs");
   });
 
   it("round-trips through the resource parser", () => {
-    const ws = { org: "acme", slug: "docs" };
-    expect(parseMcpResource(workspaceMcpEndpoint(ORIGIN, ws), ORIGIN)).toEqual({
+    expect(parseMcpResource(workspaceMcpEndpoint(ORIGIN, { slug: "docs" }), ORIGIN)).toEqual({
       kind: "workspace",
-      ...ws,
+      slug: "docs",
     });
   });
 });
 
 describe("parseMcpResource", () => {
   it("reads a workspace endpoint", () => {
-    expect(parseMcpResource(`${ORIGIN}/mcp/acme/docs`, ORIGIN)).toEqual({
+    expect(parseMcpResource(`${ORIGIN}/mcp/docs`, ORIGIN)).toEqual({
       kind: "workspace",
-      org: "acme",
       slug: "docs",
+    });
+  });
+
+  it("recognises the legacy two-segment endpoint without treating it as a slug", () => {
+    // Written into .mcp.json files before 0100; the API still serves it and
+    // the consent screen resolves it to today's workspace.
+    expect(parseMcpResource(`${ORIGIN}/mcp/acme/docs`, ORIGIN)).toEqual({
+      kind: "legacy",
+      ref: "acme~docs",
     });
   });
 
@@ -42,25 +49,23 @@ describe("parseMcpResource", () => {
 
   it("ignores a trailing slash, a query and a fragment", () => {
     for (const noise of ["/", "?x=1", "#frag", "/?x=1#frag"]) {
-      expect(parseMcpResource(`${ORIGIN}/mcp/acme/docs${noise}`, ORIGIN)).toEqual({
+      expect(parseMcpResource(`${ORIGIN}/mcp/docs${noise}`, ORIGIN)).toEqual({
         kind: "workspace",
-        org: "acme",
         slug: "docs",
       });
     }
   });
 
   it("tolerates a trailing slash on the app origin", () => {
-    expect(parseMcpResource(`${ORIGIN}/mcp/acme/docs`, `${ORIGIN}/`)).toEqual({
+    expect(parseMcpResource(`${ORIGIN}/mcp/docs`, `${ORIGIN}/`)).toEqual({
       kind: "workspace",
-      org: "acme",
       slug: "docs",
     });
   });
 
   it("rejects a foreign origin", () => {
-    expect(parseMcpResource("https://evil.example/mcp/acme/docs", ORIGIN)).toBeNull();
-    expect(parseMcpResource("http://your-bcontext.example/mcp/acme/docs", ORIGIN)).toBeNull();
+    expect(parseMcpResource("https://evil.example/mcp/docs", ORIGIN)).toBeNull();
+    expect(parseMcpResource("http://your-bcontext.example/mcp/docs", ORIGIN)).toBeNull();
     expect(parseMcpResource("https://your-bcontext.example:8443/mcp", ORIGIN)).toBeNull();
   });
 
@@ -69,11 +74,10 @@ describe("parseMcpResource", () => {
     expect(parseMcpResource(null, ORIGIN)).toBeNull();
     expect(parseMcpResource("", ORIGIN)).toBeNull();
     expect(parseMcpResource("not a url", ORIGIN)).toBeNull();
-    expect(parseMcpResource("/mcp/acme/docs", ORIGIN)).toBeNull();
+    expect(parseMcpResource("/mcp/docs", ORIGIN)).toBeNull();
     expect(parseMcpResource(`${ORIGIN}/api/mcp`, ORIGIN)).toBeNull();
-    expect(parseMcpResource(`${ORIGIN}/mcp/acme`, ORIGIN)).toBeNull();
     expect(parseMcpResource(`${ORIGIN}/mcp/acme/docs/extra`, ORIGIN)).toBeNull();
-    expect(parseMcpResource(`${ORIGIN}/mcp/a%20b/docs`, ORIGIN)).toBeNull();
+    expect(parseMcpResource(`${ORIGIN}/mcp/a%20b`, ORIGIN)).toBeNull();
   });
 
   it("is null when the app origin itself is not a URL", () => {

@@ -6,7 +6,8 @@
  * authorization server to use. Pointed at by the `resource_metadata=`
  * parameter that the /mcp 401 response carries in its `WWW-Authenticate`
  * header. The per-workspace endpoints publish theirs under
- * `/.well-known/oauth-protected-resource/mcp/<org>/<workspace>`.
+ * `/.well-known/oauth-protected-resource/mcp/<slug>` (and the legacy
+ * `/mcp/<org>/<workspace>` alias under its own path).
  *
  * Body shape mirrors RFC 9728 (OAuth 2.0 Protected Resource Metadata).
  */

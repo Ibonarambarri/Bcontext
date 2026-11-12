@@ -18,8 +18,8 @@ import { Card, Skeleton } from "@heroui/react";
 import { cn } from "@bcontext-dev/contract/utils";
 
 /* ────────────────────────────────────────────────────────────────────────
- * GridSkeleton — card grids (Agents, Tools, Integrations, Workspaces).
- * Card anatomy mirrors AgentCard / ProviderCard / WorkspaceCard: icon tile,
+ * GridSkeleton — card grids (Agents, Webhooks, Workspaces).
+ * Card anatomy mirrors AgentCard / WebhookCard / WorkspaceCard: icon tile,
  * title + subtitle, trailing chip, one description line, bordered footer.
  * ──────────────────────────────────────────────────────────────────────── */
 
@@ -30,7 +30,7 @@ export function GridSkeleton({
   label = "Loading cards",
 }: {
   cards?: number;
-  /** min-h of each card: agents use 150px, tools/integrations 170px+. */
+  /** min-h of each card: agents and webhooks use 120px, the default is 150px. */
   minHeightClassName?: string;
   className?: string;
   label?: string;
@@ -147,52 +147,8 @@ export function ListSkeleton({
 }
 
 /* ────────────────────────────────────────────────────────────────────────
- * IngestQueueSkeleton — what the Integrations hub (integrations-hub.tsx)
- * shows while installs load: a heading row with a trailing button, a box,
- * then a second heading and two collapsed rows (chevron only). Its anatomy
- * is that of the former processing queue, close enough to the hub's toolbar
- * + rows to hold the space.
- * ──────────────────────────────────────────────────────────────────────── */
-
-export function IngestQueueSkeleton() {
-  return (
-    <div role="status" aria-label="Loading processing queue" className="mt-2">
-      {/* NEXO processing: heading left, Configure button right, then the box. */}
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-3.5 w-32 rounded" />
-        <Skeleton className="h-8 w-28 shrink-0 rounded-lg" />
-      </div>
-      <div aria-hidden="true" className="mt-3 flex min-h-[84px] items-center justify-center rounded-[14px] border border-dashed border-[var(--line)] bg-[var(--paper-2)] px-4 py-5">
-        <Skeleton className="h-3 w-72 max-w-[70%] rounded" />
-      </div>
-
-      {/* Incoming queue: heading + stacks. */}
-      <div className="mt-7 space-y-1.5">
-        <Skeleton className="h-3.5 w-28 rounded" />
-        <Skeleton className="h-2.5 w-64 rounded" />
-      </div>
-      <div className="mt-3 flex flex-col gap-3">
-        {Array.from({ length: 2 }).map((_, index) => (
-          <div key={index} aria-hidden="true" className="flex items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--paper-2)] px-4 py-2.5">
-            <Skeleton className="h-8 w-8 shrink-0 rounded-[8px]" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-3 w-40 rounded" />
-                <Skeleton className="h-4 w-7 rounded-full" />
-              </div>
-              <Skeleton className="h-2.5 w-52 rounded" />
-            </div>
-            <Skeleton className="h-7 w-7 shrink-0 rounded-lg" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────────────
  * DashboardSkeleton — traced from the real workspace overview
- * (src/app/w/[org]/[ws]/page.tsx): mini-stats + legend, Brain-activity Card with
+ * (src/app/w/[ws]/page.tsx): mini-stats + legend, Brain-activity Card with
  * a 260px chart, two OverviewSection lists, recent-decisions chip row.
  * ──────────────────────────────────────────────────────────────────────── */
 
@@ -510,8 +466,8 @@ export function NodePageSkeleton() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
- * WorkspacesHubSkeleton — /workspaces route (top nav, header row, an
- * organization section header and its card grid), traced from WorkspacesView.
+ * WorkspacesHubSkeleton — /workspaces route (top nav, header row and the
+ * card grid), traced from WorkspacesView.
  * ──────────────────────────────────────────────────────────────────────── */
 
 export function WorkspacesHubSkeleton() {
@@ -533,12 +489,6 @@ export function WorkspacesHubSkeleton() {
             <span className="ml-auto" />
             <Skeleton className="h-8 w-20 rounded-lg" />
             <Skeleton className="h-8 w-36 rounded-lg" />
-          </div>
-          {/* Organization section header */}
-          <div className="mt-5 flex items-center gap-2.5">
-            <Skeleton className="size-3.5 rounded" />
-            <Skeleton className="h-4 w-40 rounded" />
-            <Skeleton className="h-3 w-24 rounded" />
           </div>
           <GridSkeleton cards={6} minHeightClassName="min-h-[150px]" />
         </div>

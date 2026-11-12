@@ -11,7 +11,7 @@
  * follow the app's HeroUI token bridge (--paper/--ink/--line aliases).
  *
  * With `workspaceLocked` the client came in through a workspace endpoint
- * (`resource=…/mcp/<org>/<workspace>`): the page passes that one workspace
+ * (`resource=…/mcp/<slug>`): the page passes that one workspace
  * only and the section shows it as a fact, not a choice — the API requires
  * `workspace_ids` to be exactly that workspace for such a `resource`.
  */
