@@ -139,6 +139,10 @@ describe("business views in the sidebar", () => {
     expect(isBusinessView(view("all", []))).toBe(false);
     expect(isBusinessView(view("m", [], { presentation: { renderer: "metrics" } as unknown as SavedView["presentation"] }))).toBe(true);
     expect(isBusinessView(view("s", [], { system_key: "business:renewals" }))).toBe(true);
+    // The marketplace template's Supply vs demand and Suppliers views.
+    expect(isBusinessView(view("h", [], { presentation: { renderer: "heatmap" } as unknown as SavedView["presentation"] }))).toBe(true);
+    expect(isBusinessView(view("d", [], { query: { kinds: [], dataset_type: "supplier" } as unknown as SavedView["query"] }))).toBe(true);
+    expect(isBusinessView(view("t", [], { presentation: { renderer: "table", layout: { template: "b2c:customers" } } as unknown as SavedView["presentation"] }))).toBe(true);
   });
 
   it("shows nothing for a product workspace", () => {

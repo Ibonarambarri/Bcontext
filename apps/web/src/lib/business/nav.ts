@@ -7,8 +7,10 @@
  * A business template creates its views (Pipeline, Accounts, Renewals,
  * Metrics, Expenses…) as ordinary saved views. What tells them apart from a
  * person's own views is what they show: a view is "business" when its system
- * key says so (`business:` / `business.`), when it renders metrics, or when
- * every kind it queries is a record type rather than a core kind. That keeps
+ * key says so (`business:` / `business.`), when a template made it (the
+ * `layout.template` marker), when it renders metrics or a heatmap, when it
+ * lists a dataset-backed record type's rows, or when every kind it queries
+ * is a record type rather than a core kind. That keeps
  * the rule working for views a person adds on top of the template's, and
  * needs no list of names here that a template change would silently break.
  *
@@ -23,7 +25,12 @@ type ViewLike = Pick<SavedView, "id" | "slug" | "name" | "system_key" | "query" 
 
 export function isBusinessView(view: ViewLike): boolean {
   if (view.system_key && /^business[:.]/.test(view.system_key)) return true;
-  if ((view.presentation.renderer as string) === "metrics") return true;
+  // A template view carries its marker (`layout.template`, `<model>:<key>`).
+  if (typeof view.presentation.layout?.template === "string") return true;
+  const renderer = view.presentation.renderer as string;
+  if (renderer === "metrics" || renderer === "heatmap") return true;
+  // A dataset-backed record type's rows (Suppliers, Customers): no kinds.
+  if (view.query.dataset_type) return true;
   const kinds = view.query.kinds ?? [];
   return kinds.length > 0 && kinds.every((kind) => !isCoreKind(kind));
 }
