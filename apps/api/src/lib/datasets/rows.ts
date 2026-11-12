@@ -134,3 +134,83 @@ export async function readSampleRows(
   );
   return rows.map((row) => row.data ?? {});
 }
+
+/* -- keyed rows (0103) -------------------------------------------------------- */
+
+/**
+ * Upsert rows by their stable key: a key that exists has its row MERGED with
+ * the new values (`data || new`), a new key is appended after the highest
+ * index. Positional rows (key null) are never touched.
+ *
+ * One transaction under an advisory lock on the dataset: two writers
+ * appending at once would otherwise both read the same max(idx) and collide
+ * on the primary key, and the second write would fail for a reason its caller
+ * cannot act on. The lock is per dataset, so unrelated datasets never wait.
+ */
+export async function upsertKeyedRows(
+  target: DatasetTarget,
+  rows: ReadonlyArray<{ key: string; data: Record<string, CellValue> }>,
+): Promise<{ inserted: number; updated: number }> {
+  if (rows.length === 0) return { inserted: 0, updated: 0 };
+  requirePool();
+  const { withTransaction } = await import("@/lib/queue/db");
+  return withTransaction(async (tx) => {
+    const exec = (text: string, values: unknown[]) => tx.executeSql(text, values);
+    await exec(`select pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [target.nodeId]);
+    const keys = rows.map((row) => row.key);
+    const found = await exec(
+      `select key from ${DATASET_ROWS_TABLE} where node_id = $1::uuid and workspace_id = $2::uuid and key = any($3::text[])`,
+      [target.nodeId, target.workspaceId, keys],
+    );
+    const existing = new Set((found.rows as Array<{ key: string }>).map((row) => row.key));
+    const updates = rows.filter((row) => existing.has(row.key));
+    const inserts = rows.filter((row) => !existing.has(row.key));
+    if (updates.length > 0) {
+      await exec(
+        `update ${DATASET_ROWS_TABLE} as d set data = d.data || t.data` +
+          ` from jsonb_to_recordset($3::jsonb) as t(key text, data jsonb)` +
+          ` where d.node_id = $1::uuid and d.workspace_id = $2::uuid and d.key = t.key`,
+        [target.nodeId, target.workspaceId, JSON.stringify(updates)],
+      );
+    }
+    if (inserts.length > 0) {
+      const max = await exec(
+        `select coalesce(max(idx), -1) as max_idx from ${DATASET_ROWS_TABLE} where node_id = $1::uuid and workspace_id = $2::uuid`,
+        [target.nodeId, target.workspaceId],
+      );
+      const start = Number((max.rows[0] as { max_idx: number } | undefined)?.max_idx ?? -1) + 1;
+      const last = start + inserts.length - 1;
+      if (last >= DATASET_MAX_ROWS) {
+        throw new DatasetError(
+          "too_many_rows",
+          `this write would reach row index ${last}; a dataset holds at most ${DATASET_MAX_ROWS} rows.`,
+        );
+      }
+      await exec(
+        `insert into ${DATASET_ROWS_TABLE} (node_id, workspace_id, idx, key, data)` +
+          ` select $1::uuid, $2::uuid, t.idx, t.key, t.data` +
+          ` from jsonb_to_recordset($3::jsonb) as t(idx int, key text, data jsonb)`,
+        [target.nodeId, target.workspaceId, JSON.stringify(inserts.map((row, offset) => ({ idx: start + offset, key: row.key, data: row.data })))],
+      );
+    }
+    return { inserted: inserts.length, updated: updates.length };
+  });
+}
+
+/** One keyed row, or null. */
+export async function readRowByKey(target: DatasetTarget, key: string): Promise<Record<string, unknown> | null> {
+  const rows = await runDatasetSql<{ data: Record<string, unknown> }>(
+    `select data from ${DATASET_ROWS_TABLE} where node_id = $1::uuid and workspace_id = $2::uuid and key = $3`,
+    [target.nodeId, target.workspaceId, key],
+  );
+  return rows[0]?.data ?? null;
+}
+
+/** Delete one keyed row; true when there was one. */
+export async function deleteRowByKey(target: DatasetTarget, key: string): Promise<boolean> {
+  const rows = await runDatasetSql<{ idx: number }>(
+    `delete from ${DATASET_ROWS_TABLE} where node_id = $1::uuid and workspace_id = $2::uuid and key = $3 returning idx`,
+    [target.nodeId, target.workspaceId, key],
+  );
+  return rows.length > 0;
+}

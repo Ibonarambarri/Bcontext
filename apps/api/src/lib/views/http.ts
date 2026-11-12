@@ -9,6 +9,7 @@ import type { Verb } from "@/lib/auth/grants";
 import type { Storage } from "@/lib/storage";
 import { viewPrincipal } from "./access";
 import { ViewConflictError, ViewForbiddenError, ViewNotFoundError } from "./store";
+import { ViewKindError } from "./kinds";
 import type { ViewPrincipal } from "@bcontext-dev/contract/views/types";
 
 /**
@@ -41,6 +42,7 @@ export async function resolveViewRequest(
 /** Store errors → HTTP; `null` means "not ours, let the route's 500 path have it". */
 export function viewErrorResponse(error: unknown): Response | null {
   if (error instanceof ViewNotFoundError) return Response.json({ error: "not_found" }, { status: 404 });
+  if (error instanceof ViewKindError) return Response.json({ error: "invalid_query", message: error.message, valid_kinds: error.valid }, { status: 400 });
   if (error instanceof ViewForbiddenError) return Response.json({ error: "forbidden", message: error.message }, { status: 403 });
   if (error instanceof ViewConflictError) return Response.json({ error: "conflict", message: error.message, current_version: error.currentVersion, expected_version: error.expectedVersion }, { status: 409 });
   return null;

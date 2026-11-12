@@ -19,6 +19,8 @@ import { inspectorCanWrite } from "@bcontext-dev/contract/node-inspector";
 import { withRoute } from "@/lib/route";
 import { NODE_KINDS, type NodeKind } from "@bcontext-dev/contract/types";
 
+const KIND_SHAPE = /^[a-z][a-z0-9_]{1,39}$/;
+
 const VALID_KINDS: ActivityKind[] = [
   "create",
   "update",
@@ -67,8 +69,10 @@ export const GET = withRoute(async (req: Request) => {
     (value): value is "human" | "agent" | "system" =>
       value === "human" || value === "agent" || value === "system",
   );
+  // Core kinds and record types alike (`account`): a filter on a kind this
+  // workspace does not have simply matches nothing.
   const nodeKinds = commaValues(req, "node_kind").filter(
-    (value): value is NodeKind => (NODE_KINDS as readonly string[]).includes(value),
+    (value): value is NodeKind => (NODE_KINDS as readonly string[]).includes(value) || KIND_SHAPE.test(value),
   );
   const cursor = new URL(req.url).searchParams.get("cursor") ?? undefined;
   if (cursor && !decodeChangeCursor(cursor)) {

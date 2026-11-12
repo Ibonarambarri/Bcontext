@@ -26,6 +26,8 @@ import {
   type NodeFieldPreset,
 } from "@/lib/node-fields";
 import { withRoute } from "@/lib/route";
+import { prepareNodeCreate } from "@/lib/business/records";
+import { businessErrorResponse } from "@/lib/business/http";
 import { emitEvent } from "@/lib/webhooks/dispatch";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { appendAudit, type ActorType } from "@/lib/audit";
@@ -94,21 +96,13 @@ const ChangeContextSchema = z.object({
 const CreateSchema = z.object({
   workspace: z.string().min(1),
   title: z.string().min(1).max(200),
-  kind: z.enum([
-    "doc",
-    "task",
-    "decision",
-    "meeting",
-    "bug",
-    "adr",
-    "entity",
-    "skill",
-    "data",
-    "credential",
-    "goal",
-  ]),
+  // A core kind or one of the workspace's record types (`account`); which
+  // ones exist is checked against the workspace once it is open.
+  kind: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
   parent_id: z.string().nullable(),
   content_md: z.string().optional(),
+  // A record type's field values (`data.fields`), validated against its definition.
+  fields: z.record(z.unknown()).optional(),
   // Both vocabularies: the column is shared, and which one is legal depends
   // on the node's kind, not on the route. `statusLabel` reads either.
   status: z.enum(NODE_STATUSES).nullable().optional(),
@@ -130,7 +124,7 @@ export const POST = withRoute(async (req: Request) => {
       { status: 400 },
     );
   }
-  const { workspace, change_context, subtasks, ...input } = parsed.data;
+  const { workspace, change_context, subtasks, fields, ...input } = parsed.data;
   if (subtasks && subtasks.length > 0 && !SUBTASK_KINDS.has(input.kind)) {
     return Response.json(
       { error: "subtasks_wrong_kind", message: `subtasks belong to task or bug nodes, not a ${input.kind}` },
@@ -147,6 +141,9 @@ export const POST = withRoute(async (req: Request) => {
 
   let node;
   try {
+    // Unknown kinds are refused naming the ones that exist; a record kind's
+    // fields are validated and land in data.fields.
+    rest.data = (await prepareNodeCreate(storage, { kind: rest.kind, fields, data: rest.data })).data;
     // Same resolution as MCP: a goal's scope is decided once, here, and a
     // company goal is parented to the North Star. The storage seam then reads
     // that scope to decide whether this write needed `goals:write`.
@@ -160,6 +157,8 @@ export const POST = withRoute(async (req: Request) => {
         { status: 400 },
       );
     }
+    const business = businessErrorResponse(error);
+    if (business) return business;
     if (error instanceof NodeWriteError) {
       return Response.json(
         { error: error.code, message: error.message },

@@ -2,15 +2,17 @@
  * `/w/<ws>/v/<view>`: every view a workspace has, under one route.
  *
  * `<view>` is either a system surface with a component of its own (the
- * agents and tools admin pages) or the slug/id of a saved view, which
- * `ViewCanvas` resolves and renders client-side. `webhooks` — the slug the
- * outbound webhooks had while the capability gateway was gone — redirects to
- * `tools`, where they live again, so links from those days keep working.
+ * agents and tools admin pages, and `whats-new`, the review surface) or the
+ * slug/id of a saved view, which `ViewCanvas` resolves and renders
+ * client-side. `webhooks` — the slug the outbound webhooks had while the
+ * capability gateway was gone — redirects to `tools`, where they live again,
+ * so links from those days keep working.
  */
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { ViewCanvas } from "@/components/view-canvas";
 import { WorkspaceAdminPage, type WorkspaceAdminSurface } from "@/components/agents-dashboard";
+import { WhatsNewView } from "@/components/whats-new-view";
 import { systemViewPath } from "@/lib/view-shell";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 
@@ -31,6 +33,7 @@ export default async function WorkspaceViewPage({
   const decoded = decodeURIComponent(view);
   const legacy = LEGACY_REDIRECTS[decoded];
   if (legacy) redirect(legacy(address));
+  if (decoded === "whats-new") return <WhatsNewView />;
   if (ADMIN_SURFACES.has(decoded as WorkspaceAdminSurface)) {
     return <WorkspaceAdminPage workspace={address} surface={decoded as WorkspaceAdminSurface} />;
   }

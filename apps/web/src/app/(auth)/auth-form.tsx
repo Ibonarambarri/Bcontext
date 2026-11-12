@@ -41,6 +41,10 @@ export function AuthForm({ next }: { next?: string }) {
             required
             autoComplete="email"
             placeholder="you@company.com"
+            // Keyed on the attempt so the form's reset after a refused
+            // sign-in brings the email back instead of an empty field.
+            key={state.email ?? ""}
+            defaultValue={state.email}
           />
         </div>
 

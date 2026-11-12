@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * LineChart / AreaChart — recharts in a responsive container, with the app's
- * axis, grid and tooltip look. The workspace dashboard's activity chart is an
- * AreaChart; the admin dashboard's usage chart is a LineChart.
+ * LineChart / AreaChart / BarChart — recharts in a responsive container, with
+ * the app's axis, grid and tooltip look. The workspace dashboard's activity
+ * chart is an AreaChart; the admin dashboard's usage chart is a LineChart; the
+ * business metrics view (`components/business/metrics-chart-impl.tsx`) uses
+ * LineChart and BarChart.
  *
  * The parts are recharts' own components re-exported under the chart's
  * namespace (`LineChart.XAxis` is recharts' `XAxis`), because recharts finds
@@ -15,6 +17,8 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   Area,
   AreaChart as RechartsAreaChart,
+  Bar,
+  BarChart as RechartsBarChart,
   CartesianGrid,
   Line,
   LineChart as RechartsLineChart,
@@ -58,6 +62,18 @@ function AreaRoot({ data, height = 300, width = "100%", margin = DEFAULT_MARGIN,
         <RechartsAreaChart data={data} margin={margin}>
           {children}
         </RechartsAreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function BarRoot({ data, height = 300, width = "100%", margin = DEFAULT_MARGIN, className, style, children }: ChartRootProps) {
+  return (
+    <div data-slot="bar-chart" className={cn("bctx-chart w-full", className)} style={style}>
+      <ResponsiveContainer width={width} height={height}>
+        <RechartsBarChart data={data} margin={margin}>
+          {children}
+        </RechartsBarChart>
       </ResponsiveContainer>
     </div>
   );
@@ -138,6 +154,15 @@ export const AreaChart = Object.assign(AreaRoot, {
   XAxis,
   YAxis,
   Area,
+  Tooltip,
+  TooltipContent,
+});
+
+export const BarChart = Object.assign(BarRoot, {
+  Grid: CartesianGrid,
+  XAxis,
+  YAxis,
+  Bar,
   Tooltip,
   TooltipContent,
 });

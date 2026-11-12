@@ -47,7 +47,12 @@ export function sortListNodes<T extends Partial<KnowledgeNode>>(
   nodes: T[],
   sortBy: ViewPresentation["sort_by"],
 ): T[] {
-  const sort = sortBy[0] ?? { field: "updated_at" as const, direction: "desc" as const };
+  // A `field:<key>` sort belongs to record views (`business/record-table.tsx`);
+  // the list's summary rows carry no fields, so it falls back to recency.
+  const first = sortBy[0];
+  const sort = first && !first.field.startsWith("field:")
+    ? (first as { field: keyof KnowledgeNode; direction: "asc" | "desc" })
+    : { field: "updated_at" as const, direction: "desc" as const };
   return [...nodes].sort((a, b) => {
     const comparison = String(a[sort.field] ?? "").localeCompare(String(b[sort.field] ?? ""));
     return sort.direction === "desc" ? -comparison : comparison;

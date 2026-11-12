@@ -6,7 +6,10 @@
  * and skill have their own views, everything else is the editor. The status
  * strip follows the same plan the floating panel uses
  * (`node-panel/body-for-kind.ts`), so a bug or a decision reads the same on
- * its page as in the panel. The body components are
+ * its page as in the panel. A node whose kind is one of the workspace's
+ * record types (`account`, `deal`…) gets its fields as a read-first header
+ * (`components/business/record-fields-header.tsx`) and, when other record
+ * types point at its type, the 360 layout (`record-360.tsx`). The body components are
  * lazy so the page's server render stays light; `?highlight=`, `?block=` and
  * `?view=` are deep-link hints (a RAG citation, an inspector block, the
  * meeting tab) rather than state.
@@ -20,7 +23,7 @@ import { parseCitationHighlight } from "@bcontext-dev/contract/rag/citation";
 import type { RefineStatus } from "@bcontext-dev/contract/meetings";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import { log } from "@bcontext-dev/contract/log";
-import { getNode, listNodeSummaries } from "@/web/workspace";
+import { findWorkspace, getNode, listNodeSummaries } from "@/web/workspace";
 import { workspaceName, type WorkspaceAddress } from "@/web/workspace-url";
 import { TagPicker } from "@/components/tag-picker";
 import { ActiveNodeInspector } from "@/components/active-node-inspector";
@@ -35,6 +38,13 @@ import {
   LazySubtasksSection,
 } from "@/components/lazy-node-body";
 import { panelPlanFor } from "@/components/node-panel/body-for-kind";
+import { isCoreKind } from "@bcontext-dev/contract/types";
+import type { RecordType } from "@bcontext-dev/contract/business/record-types";
+import { RecordFieldsHeader } from "@/components/business/record-fields-header";
+import { Record360 } from "@/components/business/record-360";
+import { isHubType, recordTypeFor } from "@/lib/business/records";
+import { getBusinessSettings, listRecordTypes } from "@/web/business";
+
 
 export default async function NodePage({
   params,
@@ -66,6 +76,10 @@ export default async function NodePage({
     throw err;
   }
   if (!node || !all) notFound();
+  // A node whose kind is a workspace record type reads as a record: its
+  // fields first, and a 360 when other types point at it. Core kinds skip
+  // these reads entirely.
+  const record = isCoreKind(node.kind) ? null : await readRecordContext(workspace, node.kind);
   const meetingData =
     node.kind === "meeting"
       ? ((node.data ?? {}) as {
@@ -91,6 +105,7 @@ export default async function NodePage({
       title={node.title}
       node={node}
       allNodes={all}
+      record={record}
     />
   );
 
@@ -158,16 +173,46 @@ export default async function NodePage({
   );
 }
 
+interface RecordContext {
+  type: RecordType;
+  types: RecordType[];
+  currency: string;
+  canWrite: boolean;
+  /** Other record types point at this one: the page is a 360. */
+  hub: boolean;
+}
+
+/** The record type of a non-core node, or null when the workspace has none by that key. */
+async function readRecordContext(workspace: WorkspaceAddress, kind: string): Promise<RecordContext | null> {
+  const [types, settings, card] = await Promise.all([
+    listRecordTypes(workspace),
+    getBusinessSettings(workspace),
+    findWorkspace(workspace),
+  ]);
+  const type = recordTypeFor(kind, types);
+  if (!type) return null;
+  return {
+    type,
+    types,
+    currency: settings.currency,
+    // Edit affordances follow the role; the API is still what decides.
+    canWrite: card?.role !== "viewer",
+    hub: isHubType(type.key, types),
+  };
+}
+
 function NodeHeader({
   workspace,
   title,
   node,
   allNodes,
+  record,
 }: {
   workspace: WorkspaceAddress;
   title: string;
   node: KnowledgeNode;
   allNodes: KnowledgeNode[];
+  record: RecordContext | null;
 }) {
   const plan = panelPlanFor(node.kind);
   // Autofix rewrites the editor's body; kinds whose body is not the editor
@@ -189,8 +234,29 @@ function NodeHeader({
           below stays the editor — unlike a credential, a goal has prose worth
           writing. */}
       {node.kind === "goal" ? <LazyGoalOverview node={node} editable className="mt-3" /> : null}
+      {record ? (
+        <RecordFieldsHeader
+          workspace={workspace}
+          node={node}
+          type={record.type}
+          titles={Object.fromEntries(allNodes.map((n) => [n.id, n.title]))}
+          canWrite={record.canWrite}
+        />
+      ) : null}
+      {record?.hub ? (
+        <Record360
+          ws={workspace}
+          node={node}
+          type={record.type}
+          types={record.types}
+          index={allNodes}
+          currency={record.currency}
+          now={new Date()}
+        />
+      ) : null}
       <TagPicker node={node} workspace={workspace} />
-      <NodeBacklinks nodeId={node.id} workspace={workspace} />
+      {/* A 360 already groups every link by kind; the flat list would repeat it. */}
+      {record?.hub ? null : <NodeBacklinks nodeId={node.id} workspace={workspace} />}
       <MentionsEditor node={node} workspace={workspace} allNodes={allNodes} />
       {node.kind === "task" || node.kind === "bug" ? (
         // The steps, above the body: on the page the body is the editor,

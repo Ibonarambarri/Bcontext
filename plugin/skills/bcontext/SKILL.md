@@ -1,6 +1,6 @@
 ---
 name: bcontext
-description: How to work a Bcontext workspace as an agent — the 27 native tools (brief, nodes/nodes_write, subtasks/subtasks_write, goals/goals_write, data/data_write, tags/tags_write, views/views_write, links_write, ingest/ingest_write, skills/skills_write/skills_run, capabilities/capabilities_write, admin/admin_write, ask_rag, list_changes, list_workspaces, ping) plus capability_search/capability_call for the external tools (other MCP servers routed through Bcontext) and skills, H2 blocks, subtasks inside a task, the if_updated_at rule, typed dependencies, cited retrieval, working alongside other agents, and what to write down. Use whenever reading from or writing to a Bcontext workspace (your self-hosted instance) via the mcp__bcontext__* tools.
+description: How to work a Bcontext workspace as an agent — the 27 native tools (brief, nodes/nodes_write, subtasks/subtasks_write, goals/goals_write, data/data_write, tags/tags_write, views/views_write, links_write, ingest/ingest_write, skills/skills_write/skills_run, capabilities/capabilities_write, admin/admin_write, ask_rag, list_changes, list_workspaces, ping) plus capability_search/capability_call for the external tools (other MCP servers routed through Bcontext) and skills, H2 blocks, subtasks inside a task, the if_updated_at rule, typed dependencies, cited retrieval, working alongside other agents, business record types (accounts, deals… as kinds with typed `fields`) and metrics, and what to write down. Use whenever reading from or writing to a Bcontext workspace (your self-hosted instance) via the mcp__bcontext__* tools.
 ---
 
 # Working with Bcontext
@@ -48,7 +48,7 @@ Reads never mutate; `*_write` tools do. Pick the operation with `op`:
 | `nodes` (get · list · search) | `nodes_write` (create · update · append · replace_block · delete · set_node_tags · toggle_checklist_item · attach_file) | the knowledge itself |
 | `subtasks` (list · get) | `subtasks_write` (add · update · delete · toggle · reorder) | the steps inside one task, edited by id |
 | `goals` | `goals_write` (checkin · create · update · add_kr · update_kr · remove_kr) | what the workspace is aiming at, and how each objective is doing |
-| `data` (schema · sample · query) | `data_write` (create · append_rows · replace_rows) | datasets (kind `data`): rows live in their own table, queried server-side |
+| `data` (schema · sample · query · metrics) | `data_write` (create · append_rows · replace_rows · upsert_rows · promote_row) | datasets (kind `data`): rows live in their own table, queried server-side; `metrics` is the business KPI summary |
 | `tags` (list) | `tags_write` (create · update · link · unlink · merge · delete) | the taxonomy — create/update/link come with `write`; merge/delete need `tags:delete` (admin) |
 | `views` (list · get · resolve · query) | `views_write` (create · duplicate · update · delete) | saved query lenses |
 | — | `links_write` (link · unlink) | typed edges between nodes |
@@ -56,7 +56,7 @@ Reads never mutate; `*_write` tools do. Pick the operation with `op`:
 | `skills` (list · get) | `skills_write` (import) · `skills_run` | skills as YOUR instructions (get renders the prompt, scopes and tools); run is for model-less automations |
 | `capabilities` (list · discover · status) | `capabilities_write` (connect · disconnect · grant · revoke) | connecting other MCPs and webhooks, and granting their tools — admin verb |
 | `capability_search` | `capability_call` (ref · args) | the external tools you were granted and the workspace's skills, found by search and called by ref |
-| `admin` (access · preview · held_invitations) | `admin_write` (grant · revoke · invite · release_invite) | who can reach what — needs the `admin` verb |
+| `admin` (access · preview · held_invitations · business) | `admin_write` (grant · revoke · invite · release_invite · set_business · record_type · delete_record_type · apply_business_template) | who can reach what, and what the workspace is (business model, record types) — needs the `admin` verb |
 | `ask_rag`, `list_changes`, `list_workspaces`, `ping` | | |
 
 `tools/list` is authoritative and per-principal: a tool you cannot use is not
@@ -266,6 +266,71 @@ sits (status, priority, open blockers). The column is a rule, not a field:
 to move a card, change the node — its status, its priority, its edges —
 never the view. A task in the `unassigned` row is one nobody linked to an
 objective; if you know which goal it serves, that link is worth adding.
+
+## Business workspaces: record types are kinds
+
+A workspace whose `brief` has a `business` section is a company's brain too:
+`business.model` is `b2b`, `b2c` or `marketplace`, and
+`business.record_types` lists the kinds it defined for itself, compactly —
+`{ key: "account", fields: "mrr:money*,stage:select,champion:relation→contact", stages: [...] }`
+(`*` required, `→kind` a relation to a node of that kind, options in
+parentheses, the stage field's options in `stages`).
+
+- **A record type is a kind.** Write `nodes_write({ op: "create", kind:
+  "account", title: "Acme", fields: { mrr: { amount: 490, currency: "EUR" },
+  stage: "customer" } })`, never `kind: "entity"` with a subtype. Update with
+  `patch: { fields: { stage: "churned" } }` — merged, `null` clears an
+  optional field. Values never go in `content_md`; the body is for what the
+  team knows about the account.
+- **A stage is a field, not `status`.** `status` keeps its fixed vocabulary
+  (backlog…archived, goal statuses) because views and boards run on it.
+- **Errors name the field.** A wrong type, an unknown field or a missing
+  required one comes back as "field `mrr`: expected {amount, currency}" —
+  fix that field and retry; do not drop the value into the body instead.
+- **Filter on fields:** `nodes({ op: "list", kind: "account", fields: [{
+  field: "stage", op: "eq", value: "customer" }, { field: "mrr", op: "gt",
+  value: 500 }] })` — `eq · in · gt · lt · empty` (`empty` takes `true` for
+  "no value", `false` for "has one"); money compares on its amount; each
+  hit carries its `fields`.
+- **Views over records:** a view query takes the same filters as
+  `field_filters`, and `field:<key>` wherever the presentation names a column
+  (`group_by`, `sort_by`, `columns`): `{ query: { schema_version: 1, kinds:
+  ["deal"] }, presentation: { schema_version: 1, renderer: "board", group_by:
+  "field:stage", columns: ["title", "field:amount"] } }` is a pipeline whose
+  columns are the stage options in order. `query.dataset_type: "customer"`
+  lists a dataset-backed type's rows instead of nodes. Renderers `metrics`
+  (KPI cards and charts, `layout.metrics`) and `heatmap` (x × y grid,
+  `layout.heatmap`) read business events or dataset rows; a field or type
+  the workspace does not have is refused naming the ones it does.
+  `views({ op: "resolve" })` returns what the web draws — `records` with
+  their `fields`, `dataset` rows, `metrics`, `heatmap` — so read numbers
+  there instead of recomputing them. A card moves by editing the record's
+  field (`nodes_write` update with `patch: { fields }`), never the view.
+- **People in a B2C business are rows, not nodes.** A type with `storage:
+  "dataset"` (brief marks it) lives in a `data` node keyed by the product's
+  id; `data_write({ op: "upsert_rows", node_id, key_column: "external_id",
+  rows })` merges rows by key. When one person matters to the team (a VIP, an
+  incident), `data_write({ op: "promote_row", node_id, key, record_type })`
+  makes them a node — promoting again updates the same node.
+- **Customer data and events come from the product**, through the ingest API
+  with a write-only key — not from you. Do not create `account` nodes by
+  hand for customers the product already syncs; enrich them (notes, links,
+  decisions about them).
+- **Metrics:** `data({ op: "metrics" })` — the KPI set for the business
+  model (MRR, net new MRR split, churn, NRR, ARPA, burn, runway; or GMV,
+  take rate, bookings, cancellations, active/new/repeat buyers), each with
+  the current month, the previous one, the delta, last year's same month and
+  a 12-month series. Quote these instead of computing your own from rows.
+- Defining types and setting the model is an admin's: `admin_write({ op:
+  "record_type", key, definition })`, `admin_write({ op: "set_business",
+  business_model })`; `admin({ op: "business" })` returns the full
+  definitions. `admin_write({ op: "apply_business_template" })` adds the
+  model's default record types (b2b: account, contact, deal, request; b2c:
+  segment, request, incident, dataset-backed customer; marketplace: segment,
+  zone, incident, request, dataset-backed supplier and buyer) and views
+  (Pipeline, Renewals, Metrics, Supply vs demand…) that are missing. It
+  never overwrites or deletes: a key that exists is the team's, even if it
+  differs from the template — so it is safe to run again.
 
 ## Credentials: one node, one credential — and you will never see the value
 

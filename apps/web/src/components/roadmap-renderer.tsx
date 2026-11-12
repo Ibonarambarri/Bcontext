@@ -57,8 +57,9 @@ export function RoadmapRenderer({ model }: { model: RoadmapModel }) {
           </EmptyState.Media>
           <EmptyState.Title className="text-[16px] text-[var(--ink)]">Nothing on the roadmap yet</EmptyState.Title>
           <EmptyState.Description className="max-w-[460px]">
-            Rows are the workspace&rsquo;s goals and cards are the tasks that contribute to them. Create a goal, then link
-            work to it with a <span className="mono">contributes_to</span> relation, and it appears here.
+            Rows are the workspace&rsquo;s goals and cards are the tasks that contribute to them. Ask your agent to
+            record a goal and link work to it with a <span className="mono">contributes_to</span> relation, and it
+            appears here.
           </EmptyState.Description>
         </EmptyState.Header>
       </EmptyState>

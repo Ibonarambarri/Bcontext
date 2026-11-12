@@ -18,7 +18,7 @@ import { workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
 
 const PREFIX = "bx:view-renderer:";
 
-export type ViewRendererHint = "graph" | "board" | "changes" | "list" | "table" | "browse" | "credentials" | "roadmap";
+export type ViewRendererHint = "graph" | "board" | "changes" | "list" | "table" | "browse" | "credentials" | "roadmap" | "metrics" | "heatmap";
 
 /* Keyed by the workspace slug as well as the view: two workspaces' views
    with the same key are not the same views. */

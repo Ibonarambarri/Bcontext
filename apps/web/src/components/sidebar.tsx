@@ -5,56 +5,67 @@
  * inside the `Sidebar.Provider` of `ui/sidebar` (offcanvas on desktop, the
  * `Sidebar.Mobile` drawer under 768px — one tree of content rendered twice).
  *
- * Structure: workspace switcher · Find (⌘K) · Dashboard · the Knowledge
- * group (Brain first, then
- * Tasks, Roadmap, Browse, Credentials, and "New" last: the create-node
- * dialog, ⌘⇧K, dispatched as the `bcontext:new-node` window event that
- * `create-node-dialog-host.tsx` listens for — it sits with the knowledge it
- * creates, not with Find) · the Agents & Tools group (connected agents, and
- * the tool providers they reach through Bcontext's MCP plus the outbound
- * webhooks) · the account row (user menu).
+ * Structure: workspace switcher · Find (⌘K) · Dashboard · What's new (the
+ * review surface, with the unread count from `useWhatsNewCount`) · the
+ * Business group (only when the business model is not `product`: the
+ * template's saved views, picked by `@/lib/business/nav`) · the Knowledge
+ * group (Brain first, then Tasks, Roadmap, Browse, Credentials) · the
+ * Agents & Tools group (connected agents, and the tool providers they reach
+ * through Bcontext's MCP plus the outbound webhooks) · the account row (user
+ * menu).
  *
- * What is deliberately NOT here: saved custom views (their routes still
- * render for direct links), Activity (in the user menu), Tags and Decisions
- * as entries of their own. Tags are a focus inside Brain (`graph-view.tsx`),
- * which is also where tags are created and managed; a second graph surface
- * over the same data starved the thin one.
+ * What is deliberately NOT here: a "New node" entry. Agents write the brain
+ * through the MCP; the web is for reading and reviewing what they wrote, so
+ * creating by hand is a secondary path — the ⌘K palette's "Create a node…"
+ * and ⌘⇧K (`create-node-dialog-host.tsx`). Also absent: saved custom views
+ * other than the business ones (their routes still render for direct links),
+ * Activity (in the user menu), Tags and Decisions as entries of their own.
+ * Tags are a focus inside Brain (`graph-view.tsx`), which is also where tags
+ * are created and managed; a second graph surface over the same data starved
+ * the thin one.
  *
  * `activeViewMeta` is the sidebar's knowledge of slugs turned into the
  * title the shell shows next to the trigger. Width is user-resizable and
  * kept in localStorage (`useSidebarWidth`, owned by the shell).
  */
 
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import {
   Activity,
+  BarChart3,
   Bookmark,
   Bot,
   BrainCircuit,
+  ChartLine,
   CheckSquare,
   Folder,
+  Grid3x3,
   Home,
   KeyRound,
   LayoutGrid,
   List,
   Milestone,
   Network,
-  Plus,
   Search,
+  Sparkles,
   Table2,
   Wrench,
 } from "lucide-react";
 import { Button, Kbd } from "@heroui/react";
 import { Sidebar as SidebarPrimitive, useSidebar } from "@/components/ui/sidebar";
-import { systemViewPath, type SystemViewKey } from "@/lib/view-shell";
+import { customViewPath, systemViewPath, type SystemViewKey } from "@/lib/view-shell";
 import type { SavedView } from "@bcontext-dev/contract/views/types";
 import type { ViewRenderer } from "@bcontext-dev/contract/views/schema";
 import { useWorkspace } from "./workspace-context";
+import { useBusiness } from "./business/business-context";
+import { businessNavViews, isBusinessView } from "@/lib/business/nav";
 import { UserMenu } from "./user-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { OPEN_GUIDE_EVENT } from "./onboarding/events";
+import { useWhatsNewCount } from "./whats-new-data";
+import { badgeLabel } from "@/lib/whats-new";
 
 /** The Knowledge group, in display order. Brain first: it is the workspace. */
 const KNOWLEDGE_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Home }[] = [
@@ -74,9 +85,21 @@ const VIEW_RENDERER_ICONS: Record<ViewRenderer, typeof Home> = {
   browse: Folder,
   credentials: KeyRound,
   roadmap: Milestone,
+  metrics: ChartLine,
+  heatmap: Grid3x3,
 };
 
-const ADMIN_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Bot }[] = [
+/**
+ * A saved view's icon by renderer. `metrics` is not a core renderer yet (the
+ * business views add it), so the lookup is by string and falls back.
+ */
+function viewIcon(view: Pick<SavedView, "presentation">): typeof Home {
+  const renderer = view.presentation.renderer as string;
+  if (renderer === "metrics") return BarChart3;
+  return VIEW_RENDERER_ICONS[renderer as ViewRenderer] ?? Bookmark;
+}
+
+const ADMIN_VIEWS:{ key: SystemViewKey; label: string; Icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", Icon: Bot },
   { key: "tools", label: "Tools", Icon: Wrench },
 ];
@@ -97,13 +120,14 @@ export function activeViewMeta(
 ): { label: string; Icon: NavIcon; section?: string } | null {
   if (!slug) return null;
   if (slug === "overview") return { label: "Dashboard", Icon: Home };
+  if (slug === "whats-new") return { label: "What's new", Icon: Sparkles };
   if (slug === "changes") return { label: "Activity", Icon: Activity };
   const knowledge = KNOWLEDGE_VIEWS.find((view) => view.key === slug);
   if (knowledge) return { label: knowledge.label, Icon: knowledge.Icon, section: "Knowledge" };
   const admin = ADMIN_VIEWS.find((view) => view.key === slug);
   if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Tools" };
   const custom = views.find((view) => view.slug === slug);
-  if (custom) return { label: custom.name, Icon: VIEW_RENDERER_ICONS[custom.presentation.renderer] ?? Bookmark, section: "Knowledge" };
+  if (custom) return { label: custom.name, Icon: viewIcon(custom), section: isBusinessView(custom) ? "Business" : "Knowledge" };
   return null;
 }
 
@@ -154,24 +178,21 @@ export function Sidebar({
     activeViewSlug,
     openSettings,
     openWorkspacePanel,
+    views,
   } = useWorkspace();
+  const { business_model } = useBusiness();
+  const businessViews = useMemo(() => businessNavViews(views, business_model), [views, business_model]);
   const router = useRouter();
-  const { setMobileOpen } = useSidebar();
   // Width state lives in the shell (the offcanvas wrapper reads
   // --sidebar-width at the Provider level); props arrive on desktop only.
   const sidebarWidth = width ?? SIDEBAR_DEFAULT_W;
   const setSidebarWidth = onResize ?? (() => {});
+  const unread = useWhatsNewCount();
+  const whatsNewBadge = badgeLabel(unread.count, unread.capped);
 
   const navigate = useCallback((href: Route) => {
     router.push(href);
   }, [router]);
-
-  // The mobile sheet closes itself only for items with an href; an action
-  // item has to close it, or the dialog opens behind the sheet.
-  const openNewNode = useCallback(() => {
-    setMobileOpen(false);
-    window.dispatchEvent(new CustomEvent("bcontext:new-node"));
-  }, [setMobileOpen]);
 
   // Rendered twice under the shell's Sidebar.Provider: in the desktop aside
   // (offcanvas collapse, Trigger in the content header) and in the phone
@@ -213,8 +234,56 @@ export function Sidebar({
                       <SidebarPrimitive.MenuLabel>Dashboard</SidebarPrimitive.MenuLabel>
                     </SidebarPrimitive.MenuItemContent>
                   </SidebarPrimitive.MenuItem>
+                  <SidebarPrimitive.MenuItem
+                    id="whats-new"
+                    textValue="What's new"
+                    aria-label={whatsNewBadge ? `What's new, ${whatsNewBadge} unread` : "What's new"}
+                    href={systemViewPath(address, "whats-new")}
+                    isCurrent={activeViewSlug === "whats-new"}
+                  >
+                    <SidebarPrimitive.MenuIcon><Sparkles size={13} /></SidebarPrimitive.MenuIcon>
+                    <SidebarPrimitive.MenuItemContent>
+                      <SidebarPrimitive.MenuLabel>What&apos;s new</SidebarPrimitive.MenuLabel>
+                    </SidebarPrimitive.MenuItemContent>
+                    {whatsNewBadge ? (
+                      <SidebarPrimitive.MenuChip
+                        aria-hidden
+                        className="ml-auto min-w-5 rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-medium text-[var(--accent-foreground)]"
+                      >
+                        {whatsNewBadge}
+                      </SidebarPrimitive.MenuChip>
+                    ) : null}
+                  </SidebarPrimitive.MenuItem>
                 </SidebarPrimitive.Menu>
               </SidebarPrimitive.Group>
+
+              {/* A business workspace's own views, above the knowledge ones:
+                  for a SaaS the pipeline and the accounts are where the day
+                  starts. Product workspaces have none and see no section. */}
+              {businessViews.length > 0 ? (
+                <SidebarPrimitive.Group className="mt-4">
+                  <SidebarPrimitive.GroupLabel>Business</SidebarPrimitive.GroupLabel>
+                  <SidebarPrimitive.Menu aria-label="Business">
+                    {businessViews.map((view) => {
+                      const Icon = viewIcon(view);
+                      return (
+                        <SidebarPrimitive.MenuItem
+                          key={view.id}
+                          id={`business-${view.id}`}
+                          textValue={view.name}
+                          href={customViewPath(address, view.slug)}
+                          isCurrent={activeViewSlug === view.slug}
+                        >
+                          <SidebarPrimitive.MenuIcon><Icon size={13} /></SidebarPrimitive.MenuIcon>
+                          <SidebarPrimitive.MenuItemContent>
+                            <SidebarPrimitive.MenuLabel>{view.name}</SidebarPrimitive.MenuLabel>
+                          </SidebarPrimitive.MenuItemContent>
+                        </SidebarPrimitive.MenuItem>
+                      );
+                    })}
+                  </SidebarPrimitive.Menu>
+                </SidebarPrimitive.Group>
+              ) : null}
 
               <SidebarPrimitive.Group className="mt-4">
                 <SidebarPrimitive.GroupLabel>Knowledge</SidebarPrimitive.GroupLabel>
@@ -227,25 +296,6 @@ export function Sidebar({
                       </SidebarPrimitive.MenuItemContent>
                     </SidebarPrimitive.MenuItem>
                   ))}
-                  {/* Not a route: opens the create-node dialog, whose host
-                      owns the ⌘⇧K binding the hint advertises. */}
-                  <SidebarPrimitive.MenuItem
-                    id="new-node"
-                    textValue="New"
-                    aria-label="New node"
-                    aria-keyshortcuts="Meta+Shift+K"
-                    onAction={openNewNode}
-                  >
-                    <SidebarPrimitive.MenuIcon><Plus size={13} /></SidebarPrimitive.MenuIcon>
-                    <SidebarPrimitive.MenuItemContent>
-                      <SidebarPrimitive.MenuLabel>New</SidebarPrimitive.MenuLabel>
-                    </SidebarPrimitive.MenuItemContent>
-                    <Kbd variant="light" className="ml-auto shrink-0 text-[10px] text-[var(--ink-mute)]">
-                      <Kbd.Abbr keyValue="command" />
-                      <Kbd.Abbr keyValue="shift" />
-                      <Kbd.Content>K</Kbd.Content>
-                    </Kbd>
-                  </SidebarPrimitive.MenuItem>
                 </SidebarPrimitive.Menu>
               </SidebarPrimitive.Group>
 

@@ -38,7 +38,11 @@ Bcontext is the place that work lands. An agent starts by asking for a
 **brief**: what is unblocked, which decisions are open, what changed since it
 last looked. It picks a task, does the work and closes it with a
 **`## Result`** the next agent or person builds on. People see the same graph
-in the web app and steer it: review what agents wrote, fix it, decide.
+in the web app and steer it: review what agents wrote, fix it, decide. The
+web is built for reading, not data entry: **What's new** lists what agents
+and teammates changed since your last visit (proposals to accept or dismiss
+on top), and **Ask the brain…** answers from the workspace with links to the
+nodes it cites. Writing is your agent's job.
 
 ```mermaid
 flowchart LR
@@ -140,6 +144,27 @@ an agent or a person accepts or dismisses.
 
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+
+**📈 The business, not only the code**<br>
+A workspace can be a B2B or B2C SaaS or a marketplace. It defines its own
+record types (`account`, `deal`, `zone`…) that agents write as ordinary
+kinds with validated fields. Your product pushes customers and events
+(subscriptions, bookings, expenses) through a write-only ingest API, and
+Bcontext computes MRR, churn, NRR, GMV, take rate and runway — one read for a
+dashboard, one call for an agent. Choose b2b, b2c or marketplace when creating
+the workspace and it starts from a template (a deal pipeline with stage
+totals, renewals, supply vs demand by zone and week, KPI cards with
+year-on-year comparison) that the team edits from there. In the web app a
+business workspace opens on its KPIs, charts and the accounts, renewals and
+pipeline to act on, and each customer has a 360 page; settings → Business
+holds the model, the record types and the ingest keys. See
+[docs/ingest-api.md](docs/ingest-api.md) and
+[docs/business-views.md](docs/business-views.md).
+
+</td>
+</tr>
 </table>
 
 ## Screenshots
@@ -220,7 +245,7 @@ plugin, which adds the working conventions as a skill and a
 | `caddy` | A single origin for everything: the web app, the API, `/mcp` and the Supabase gateway, with automatic HTTPS |
 | `web` | The Next.js app (`apps/web`). It has no data of its own and calls the API over HTTP |
 | `api` | REST, the MCP server and realtime WebSockets (`apps/api`) |
-| `worker` | pg-boss queues: outbound webhooks, MCP-server health checks and OAuth expiry, scheduled skills, retention (same image as `api`) |
+| `worker` | pg-boss queues: outbound webhooks, MCP-server health checks and OAuth expiry, scheduled skills, business metric rollups, retention (same image as `api`) |
 | `migrate` | One-shot: applies pending migrations, then exits; `api` and `worker` wait for it |
 | `db` | Postgres 15 with pgvector (`supabase/postgres`) |
 | `auth`, `rest`, `storage`, `kong` | Supabase Auth, PostgREST, Storage (files on a volume) and its gateway |

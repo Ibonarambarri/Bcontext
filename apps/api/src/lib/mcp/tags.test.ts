@@ -53,12 +53,15 @@ describe("MCP first-class tags", () => {
         properties: Record<string, { const?: string } & Record<string, unknown>>;
       }>).find((b) => b.properties.op?.const === op)!;
     const createProperties = branch("create").properties as Record<string, {
-      enum?: string[];
+      description?: string;
     }>;
     const updateProperties = branch("update").properties as Record<string, {
       properties?: Record<string, unknown>;
     }>;
-    expect(createProperties.kind?.enum).not.toContain("folder");
+    // Kinds are per workspace now (record types), so the schema describes the
+    // core list instead of enumerating it — and `folder` is in neither.
+    expect(createProperties.kind?.description).toContain("credential");
+    expect(createProperties.kind?.description).not.toContain("folder");
     expect(createProperties).not.toHaveProperty("category");
     expect(updateProperties.patch?.properties).not.toHaveProperty("category");
 

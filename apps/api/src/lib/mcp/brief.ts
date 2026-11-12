@@ -15,6 +15,8 @@
  * the views are `views(op=list)` — so nothing here can disagree with the tool
  * an agent would call next.
  */
+import { compactRecordTypes, type BusinessModel, type CompactRecordType } from "@bcontext-dev/contract/business/record-types";
+import { getBusinessSettings, listRecordTypes } from "@/lib/business/record-types";
 import {
   isTerminalStatus,
   type GoalStatus,
@@ -163,6 +165,18 @@ export interface Brief {
    * agent that is never told they exist never looks for them.
    */
   capabilities: { external_tools: number; skills: number };
+  /**
+   * Only when the workspace is a business (`business_model` other than
+   * `product`) or defines record types — a software team's brief does not pay
+   * for it. `record_types` is the compact form (`compactRecordTypes`): key,
+   * label, `field:type` list, stages — enough to write a valid record
+   * without another call. Metrics are one call away: data(op=metrics).
+   */
+  business?: {
+    model: BusinessModel;
+    currency: string;
+    record_types: CompactRecordType[];
+  };
 }
 
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, med: 2, low: 3 };
@@ -265,7 +279,7 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
   const generatedAt = new Date().toISOString();
   const top = Math.max(1, options.top);
   const today = generatedAt.slice(0, 10);
-  const [nodes, edges, views, changes, goalNodes, goalChanges, externalTools] = await Promise.all([
+  const [nodes, edges, views, changes, goalNodes, goalChanges, externalTools, business] = await Promise.all([
     ctx.storage.listNodeSummaries({ limit: SCAN_CEILING }),
     ctx.storage.listEdges(),
     listViews(ctx.storage, ctx.viewPrincipal),
@@ -289,6 +303,14 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
         error: error instanceof Error ? error.message : "unknown error",
       });
       return 0;
+    }),
+    // Same rule as the counter above: the business section is context, and
+    // failing to read it must not cost the agent the rest of the brief.
+    businessSection(ctx.storage).catch((error: unknown) => {
+      log.warn("mcp.brief.business.read_failed", {
+        error: error instanceof Error ? error.message : "unknown error",
+      });
+      return null;
     }),
   ]);
 
@@ -379,7 +401,14 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
       external_tools: externalTools,
       skills: live.filter((node) => node.kind === "skill").length,
     },
+    ...(business ? { business } : {}),
   };
+}
+
+async function businessSection(storage: BriefContext["storage"]): Promise<Brief["business"] | null> {
+  const [settings, types] = await Promise.all([getBusinessSettings(storage), listRecordTypes(storage)]);
+  if (settings.business_model === "product" && types.length === 0) return null;
+  return { model: settings.business_model, currency: settings.currency, record_types: compactRecordTypes(types) };
 }
 
 // ---- last_brief_at ---------------------------------------------------------

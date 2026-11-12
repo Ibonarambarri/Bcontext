@@ -21,6 +21,11 @@ export type AuthState = {
 
   error?: string;
   message?: string;
+  /**
+   * The email that was tried. React resets an uncontrolled form after its
+   * action, so a wrong password would otherwise wipe the email too.
+   */
+  email?: string;
 };
 
 function parseCredentials(formData: FormData): {
@@ -61,7 +66,7 @@ export async function signInAction(
     redirect("/workspaces");
   }
   const { email, password, next, error } = parseCredentials(formData);
-  if (error) return { error };
+  if (error) return { error, email };
 
   const supabase = await getSession();
   const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -69,7 +74,7 @@ export async function signInAction(
     password,
   });
   if (signInError) {
-    return { error: signInError.message };
+    return { error: signInError.message, email };
   }
 
   // Honour ?next= (used by /invite/[token] and any deep link). Already

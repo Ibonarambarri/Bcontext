@@ -36,6 +36,8 @@ import {
   type UpdateTagInput,
 } from "./index";
 
+const NODE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 class SupabaseStorage implements Storage {
   readonly backend = "supabase" as const;
   constructor(
@@ -125,6 +127,9 @@ class SupabaseStorage implements Storage {
   }
 
   async getNode(id: string): Promise<KnowledgeNode | null> {
+    // Not a uuid, not a node: without this Postgres refuses the cast and a
+    // mistyped /n/<id> link is a 500 instead of a 404.
+    if (!NODE_ID.test(id)) return null;
     const { data, error } = await this.client
       .from("nodes")
       .select("*")
@@ -975,7 +980,7 @@ function throwTagError(
   throw new Error(`tag operation failed: ${error.message}`);
 }
 
-function rowToWorkspace(row: Record<string, unknown>): Workspace {
+export function rowToWorkspace(row: Record<string, unknown>): Workspace {
   return {
     id: row.id as string,
     slug: row.slug as string,
@@ -984,6 +989,11 @@ function rowToWorkspace(row: Record<string, unknown>): Workspace {
     github_repo: (row.github_repo as string | null) ?? null,
     metadata: (row.metadata as Record<string, unknown>) ?? {},
     created_at: row.created_at as string,
+    // The business settings ride on the bound row: `getBusinessSettings`
+    // reads them from here, so dropping them reads every workspace as
+    // `product` (no KPI set, no business dashboard) whatever was saved.
+    ...(typeof row.business_model === "string" ? { business_model: row.business_model } : {}),
+    ...(typeof row.business_currency === "string" ? { business_currency: row.business_currency } : {}),
   };
 }
 

@@ -74,7 +74,7 @@ export type PrincipalKind = "user" | "agent";
 
 export interface Grant {
   workspaceId: string;
-  principal: { kind: PrincipalKind | "system"; id: string | null };
+  principal: { kind: PrincipalKind | "system" | "ingest_key"; id: string | null };
   verbs: readonly Verb[];
   reach: Reach;
 }

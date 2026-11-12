@@ -70,7 +70,7 @@ extraction.
 | `AI_GATEWAY_API_KEY` | — | Vercel AI Gateway key; model ids are `provider/model`. The only backend with rerank |
 | `OPENAI_BASE_URL` | — | Any OpenAI-compatible server (Ollama, LiteLLM, vLLM). Wins over the gateway when set. A server on the Docker host is `http://host.docker.internal:<port>/v1` |
 | `OPENAI_API_KEY` | — | Key for `OPENAI_BASE_URL`, when the server wants one |
-| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: `ask_rag`, skills, autofix, meeting refine. In the backend's own naming |
+| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: `ask_rag` and the web's "Ask the brain…" box, skills, autofix, meeting refine. In the backend's own naming |
 | `EXTRACT_MODEL` | `deepseek/deepseek-v4-flash` | Structured extraction: ingest candidates from meeting transcripts |
 | `EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embeddings. **Must return 1536-dimensional vectors** (the columns are `vector(1536)`) |
 
@@ -103,7 +103,7 @@ and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 | `SUPABASE_PUBLIC_URL` | `SUPABASE_URL` | The same gateway as browsers reach it; storage URLs and the session cookie name use it |
 | `SUPABASE_ANON_KEY` | — | Anon JWT, used to validate user sessions |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Service-role JWT for server-side reads and writes |
-| `DATABASE_URL` | — | Direct, session-mode Postgres URL (never a transaction pooler): worker queues, realtime `LISTEN/NOTIFY`, transactional webhooks |
+| `DATABASE_URL` | — | Direct, session-mode Postgres URL (never a transaction pooler): worker queues, realtime `LISTEN/NOTIFY`, transactional webhooks, dataset rows, business events and metric rollups ([ingest-api.md](ingest-api.md)) |
 | `APP_URL` | `http://localhost:3000` | Public URL of the web app: links, OAuth redirects (also `/api/capabilities/oauth/callback` for MCP servers connected with OAuth in Tools), discovery documents. Required in production: the API and worker refuse to boot without it |
 
 ### Process, database and queue

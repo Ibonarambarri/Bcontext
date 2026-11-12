@@ -16,6 +16,8 @@ export const QUEUE_ERRORS_RETENTION = "errors.retention";
 export const QUEUE_TASKS_AUTO_ARCHIVE = "tasks.auto-archive";
 export const QUEUE_SKILLS_SCHEDULE = "skills.schedule";
 export const QUEUE_SKILLS_RUN_SCHEDULED = "skills.run-scheduled";
+export const QUEUE_BUSINESS_ROLLUP = "business.rollup";
+export const QUEUE_BUSINESS_ROLLUP_ALL = "business.rollup-all";
 
 export interface QueueDefinition {
   name: string;
@@ -122,6 +124,20 @@ export const QUEUES: readonly QueueDefinition[] = [
     cron: null,
     description:
       "Runs one scheduled skill: the built-in weekly digest (src/lib/skills/digest.ts) or a skill node, then stamps last_run_at (src/lib/skills/schedules.ts).",
+  },
+  {
+    name: QUEUE_BUSINESS_ROLLUP,
+    options: { ...DRAIN_OPTIONS, expireInSeconds: 600 },
+    cron: null,
+    description:
+      "Recomputes one workspace's business metric rollups from its events; enqueued by POST /api/workspaces/:ws/events, debounced per workspace (src/lib/business/rollup-job.ts).",
+  },
+  {
+    name: QUEUE_BUSINESS_ROLLUP_ALL,
+    options: DRAIN_OPTIONS,
+    cron: "10 3 * * *",
+    description:
+      "Enqueues a business.rollup for every workspace with events, so the current day rolls over and a lost enqueue costs a day at most (src/lib/business/rollup-job.ts).",
   },
 ] as const;
 
