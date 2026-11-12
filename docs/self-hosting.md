@@ -255,12 +255,15 @@ and applies nothing. Test a restore before you need one.
 
 ## Operating
 
-- Status: `docker compose ps -a`. `api` and `web` have health checks; `migrate`
-  shows `Exited (0)` when it is done.
+- Status: `docker compose ps -a`. Every long-running service has a health
+  check (`rest` uses `postgrest --ready`); `migrate` shows `Exited (0)` when
+  it is done. Docker reports an unhealthy container but does not restart it.
 - Logs: `docker compose logs -f api worker` (JSON lines; `worker.job.failed`
   for failed jobs).
 - Health: `curl https://ctx.example.com/api/health` returns
-  `{"status":"ok","db":"ok",…}`.
+  `{"status":"ok","db":"ok","rest":"ok",…}`, or a 503 with `"degraded"`.
+  `db` is Postgres and auth; `rest` is one read through PostgREST, the path
+  every API call takes. Point an uptime monitor at it.
 - Reset everything (destroys all data): `docker compose down -v`.
 
 ## Troubleshooting
@@ -283,6 +286,14 @@ successfully. `docker compose logs migrate` shows the failing migration;
 `POSTGRES_PASSWORD` in `.env` no longer matches the one the database volume
 was initialised with (the roles take it once, on the first boot). Restore
 the original value. `setup.sh --rotate` never changes it.
+
+**Every API call fails, PostgREST logs `PGRST003 Timed out acquiring
+connection from connection pool`, but Postgres is fine.** PostgREST's
+connection pool is stuck; its own health check does not see this state.
+`docker compose restart rest` clears it. `/api/health` reports
+`"rest":"down"` while it lasts, and requests with an API or MCP token get
+`503 upstream_unavailable` (with `Retry-After`) rather than `401`, so agents
+keep their tokens and retry.
 
 **The browser shows a certificate error or Caddy logs ACME failures.** The
 DNS record does not point at this machine yet, or ports 80/443 are closed.

@@ -10,7 +10,9 @@
  *      present, the request is treated as anonymous "demo" access. This
  *      keeps the local UI usable against the in-memory demo workspace.
  *
- * Throw `AuthError` to short-circuit a route with a JSON 401/403 response.
+ * Throw `AuthError` to short-circuit a route with a JSON 401/403 response,
+ * or 503 `upstream_unavailable` when the token store could not be reached:
+ * a valid token must not be told it is invalid because PostgREST is down.
  */
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
@@ -18,7 +20,7 @@ import {
   workspaceRefName,
 } from "@bcontext-dev/contract/workspace-ref";
 import { getSupabaseForRequest } from "@/lib/supabase/request";
-import { verifyToken } from "./tokens";
+import { TokenLookupUnavailableError, verifyToken } from "./tokens";
 import { type Scope, hasScope } from "@bcontext-dev/contract/auth/scopes";
 import { assertSameOrigin } from "./origin-guard";
 import { rateLimit, scopeClass } from "@/lib/rate-limit";
@@ -62,24 +64,24 @@ export function actingUserId(actor: Actor): string | null {
   }
 }
 
+/** Seconds a client should wait before retrying after `upstream_unavailable`. */
+const UPSTREAM_RETRY_AFTER_SEC = 5;
+
 class AuthError extends Error {
   status: number;
   code: string;
-  constructor(status: 401 | 403, code: string, message?: string) {
+  constructor(status: 401 | 403 | 503, code: string, message?: string) {
     super(message ?? code);
     this.status = status;
     this.code = code;
   }
   toResponse(): Response {
+    let headers: Record<string, string> | undefined;
+    if (this.status === 401) headers = { "WWW-Authenticate": 'Bearer realm="bcontext"' };
+    if (this.status === 503) headers = { "Retry-After": String(UPSTREAM_RETRY_AFTER_SEC) };
     return Response.json(
       { error: this.code, message: this.message },
-      {
-        status: this.status,
-        headers:
-          this.status === 401
-            ? { "WWW-Authenticate": 'Bearer realm="bcontext"' }
-            : undefined,
-      },
+      { status: this.status, headers },
     );
   }
 }
@@ -96,7 +98,22 @@ export async function requireAuth(req: Request): Promise<Actor> {
   // 1. Bearer token
   if (authHeader) {
     const admin = getSupabaseAdmin();
-    const result = await verifyToken(admin, authHeader);
+    let result: Awaited<ReturnType<typeof verifyToken>>;
+    try {
+      result = await verifyToken(admin, authHeader);
+    } catch (err) {
+      if (!(err instanceof TokenLookupUnavailableError)) throw err;
+      log.error("auth.token_lookup_failed", {
+        table: err.table,
+        code: err.code,
+        message: err.message,
+      });
+      throw new AuthError(
+        503,
+        "upstream_unavailable",
+        "could not verify the token right now; retry shortly",
+      );
+    }
     if (!result) throw new AuthError(401, "invalid_token");
     if (result.scope === "workspace") {
       return {

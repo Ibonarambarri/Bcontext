@@ -72,6 +72,9 @@ export async function handleMcpRequest(req: Request, options: McpRequestOptions 
         headers,
       });
     }
+    // 503 upstream_unavailable (token store unreachable) passes through
+    // untouched, Retry-After included: no OAuth hint, because re-authorising
+    // cannot fix it and would only send the client into a consent loop.
     return gated;
   }
   if (gated.kind !== "agent" && gated.kind !== "agent_user") {
