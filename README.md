@@ -149,7 +149,12 @@ record types (`account`, `deal`, `zone`…) that agents write as ordinary
 kinds with validated fields. Your product pushes customers and events
 (subscriptions, bookings, expenses) through a write-only ingest API, and
 Bcontext computes MRR, churn, NRR, GMV, take rate and runway — one read for a
-dashboard, one call for an agent. See [docs/ingest-api.md](docs/ingest-api.md).
+dashboard, one call for an agent. Choose b2b, b2c or marketplace and the
+workspace starts with a template — a deal pipeline with stage totals,
+renewals, supply vs demand by zone and week, KPI cards with year-on-year
+comparison — that the team edits from there. See
+[docs/ingest-api.md](docs/ingest-api.md) and
+[docs/business-views.md](docs/business-views.md).
 
 </td>
 </tr>
