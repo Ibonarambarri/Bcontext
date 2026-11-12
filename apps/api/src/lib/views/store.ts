@@ -13,6 +13,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Storage } from "@/lib/storage";
 import { wsBroadcast } from "@/lib/collab/server-broadcast";
 import { normalizeViewPresentation, normalizeViewQuery } from "@bcontext-dev/contract/views/schema";
+import { assertViewKindsExist } from "./kinds";
 import { systemViewSeeds } from "./seeds";
 import type { SavedView, ViewPrincipal, ViewVisibility } from "@bcontext-dev/contract/views/types";
 
@@ -59,6 +60,7 @@ export async function getView(storage: Storage, principal: ViewPrincipal, id: st
 
 export async function createView(storage: Storage, principal: ViewPrincipal, input: CreateViewInput): Promise<SavedView> {
   requireWriter(principal);
+  await assertViewKindsExist(storage, input.query as { kinds?: string[] });
   const now = new Date().toISOString();
   const rows = await allViews(storage);
   const slug = uniqueSlug(input.name, rows);
@@ -106,6 +108,7 @@ export async function updateView(storage: Storage, principal: ViewPrincipal, id:
   const current = await getView(storage, principal, id);
   requireOwner(current, principal);
   if (current.version !== input.expected_version) throw new ViewConflictError(current.version, input.expected_version);
+  if (input.query !== undefined) await assertViewKindsExist(storage, input.query as { kinds?: string[] });
   const rows = await allViews(storage);
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) {

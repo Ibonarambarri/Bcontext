@@ -12,7 +12,7 @@ import {
   Users2,
   Wrench,
 } from "lucide-react";
-import type { NodeKind } from "@bcontext-dev/contract/types";
+import type { CoreNodeKind, NodeKind } from "@bcontext-dev/contract/types";
 
 export type NodeKindIcon = ComponentType<{ size?: number; className?: string }>;
 
@@ -22,7 +22,7 @@ export type NodeKindIcon = ComponentType<{ size?: number; className?: string }>;
  * (saved-list-view.tsx), so a decision looks like the same decision on
  * every list surface.
  */
-export const NODE_KIND_ICONS: Record<NodeKind, NodeKindIcon> = {
+export const NODE_KIND_ICONS: Record<CoreNodeKind, NodeKindIcon> = {
   doc: FileText,
   task: CheckSquare2,
   decision: Gavel,
@@ -37,5 +37,6 @@ export const NODE_KIND_ICONS: Record<NodeKind, NodeKindIcon> = {
 };
 
 export function nodeKindIcon(kind: NodeKind): NodeKindIcon {
-  return NODE_KIND_ICONS[kind] ?? FileText;
+  // Record types (`account`, `deal`) are workspace data, not code: generic glyph.
+  return (NODE_KIND_ICONS as Record<string, NodeKindIcon>)[kind] ?? Layers;
 }

@@ -1,4 +1,5 @@
 import type { GraphResourcePayload } from "@bcontext-dev/contract/graph/model";
+import { isCoreKind } from "@bcontext-dev/contract/types";
 import { KIND_GLYPH_BODIES, type GlyphKey } from "./kind-glyphs.generated";
 
 /**
@@ -47,6 +48,8 @@ export function kindGlyphDataUri(key: GlyphKey, color: string): string {
 export function glyphKeyForResource(resource: GraphResourcePayload, hubNodeId: string | null | undefined): GlyphKey | null {
   if (resource.id === hubNodeId) return null;
   if (resource.resource_type === "tag") return "tag";
-  if (resource.resource_type === "node") return resource.kind;
+  // A workspace record type (`account`) has no glyph of its own; the entity
+  // glyph is the honest generic one — a thing other nodes link to.
+  if (resource.resource_type === "node") return isCoreKind(resource.kind) ? resource.kind : "entity";
   return null;
 }

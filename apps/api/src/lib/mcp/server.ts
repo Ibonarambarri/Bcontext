@@ -181,6 +181,7 @@ import {
   ViewNotFoundError,
 } from "@/lib/views/store";
 import { ForbiddenError, NodeOutOfReachError } from "@/lib/storage/scoped";
+import { assertViewKindsExist, ViewKindError } from "@/lib/views/kinds";
 import type { ViewPrincipal } from "@bcontext-dev/contract/views/types";
 import { VERBS, canGrant, type Grant, type Reach, type Verb } from "@/lib/auth/grants";
 import { listAccess, grantAccess, revokeAccess, GrantError } from "@/lib/auth/admin";
@@ -1623,6 +1624,14 @@ export function buildMcpServer(ctx: McpContext): Server {
             return errorText(`invalid query: ${issues}. \`query\` takes the views(op=query) contract.`);
           }
           const query = normalizeViewQuery(parsedQuery.data);
+          try {
+            await assertViewKindsExist(ctx.storage, query);
+          } catch (err) {
+            if (err instanceof ViewKindError) {
+              return errorText(`invalid query: ${err.message}. \`query\` takes the views(op=query) contract.`);
+            }
+            throw err;
+          }
           // kind, status and parent_id are applied in memory, so `limit`
           // cannot go to the database with them: it would truncate the
           // workspace FIRST and filter the leftovers, returning a handful of
@@ -2684,6 +2693,7 @@ export function buildMcpServer(ctx: McpContext): Server {
               return json({ view, result, roadmap });
             }
             case "query":
+              await assertViewKindsExist(ctx.storage, input.query);
               return json({ result: await resolveViewQuery(ctx.storage, input.query) });
           }
           break;
@@ -3303,6 +3313,7 @@ export function buildMcpServer(ctx: McpContext): Server {
         return errorText(`409 conflict: view version is ${err.currentVersion}, expected ${err.expectedVersion}. Re-fetch with get_view, rebase, and retry.`);
       }
       if (err instanceof ViewNotFoundError) return errorText("view not found or not readable");
+      if (err instanceof ViewKindError) return errorText(`invalid query: ${err.message}`);
       // Taxonomy outcomes an agent can act on: a name already taken (or held
       // as an alias of another tag) is "reuse that tag or pick another name",
       // not a failure worth a panel entry.
