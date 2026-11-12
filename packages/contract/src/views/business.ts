@@ -354,6 +354,8 @@ export interface HeatmapGrid {
   rows: string[];
   /** rows × columns, row-major. */
   cells: HeatmapCell[][];
+  /** The colouring number at intensity 0 and 1; null when every cell is empty. The legend prints it. */
+  domain: { min: number; max: number } | null;
 }
 
 /** The grid a heatmap draws: every y × x pair, empty pairs as nulls, coloured on one scale. */
@@ -376,7 +378,44 @@ export function heatmapGrid(result: AggregateResult, layout: Pick<HeatmapLayout,
       cell.intensity = n === null ? null : max === min ? 1 : (n - min) / (max - min);
     }
   }
-  return { columns: result.x, rows: result.y, cells };
+  return { columns: result.x, rows: result.y, cells, domain: numbers.length ? { min, max } : null };
+}
+
+/** A record as `heatmapRowLabels` reads it: a node record or a dataset row. */
+export interface LabelledRecord {
+  id: string;
+  title: string;
+  external_id?: string | null;
+  fields: Record<string, unknown>;
+}
+
+const NAME_FIELDS = ["name", "title", "display_name"] as const;
+
+/**
+ * Human names for a heatmap's row values when they are keys of records —
+ * `zone` rows carry `properties.zone` (`baqueira`), which is a zone's
+ * external id or its `*_code` field; the person wants "Baqueira-Beret".
+ * The name is the record's name/title field, else its title. Values that
+ * match no record are left out, and the renderer falls back to the key.
+ */
+export function heatmapRowLabels(values: readonly string[], records: readonly LabelledRecord[]): Record<string, string> {
+  const byKey = new Map<string, string>();
+  for (const record of records) {
+    const named = NAME_FIELDS.map((key) => record.fields[key]).find((value): value is string => typeof value === "string" && value.trim().length > 0);
+    const label = (named ?? record.title).trim();
+    if (!label) continue;
+    const keys = [record.external_id, record.id];
+    for (const [key, value] of Object.entries(record.fields)) {
+      if ((key === "code" || key.endsWith("_code") || key === "slug") && typeof value === "string") keys.push(value);
+    }
+    for (const key of keys) if (key && !byKey.has(key)) byKey.set(key, label);
+  }
+  const out: Record<string, string> = {};
+  for (const value of values) {
+    const label = byKey.get(value);
+    if (label && label !== value) out[value] = label;
+  }
+  return out;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -453,6 +492,13 @@ export interface MetricsViewPayload {
 export interface HeatmapViewPayload {
   result: AggregateResult | null;
   error?: string;
+  /**
+   * Display names for the rows (`result.y` value → name) when the y key is
+   * a record type's key: `zone` = `baqueira` reads as the zone record's
+   * name. A value with no record keeps its raw key, so this may be partial
+   * or absent.
+   */
+  y_labels?: Record<string, string>;
 }
 
 /** What `POST /api/views/:id/resolve` adds for the business renderers. */

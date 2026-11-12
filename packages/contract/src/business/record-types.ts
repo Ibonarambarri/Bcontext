@@ -18,7 +18,8 @@
  *     core `status` column, whose vocabulary is fixed and drives views.
  *   - `storage: "dataset"` records are rows of a dataset node, keyed by the
  *     sender's external id: people in a B2C business are too many and too
- *     personal to be nodes. They can be promoted to a node record later.
+ *     personal to be nodes. They can be promoted to a node record later,
+ *     into a type whose fields fit theirs (`promoteFit`).
  *
  * What must not break: a key that collides with a core kind (the DB refuses
  * it too), and error messages that name the offending field — an agent fixes
@@ -557,4 +558,79 @@ export function compactRecordTypes(types: readonly RecordTypeDefinition[]): Comp
       ...(stageField?.options?.length ? { stages: stageField.options } : {}),
     };
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Promoting a dataset row to a node record                                  */
+/* -------------------------------------------------------------------------- */
+
+const STRING_FIELD_TYPES: ReadonlySet<RecordFieldType> = new Set(["text", "email", "url", "select", "person"]);
+
+/**
+ * Can every value a `from` field holds be written to a `to` field as is?
+ * Decided from the definitions alone, so a target can be ruled out before
+ * any row is read: the same key with a different meaning (a supplier's
+ * `status` select vs an incident's) is not a match, and offering it is how
+ * "Convert to incident" came to fail on every row.
+ */
+export function fieldValueFits(from: Pick<RecordFieldDef, "type" | "options">, to: Pick<RecordFieldDef, "type" | "options">): boolean {
+  if (from.type === to.type) {
+    if (from.type === "select" || from.type === "multi_select") {
+      const allowed = new Set(to.options ?? []);
+      return (from.options ?? []).every((option) => allowed.has(option));
+    }
+    // Relations and money are node-only; a dataset source never has them,
+    // and between two node types their targets/currencies may differ.
+    return from.type !== "relation" && from.type !== "money";
+  }
+  // Any string-valued field reads fine as free text; nothing else widens.
+  return to.type === "text" && STRING_FIELD_TYPES.has(from.type);
+}
+
+export interface PromoteFit {
+  /** source column → target field: the shared keys whose values fit. */
+  mapping: Record<string, string>;
+  /** Required target fields no compatible column fills. */
+  missing_required: string[];
+}
+
+/**
+ * What promoting a row of `source` into `target` would carry over: the
+ * columns named like a field of the target whose values fit it, and the
+ * required target fields left empty. The API's default promote mapping and
+ * the "Convert to …" targets the web offers both come from here.
+ */
+export function promoteFit(
+  source: Pick<RecordTypeDefinition, "fields">,
+  target: Pick<RecordTypeDefinition, "fields">,
+): PromoteFit {
+  const columns = new Map(source.fields.map((field) => [field.key, field]));
+  const mapping: Record<string, string> = {};
+  for (const field of target.fields) {
+    const column = columns.get(field.key);
+    if (column && fieldValueFits(column, field)) mapping[column.key] = field.key;
+  }
+  const filled = new Set(Object.values(mapping));
+  const missing_required = target.fields.filter((field) => field.required && !filled.has(field.key)).map((field) => field.key);
+  return { mapping, missing_required };
+}
+
+/**
+ * The node record types a row of `source` can become, best match first. A
+ * type fits when it shares at least one compatible field and every field it
+ * requires is filled by one; anything else would either carry nothing over
+ * or be refused by validation on every row, so it is not offered at all.
+ */
+export function promoteTargetsFor(
+  source: Pick<RecordTypeDefinition, "key" | "fields">,
+  types: ReadonlyArray<Pick<RecordTypeDefinition, "key" | "label" | "storage" | "fields"> & { position?: number }>,
+): Array<{ key: string; label: string }> {
+  return types
+    .filter((candidate) => candidate.storage === "node" && candidate.key !== source.key)
+    .map((candidate) => ({ candidate, fit: promoteFit(source, candidate) }))
+    .filter(({ fit }) => Object.keys(fit.mapping).length > 0 && fit.missing_required.length === 0)
+    .sort((a, b) =>
+      Object.keys(b.fit.mapping).length - Object.keys(a.fit.mapping).length ||
+      (a.candidate.position ?? 0) - (b.candidate.position ?? 0))
+    .map(({ candidate }) => ({ key: candidate.key, label: candidate.label }));
 }
