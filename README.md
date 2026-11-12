@@ -97,7 +97,9 @@ and a status lifecycle. Every `##` heading is an addressable block
 **🔌 An MCP server built for agents**<br>
 Per-workspace endpoints, OAuth 2.1 or scoped agent tokens, and a
 `tools/list` filtered to what each caller may do. Optimistic concurrency on
-writes and a change feed to re-sync cheaply.
+writes, a change feed to re-sync cheaply, and other MCP servers proxied
+behind `capability_search` / `capability_call`: register them once in Tools,
+grant them per agent.
 
 </td>
 </tr>
@@ -218,7 +220,7 @@ plugin, which adds the working conventions as a skill and a
 | `caddy` | A single origin for everything: the web app, the API, `/mcp` and the Supabase gateway, with automatic HTTPS |
 | `web` | The Next.js app (`apps/web`). It has no data of its own and calls the API over HTTP |
 | `api` | REST, the MCP server and realtime WebSockets (`apps/api`) |
-| `worker` | pg-boss queues: outbound webhooks, scheduled skills, retention (same image as `api`) |
+| `worker` | pg-boss queues: outbound webhooks, MCP-server health checks and OAuth expiry, scheduled skills, retention (same image as `api`) |
 | `migrate` | One-shot: applies pending migrations, then exits; `api` and `worker` wait for it |
 | `db` | Postgres 15 with pgvector (`supabase/postgres`) |
 | `auth`, `rest`, `storage`, `kong` | Supabase Auth, PostgREST, Storage (files on a volume) and its gateway |

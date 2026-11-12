@@ -1,6 +1,6 @@
 /**
  * The handlers must stay adapters: one domain call each, nothing else.
- * Domain logic lives in `src/lib/{webhooks,errors,tasks,skills}`, never
+ * Domain logic lives in `src/lib/{webhooks,capabilities,errors,tasks,skills}`, never
  * here.
  */
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   admin: { marker: "admin" },
   processDeliveries: vi.fn(async () => ({ picked: 1, sent: 1, retried: 0, dead: 0 })),
+  runCapabilityHealthChecks: vi.fn(async () => ({ checked: 3 })),
+  expireAbandonedOAuthAttempts: vi.fn(async () => ({ expired: 2, batches: 1 })),
   purgeErrorTelemetry: vi.fn(async () => ({ events_deleted: 4, groups_deleted: 1 })),
   archiveStaleDoneTasks: vi.fn(async () => ({ days: 30, scanned: 2, archived: 2, skipped: 0 })),
   scheduleDueSkills: vi.fn(async () => ({ scanned: 1, initialised: 0, enqueued: 1, skipped: 0 })),
@@ -16,11 +18,18 @@ const mocks = vi.hoisted(() => ({
 const {
   admin,
   processDeliveries,
+  runCapabilityHealthChecks,
   purgeErrorTelemetry,
 } = mocks;
 
 vi.mock("@/lib/supabase/admin", () => ({ getSupabaseAdmin: () => mocks.admin }));
 vi.mock("@/lib/webhooks/worker", () => ({ processDeliveries: mocks.processDeliveries }));
+vi.mock("@/lib/capabilities/health-check", () => ({
+  runCapabilityHealthChecks: mocks.runCapabilityHealthChecks,
+}));
+vi.mock("@/lib/capabilities/oauth-expiry", () => ({
+  expireAbandonedOAuthAttempts: mocks.expireAbandonedOAuthAttempts,
+}));
 vi.mock("@/lib/errors/retention", () => ({
   purgeErrorTelemetry: mocks.purgeErrorTelemetry,
 }));
@@ -35,6 +44,8 @@ vi.mock("@/lib/skills/schedules", () => ({
 import { HANDLERS } from "./handlers";
 import {
   QUEUES,
+  QUEUE_CAPABILITY_HEALTH,
+  QUEUE_CAPABILITY_OAUTH_EXPIRE,
   QUEUE_ERRORS_RETENTION,
   QUEUE_SKILLS_RUN_SCHEDULED,
   QUEUE_SKILLS_SCHEDULE,
@@ -63,6 +74,16 @@ describe("job handlers", () => {
       dead: 0,
     });
     expect(processDeliveries).toHaveBeenCalledWith(admin);
+  });
+
+  it("runs capability health checks", async () => {
+    await expect(HANDLERS[QUEUE_CAPABILITY_HEALTH]!()).resolves.toEqual({ checked: 3 });
+    expect(runCapabilityHealthChecks).toHaveBeenCalledWith(admin);
+  });
+
+  it("expires abandoned capability OAuth attempts", async () => {
+    await expect(HANDLERS[QUEUE_CAPABILITY_OAUTH_EXPIRE]!()).resolves.toEqual({ expired: 2, batches: 1 });
+    expect(mocks.expireAbandonedOAuthAttempts).toHaveBeenCalledWith(admin);
   });
 
   it("scans skill schedules with the service-role client", async () => {

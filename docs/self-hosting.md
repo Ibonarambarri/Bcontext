@@ -176,6 +176,17 @@ transcripts and skills need one. Choose one backend in `.env`:
 
 Then `docker compose up -d`.
 
+## Other MCP servers (Tools)
+
+External MCP servers and webhooks need no configuration on the instance:
+workspace admins add them in the web app (Tools), and their secrets are
+stored in Supabase Vault (keep the Vault key with your backups, below). The
+OAuth callback is `<PUBLIC_URL>/api/capabilities/oauth/callback`, built from
+`APP_URL`. The API calls a server only over HTTPS, only at the hosts it was
+registered with, and only when they resolve to public addresses: an MCP
+server on `localhost`, the Docker network or a private range is refused, on
+purpose (the gateway must not become a way into the instance's network).
+
 ## Optional services
 
 ```bash
@@ -228,7 +239,8 @@ and OAuth connections made through it keep their grant — but update
 ## Backups
 
 State lives in three named volumes: `db-data` (Postgres), `db-config` (the
-database's Vault key) and `storage-data` (uploaded files). `caddy-data` only holds
+database's Vault key, which encrypts the tokens of connected MCP servers)
+and `storage-data` (uploaded files). `caddy-data` only holds
 certificates, which Caddy can obtain again. Keep a copy of `.env` too: its
 secrets sign every session and key.
 

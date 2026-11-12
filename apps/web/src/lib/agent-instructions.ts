@@ -109,8 +109,8 @@ on the team.
 ## Re-sync
 
 In a long session, \`list_changes({ since })\` instead of re-reading the
-workspace. The workspace's skills are listed with \`skills\` and run with
-\`skills_run\`.
+workspace. External tools and the workspace's skills are found with
+\`capability_search\` and called with \`capability_call\`.
 `
   );
 }

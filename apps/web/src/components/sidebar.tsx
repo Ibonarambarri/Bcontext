@@ -10,8 +10,9 @@
  * Tasks, Roadmap, Browse, Credentials, and "New" last: the create-node
  * dialog, ⌘⇧K, dispatched as the `bcontext:new-node` window event that
  * `create-node-dialog-host.tsx` listens for — it sits with the knowledge it
- * creates, not with Find) · the Agents & Webhooks group (connected agents
- * and outbound webhook endpoints) · the account row (user menu).
+ * creates, not with Find) · the Agents & Tools group (connected agents, and
+ * the tool providers they reach through Bcontext's MCP plus the outbound
+ * webhooks) · the account row (user menu).
  *
  * What is deliberately NOT here: saved custom views (their routes still
  * render for direct links), Activity (in the user menu), Tags and Decisions
@@ -43,7 +44,7 @@ import {
   Plus,
   Search,
   Table2,
-  Webhook,
+  Wrench,
 } from "lucide-react";
 import { Button, Kbd } from "@heroui/react";
 import { Sidebar as SidebarPrimitive, useSidebar } from "@/components/ui/sidebar";
@@ -77,7 +78,7 @@ const VIEW_RENDERER_ICONS: Record<ViewRenderer, typeof Home> = {
 
 const ADMIN_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", Icon: Bot },
-  { key: "webhooks", label: "Webhooks", Icon: Webhook },
+  { key: "tools", label: "Tools", Icon: Wrench },
 ];
 
 /**
@@ -100,7 +101,7 @@ export function activeViewMeta(
   const knowledge = KNOWLEDGE_VIEWS.find((view) => view.key === slug);
   if (knowledge) return { label: knowledge.label, Icon: knowledge.Icon, section: "Knowledge" };
   const admin = ADMIN_VIEWS.find((view) => view.key === slug);
-  if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Webhooks" };
+  if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Tools" };
   const custom = views.find((view) => view.slug === slug);
   if (custom) return { label: custom.name, Icon: VIEW_RENDERER_ICONS[custom.presentation.renderer] ?? Bookmark, section: "Knowledge" };
   return null;
@@ -249,8 +250,8 @@ export function Sidebar({
               </SidebarPrimitive.Group>
 
               <SidebarPrimitive.Group className="mt-4">
-                <SidebarPrimitive.GroupLabel>Agents & Webhooks</SidebarPrimitive.GroupLabel>
-                <SidebarPrimitive.Menu aria-label="Agents & Webhooks">
+                <SidebarPrimitive.GroupLabel>Agents & Tools</SidebarPrimitive.GroupLabel>
+                <SidebarPrimitive.Menu aria-label="Agents & Tools">
                   {ADMIN_VIEWS.map(({ key, label, Icon }) => (
                     <SidebarPrimitive.MenuItem key={key} id={key} href={systemViewPath(address, key)} isCurrent={activeViewSlug === key}>
                       <SidebarPrimitive.MenuIcon><Icon size={13} /></SidebarPrimitive.MenuIcon>

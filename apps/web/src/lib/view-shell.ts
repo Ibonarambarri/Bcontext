@@ -17,7 +17,7 @@ export const SYSTEM_VIEW_KEYS = [
   "credentials",
   "changes",
   "agents",
-  "webhooks",
+  "tools",
 ] as const;
 
 export type SystemViewKey = (typeof SYSTEM_VIEW_KEYS)[number];
@@ -86,8 +86,8 @@ export type LegacyAdminSurface = "agents" | "connections";
 
 /**
  * Map the retired Connections/tabs URLs to where each surface lives now: the
- * `agents` view, or `webhooks` for the old tool-provider tabs (webhooks are
- * the part of them that remains). The rest of the query rides along.
+ * `agents` view, or `tools` for the old tool-provider tabs. The rest of the
+ * query rides along.
  */
 export function legacyAdminDestination(
   ws: WorkspaceAddress,
@@ -97,7 +97,7 @@ export function legacyAdminDestination(
   const next = new URLSearchParams(query);
   const tab = next.get("tab");
   next.delete("tab");
-  const surface = tab === "providers" || tab === "tools" ? "webhooks" : "agents";
+  const surface = tab === "providers" || tab === "tools" || tab === "webhooks" ? "tools" : "agents";
   if (source === "connections" && !tab) next.delete("surface");
   const suffix = next.toString();
   return `${systemViewPath(ws, surface)}${suffix ? `?${suffix}` : ""}` as Route;

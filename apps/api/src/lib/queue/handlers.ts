@@ -10,10 +10,14 @@
  */
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { processDeliveries } from "@/lib/webhooks/worker";
+import { runCapabilityHealthChecks } from "@/lib/capabilities/health-check";
+import { expireAbandonedOAuthAttempts } from "@/lib/capabilities/oauth-expiry";
 import { purgeErrorTelemetry } from "@/lib/errors/retention";
 import { archiveStaleDoneTasks } from "@/lib/tasks/auto-archive";
 import { runScheduledSkill, scheduleDueSkills } from "@/lib/skills/schedules";
 import {
+  QUEUE_CAPABILITY_HEALTH,
+  QUEUE_CAPABILITY_OAUTH_EXPIRE,
   QUEUE_ERRORS_RETENTION,
   QUEUE_SKILLS_RUN_SCHEDULED,
   QUEUE_SKILLS_SCHEDULE,
@@ -32,6 +36,12 @@ function str(data: Record<string, unknown> | undefined, key: string): string | n
 export const HANDLERS: Record<string, JobHandler> = {
   [QUEUE_WEBHOOK_DRAIN]: async () => ({
     ...(await processDeliveries(getSupabaseAdmin())),
+  }),
+  [QUEUE_CAPABILITY_HEALTH]: async () => ({
+    ...(await runCapabilityHealthChecks(getSupabaseAdmin())),
+  }),
+  [QUEUE_CAPABILITY_OAUTH_EXPIRE]: async () => ({
+    ...(await expireAbandonedOAuthAttempts(getSupabaseAdmin())),
   }),
   // The only handler here that is not a drain: it deletes rather than
   // delivers, and it is what keeps the error tables bounded.

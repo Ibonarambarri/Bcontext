@@ -13,9 +13,10 @@ import type { AgentProvider, AgentRole } from "@bcontext-dev/contract/agents/con
 import type { Scope } from "@bcontext-dev/contract/auth/scopes";
 
 /**
- * Inserts the agent, one `agent_workspace_access` row per workspace and the
- * mirrored grants; a failed access insert rolls the agent row back so no
- * orphan agent exists without access.
+ * Inserts the agent, one `agent_workspace_access` row per workspace, the
+ * agent's capability principal in each (what its tool-provider grants point
+ * at, see the capability gateway) and the mirrored grants; a failed access or
+ * principal insert rolls the agent row back so no orphan agent exists.
  */
 export async function createAgentConnection(
   admin: SupabaseClient,
@@ -60,6 +61,22 @@ export async function createAgentConnection(
     throw new Error(`agent access create failed: ${accessError.message}`);
   }
 
+  // A principal is per workspace, while the durable agent identity is global.
+  const { error: principalError } = await admin.from("capability_principals").upsert(
+    input.workspaceIds.map((workspaceId) => ({
+      workspace_id: workspaceId,
+      kind: "agent",
+      source_type: "agent",
+      source_id: agentId,
+      display_name: input.name,
+    })),
+    { onConflict: "workspace_id,source_type,source_id" },
+  );
+  if (principalError) {
+    await admin.from("agents").delete().eq("id", agentId);
+    throw new Error(`agent principal create failed: ${principalError.message}`);
+  }
+
   // `reinstate` because approving a connection *is* the act of granting access:
   // a tombstone from a previous connection of the same agent must not outlive
   // the approval a person just gave.
@@ -83,6 +100,7 @@ export async function revokeAgentEverywhere(
     admin.from("api_tokens").update({ revoked_at: now }).eq("agent_id", agentId),
     admin.from("oauth_access_tokens").update({ revoked_at: now }).eq("agent_id", agentId),
     admin.from("user_api_tokens").update({ revoked_at: now }).eq("agent_id", agentId),
+    admin.from("capability_principals").update({ disabled_at: now }).eq("source_type", "agent").eq("source_id", agentId),
     // The grant table is authoritative, so "revoke everywhere" has to include
     // it. Without this line an agent cut off from its connection and its tokens
     // would still resolve a live grant — the one place revocation could have

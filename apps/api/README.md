@@ -14,19 +14,36 @@ worker | errors`). The web app is `apps/web`; the types both share are
 
 - **MCP server** at `/mcp` and, per workspace, `/mcp/<workspace>`
   (Streamable HTTP, stateless; the pre-0100 `/mcp/<org>/<workspace>` path is
-  still served as an alias): 25 tools —
+  still served as an alias): 27 native tools —
   `brief`, `nodes` / `nodes_write`, `subtasks` / `subtasks_write`, `goals` /
   `goals_write`, `data` / `data_write`, `tags` / `tags_write`, `views` /
   `views_write`, `links_write`, `ingest` / `ingest_write`, `skills` /
-  `skills_write` / `skills_run`, `admin` / `admin_write`, `ask_rag`,
-  `list_changes`, `list_workspaces`, `ping` (`admin` and `admin_write` need
-  the admin verb). `tools/list` is per-principal: what a token cannot do is
-  not shown. This is the agent surface; the server `instructions` from
+  `skills_write` / `skills_run`, `admin` / `admin_write`, `capabilities` /
+  `capabilities_write`, `ask_rag`, `list_changes`, `list_workspaces`,
+  `ping` — plus `capability_search` / `capability_call`, the two through
+  which external tools and skills are found and run (29 in all; `admin`,
+  `admin_write`, `capabilities` and `capabilities_write` need the admin
+  verb). `tools/list` is per-principal: what a token cannot do is not shown. This is the agent surface; the server `instructions` from
   `initialize` are the manual.
 - **`ask_rag`** (`src/lib/rag`): the question tool for agents — retrieval
   within the caller's grant, rerank, and a cited answer (`synthesize:false`
   for the hits only). Grants apply before rerank and before any model
   context.
+- **External capabilities** (`src/lib/capabilities`): Bcontext as the MCP
+  router of a team's agents. Other MCP servers and webhooks are connected
+  per workspace, with grants per agent, versions, managed OAuth, pinned
+  egress, a per-principal rate limit and an invocation ledger. Self-service
+  from the product: Tools → Add tool provider → paste the MCP URL and its
+  token (or sign in with OAuth) → the tools are imported → approve → grant
+  it to agents from the Agents page. A static token (bearer or custom
+  header) is write-only — stored in Supabase Vault on connect, the
+  connection row keeps a `vault:<uuid>` reference, and no read path or audit
+  row ever returns it; nothing is configured on the API process. Their tools
+  are never inlined in `tools/list`: an agent finds them (and the
+  workspace's skills) with `capability_search` and runs one with
+  `capability_call(ref, args)`, where `ref` is a stable
+  `<provider>/<capability>/<tool>` or `skill/<slug>`, re-authorised on every
+  call. Tables and RPCs: migration 0102.
 - **REST** under `/api/*` for humans and automations that cannot speak MCP —
   the web app, scripts, CI hooks, curl. Not an agent surface (stated in
   `/.well-known/agents.json` and `/llms.txt`); `/api/agents/{context,write}`
@@ -56,8 +73,9 @@ worker | errors`). The web app is `apps/web`; the types both share are
 - **Realtime** on the same listener (`ws`): presence, events and Yjs frames
   at `/realtime/ws/:workspaceId` and `/realtime/collab/:nodeId`, authorised
   by the same grants; fan-out between processes over Postgres `LISTEN/NOTIFY`.
-- **Worker** (`pg-boss`): webhook drain, scheduled skills, error retention,
-  auto-archive — same image as the API, `BCONTEXT_PROCESS=worker`.
+- **Worker** (`pg-boss`): webhook drain, capability health checks and
+  OAuth-attempt expiry, scheduled skills, error retention, auto-archive —
+  same image as the API, `BCONTEXT_PROCESS=worker`.
 - **Error collector** (`src/errors`): the third process of the image
   (`BCONTEXT_PROCESS=errors`); API, worker, web and browser report to it,
   the admin panel reads `error_groups` / `error_events`.
@@ -127,6 +145,7 @@ src/
   app/.well-known, llms.txt, install, mcp     the public discovery surface
   lib/
     auth/                 grants, scopes, tokens, OAuth 2.1 — the permission engine
+    capabilities/         external MCP servers and webhooks behind the gateway
     mcp/                  the MCP server, its tools and its HTTP transport
     rag/                  ask_rag, retrieval and scoping
     graph/                graph snapshots and entity linking after each write
