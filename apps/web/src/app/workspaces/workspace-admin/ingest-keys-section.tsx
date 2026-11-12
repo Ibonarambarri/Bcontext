@@ -97,9 +97,9 @@ export function IngestKeysSection({ slug }: { slug: string }) {
             void create();
           }}
         >
-          <TextField value={name} onChange={setName} isDisabled={pending !== null} maxLength={80} className="flex-1">
+          <TextField value={name} onChange={setName} isDisabled={pending !== null} maxLength={80} className="min-w-0 flex-1">
             <Label>Name</Label>
-            <Input placeholder="Production backend" />
+            <Input placeholder="Production backend" className="w-full min-w-0" />
           </TextField>
           <Button type="submit" isDisabled={!name.trim() || pending !== null} isPending={pending === "create"}>
             <Plus size={13} /> Create
