@@ -1,6 +1,9 @@
 /**
- * The workspace overview at `/w/<ws>`: health figures, the 30-day
- * activity chart, what is due, what is aging and the latest decisions.
+ * The workspace overview at `/w/<ws>`. A b2b, b2c or marketplace workspace
+ * gets the business overview (`components/business/business-overview.tsx`);
+ * a product workspace gets this page's knowledge dashboard: health figures,
+ * the 30-day activity chart, what is due, what is aging and the latest
+ * decisions.
  *
  * Server Component. It derives everything from the node index the layout
  * already fetched for this request (`@/lib/overview`), plus one guarded call
@@ -35,6 +38,8 @@ import { type KnowledgeNode } from "@bcontext-dev/contract/types";
 import { nodeDeepLink, systemViewPath } from "@/lib/view-shell";
 import { apiJson } from "@/web/api-client";
 import { findWorkspace, listNodeSummaries } from "@/web/workspace";
+import { getBusinessSettings } from "@/web/business";
+import { BusinessOverview } from "@/components/business/business-overview";
 import { type WorkspaceAddress } from "@/web/workspace-url";
 
 const DAY_MS = 86_400_000;
@@ -49,9 +54,27 @@ export default async function WorkspaceHome({
   // The overview/chart/lists only read summary fields (kind, status, dates,
   // tags) — reuse the layout's request-scoped index instead of re-fetching
   // every node body. Zero additional API calls per render.
-  const [workspace, nodes] = await Promise.all([findWorkspace(address), listNodeSummaries(address)]);
+  const [workspace, nodes, business] = await Promise.all([
+    findWorkspace(address),
+    listNodeSummaries(address),
+    getBusinessSettings(address),
+  ]);
   if (!workspace || !nodes) notFound();
   const now = new Date();
+
+  // A business workspace opens on its business: KPIs, charts, records to act
+  // on, and the knowledge activity as a compact block at the bottom. The
+  // settings read is the layout's, cached for this request.
+  if (business.business_model !== "product") {
+    return (
+      <BusinessOverview
+        ws={address}
+        settings={{ ...business, business_model: business.business_model }}
+        nodes={nodes}
+        now={now}
+      />
+    );
+  }
   const today = dayKey(now);
   const overview = buildOverviewModel(nodes, now);
 

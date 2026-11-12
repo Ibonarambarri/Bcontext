@@ -17,6 +17,7 @@ import { workspaceAccentCss } from "@/lib/workspace-accent";
 import { displayName, userColor } from "@/lib/collab/user-color";
 import { getSession } from "@/web/session";
 import { findWorkspace, listNodeSummaries, listWorkspaces } from "@/web/workspace";
+import { getBusinessSettings } from "@/web/business";
 
 // Force the layout to be dynamic on every render — the sidebar's `nodes`
 // list reflects live user activity (new meetings, renames, deletes) and
@@ -47,14 +48,18 @@ export default async function WorkspaceLayout({
   const { ws } = await params;
   const address = { slug: ws };
 
-  // Three independent reads, so they overlap. The API already narrowed the
+  // Independent reads, so they overlap. The API already narrowed the
   // first two to the person behind the cookie: a workspace they are not a
   // member of is absent from the switcher and 404s on the tree, which is
   // the same "nothing here" the layout showed when it did the check itself.
-  const [workspaces, nodes, currentUser] = await Promise.all([
+  const [workspaces, nodes, currentUser, business] = await Promise.all([
     listWorkspaces(),
     listNodeSummaries(address),
     signedInUser(),
+    // The business model decides whether the sidebar has a Business
+    // section. Cached per request, so the overview below reuses it; a
+    // failure is a product workspace (see @/web/business).
+    getBusinessSettings(address),
   ]);
   const workspace = workspaces.find((item) => item.slug === ws);
   if (!workspace || !nodes) notFound();
@@ -87,6 +92,7 @@ export default async function WorkspaceLayout({
         workspaces={workspaces}
         nodes={nodes}
         currentUser={finalUser}
+        business={business}
       >
         {children}
       </WorkspaceShell>
