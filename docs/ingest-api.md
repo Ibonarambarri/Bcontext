@@ -223,8 +223,8 @@ is kept for later and ignored by the rollups. Amounts are in major units
 | `subscription.changed` | as above; `amount` is the **new** monthly amount, not a delta | `mrr`, `expansion_mrr`, `contraction_mrr` |
 | `subscription.canceled` | `subject_id`; optional `properties.subscription_id` | `mrr`, `churned_mrr`, `churned_customers`, `active_customers` |
 | `booking.created` | `subject_id` (buyer), `amount` = gross value, `currency`, `properties.booking_id`, `properties.supplier_id`; optional `properties.fee` (take, default 0) | `gmv`, `take`, `bookings`, `active_suppliers`, `active_buyers`, `new_buyers`, `repeat_buyers`, revenue |
-| `booking.completed` | `properties.booking_id`; optional `amount` / `properties.fee` as final values | `gmv`, `take` |
-| `booking.canceled` | `properties.booking_id` | `cancellations`, and removes the booking from `gmv`/`take` |
+| `booking.completed` | `properties.booking_id`; optional `amount` / `properties.fee` as final values; `properties.supplier_id` optional but recommended | `gmv`, `take` |
+| `booking.canceled` | `properties.booking_id`; `properties.supplier_id` optional but recommended | `cancellations`, and removes the booking from `gmv`/`take` |
 | `expense.recorded` | `amount` ≥ 0, `currency`, `properties.category` ∈ `infra · ai · tools · payroll · marketing · other`; optional `vendor`, `recurring` | `expenses`, `expenses_by_category`, `net`, burn |
 | `cash.balance` | `amount` (cash on hand), `currency`; `occurred_at` is the as-of date | `cash_balance`, runway |
 
@@ -295,7 +295,7 @@ ingest key gets `401`). The web's overview and record pages use them.
 | Method and path | Answer |
 |---|---|
 | `GET /api/workspaces/<ws>/records/<type>?limit=` (≤ 1,000) | `{ records: KnowledgeNode[], truncated }` with each record's `data.fields`. `404` for an unknown type, `400` for a dataset-backed one |
-| `GET /api/workspaces/<ws>/events?subject_type=&subject_id=&limit=` (≤ 200) | `{ events: (BusinessEvent & { role })[] }`, newest first. An event sent without `subject_type` counts for any type. Bookings that name the id in `properties.supplier_id` are included with `role: "supplier"` (unless the asking type is the booking's own subject type) |
+| `GET /api/workspaces/<ws>/events?subject_type=&subject_id=&limit=` (≤ 200) | `{ events: (BusinessEvent & { role })[] }`, newest first. An event sent without `subject_type` counts for any type. Bookings that name the id in `properties.supplier_id` are included with `role: "supplier"` (unless the asking type is the booking's own subject type), and so are the `booking.completed` / `booking.canceled` of those bookings, matched on `properties.booking_id` even when they do not repeat the supplier |
 
 ## 7. Personal data (GDPR)
 

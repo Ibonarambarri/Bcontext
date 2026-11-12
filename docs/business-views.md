@@ -91,7 +91,12 @@ on events. A sum of `amount` counts only events in the reporting currency.
 - **`heatmap`**: `layout.heatmap = { aggregate, value, second?, color_by: "value" | "ratio", high_is: "good" | "bad" }`.
   The heatmap is an x × y grid. Each cell shows `value` and, below it,
   `second`, and is coloured by the value or by value ÷ second. An empty pair
-  is drawn empty, not as 0.
+  is drawn empty, not as 0. It opens scrolled to the latest buckets, and the
+  legend draws the colour scale with its lowest and highest values. When
+  `y.key` is a record type's key (`zone`), the resolve payload carries
+  `heatmap.y_labels` (row value → the record's name/title field, matched on
+  its external id, id or a `*_code` field) and rows show that name; a value
+  with no record shows its key.
 
 `POST /api/views/:id/resolve` returns these alongside the node ids:
 `records` (record types and rows with fields), `dataset`, `metrics`
@@ -108,7 +113,11 @@ same, so an agent quotes the numbers the team sees.
 | `product` | none | none |
 
 Templates are defaults. Rename `supplier` to "Instructors" and `buyer` to
-"Clients", add fields, or delete a view you don't use. Applying a template
+"Clients", add fields, or delete a view you don't use. A renamed `supplier`,
+`buyer` or `customer` renames the words built on it: KPI labels in the
+metrics summary ("Active instructors", over REST and MCP alike — the KPI keys
+do not change), template views that still carry their template name
+("Suppliers" → "Instructors") and the heatmap's labels. Applying a template
 is **additive and idempotent**:
 
 - A record type whose key exists is skipped, even if its fields differ.
@@ -138,4 +147,21 @@ curl -X POST "$BCONTEXT/api/workspaces/denak/business/apply-template" \
 A subject's events are read with `GET /api/workspaces/:ws/events?subject_type=&subject_id=`
 ([ingest-api.md](ingest-api.md)); the web's record 360 page draws them. A
 supplier's timeline also lists the bookings that name it in
-`properties.supplier_id`.
+`properties.supplier_id`, and how they ended: `booking.completed` /
+`booking.canceled` are joined to the supplier's `booking.created` on
+`properties.booking_id`, so senders need not repeat the supplier (doing so
+is still recommended).
+
+## Converting a dataset row to a node
+
+A row of a dataset-backed type (a supplier, a customer) becomes a node
+record with `POST /api/nodes/:id/dataset/promote` or
+`data_write(op=promote_row)`. Only node record types the row fits are
+offered: a target must share at least one field whose values fit it (same
+key; same type, a select whose options it has, or any string into a text
+field) and every field it requires must be filled that way. The templates'
+marketplace and b2c types have no such target, so their tables say why
+instead of offering a conversion; add a node type with some of the same
+fields to enable it. Without a `mapping`, a promote carries over only the
+fitting columns, and refuses up front, naming the field, when a required
+one would stay empty.
