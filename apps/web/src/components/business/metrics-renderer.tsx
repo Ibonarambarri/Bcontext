@@ -53,7 +53,7 @@ export function MetricsRenderer({ payload, layout: rawLayout }: { payload: Metri
         <Notice>No business events have been rolled up yet. Numbers appear once the app sends events to the ingest API.</Notice>
       ) : null}
       {cards.length > 0 ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
           {cards.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} currency={summary?.currency ?? "EUR"} yoy={layout.compare === "year_ago"} />)}
         </div>
       ) : null}
