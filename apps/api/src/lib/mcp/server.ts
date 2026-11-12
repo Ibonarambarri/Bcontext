@@ -949,14 +949,14 @@ export const TOOLS: Tool[] = [
   {
     name: "nodes",
     description:
-      "Read nodes. op=get fetches one node with its tags, links, typed dependencies and attachments (include_content/include_links=false to trim; keep updated_at for if_updated_at). op=list walks the workspace with parent_id/kind/status/tag filters (any|all) or a full `query` (the views(op=query) contract, merged with the shortcuts — query wins); tag filters inherit through the tag hierarchy, unblocked:true answers \"what can I start now\"; archived nodes stay out unless status:\"archived\"/include_archived:true; a record-type kind takes `fields` filters and returns field values. op=search is semantic + keyword; `scope` is an object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}, workspace by default) applied before retrieval; ONE hit per node, matching H2 blocks nested. op=get on a credential returns its shape only (values `[redacted]`) plus a `credential_use` recipe; credentials never appear in op=search. op=get on a `data` node returns its schema and row count, never its rows — those are the `data` tool's.",
+      "Read nodes. op=get: one node with its tags, links, typed dependencies and attachments (include_content/include_links=false trim; keep updated_at for if_updated_at). op=list: parent_id/kind/status/tag filters (any|all) or a full `query` (the views(op=query) contract; query wins over the shortcuts); tag filters inherit down the tag hierarchy; unblocked:true answers \"what can I start now\"; archived stays out unless status:\"archived\"/include_archived:true; a record-type kind takes `fields` filters and returns field values. op=search: semantic + keyword, `scope` object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}, default workspace) applied before retrieval; ONE hit per node, matching H2 blocks nested. op=get on a credential: its shape (values `[redacted]`) plus a `credential_use` recipe (op=search never returns credentials); on a `data` node: schema and row count, never rows (use `data`).",
     inputSchema: zodToJsonSchema(NodesInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "nodes_write",
     description:
-      "Write nodes. Record types (brief.business) are kinds: kind:\"account\", values in `fields` (patch.fields on update, merged). op=create classifies with `tag_ids` and uses `parent_id` only for real hierarchy — `folder` and `category` are not node fields; H2 headings become addressable blocks and decision/adr/meeting/bug get a skeleton body. A task's steps go in `subtasks` (title + summary + content_md each) on the SAME create, not as separate task nodes. Titles are plain names: no `F01`/`P4-05` codes, no ` — ` separators. op=update takes fields INSIDE `patch` (unlike create, which is flat) and only touches supplied keys; patching content_md requires if_updated_at from your last read; on 409 re-fetch, rebase, retry. op=delete is irreversible and cascades to descendants. op=toggle_checklist_item flips one `- [ ]` by 0-based index (optionally scoped to a block_id) without rewriting the body. op=append adds an H2 block at the end (heading, body_md); op=replace_block rewrites one by block_id (body_md, heading to rename) — only that block is spliced, so edits to different blocks never conflict; if_updated_at optional (omitted → retried on a fresh read; given → 409). op=attach_file adds a base64 image (png/jpeg/webp/gif, ≤ 4 MB) and returns its URL. A `credential` node is ONE credential — one platform, one environment: data.credential = { type, environment, service } and data.fields = [{ key, name, value, secret }]; secrets never go in content_md, and values come back redacted.",
+      "Write nodes. Record types (brief.business) are kinds: kind:\"account\", values in `fields` (patch.fields on update, merged). op=create classifies with `tag_ids`; `parent_id` is for real hierarchy only (`folder`/`category` are not node fields); H2 headings become addressable blocks; decision/adr/meeting/bug get a skeleton body. A task's steps go in `subtasks` (title + summary + content_md each) on the SAME create, not as task nodes. Titles are plain names: no `F01`/`P4-05` codes, no ` — ` separators. op=update: fields INSIDE `patch` (create is flat), only supplied keys change; patching content_md needs if_updated_at from your last read (409: re-fetch, rebase, retry). op=delete is irreversible and cascades to descendants. op=toggle_checklist_item flips one `- [ ]` by 0-based index (block_id scopes it) without a rewrite. op=append adds an H2 block (heading, body_md); op=replace_block rewrites one by block_id (body_md; heading renames) — only that block is spliced, so edits to different blocks never conflict; if_updated_at optional (omitted → retried fresh; given → 409). op=attach_file adds a base64 image (png/jpeg/webp/gif, ≤ 4 MB), returns its URL. A `credential` node is ONE credential (one platform, one environment): data.credential = {type, environment, service}, data.fields = [{key, name, value, secret}]; secrets never go in content_md; values come back redacted.",
     inputSchema: zodToJsonSchema(NodesWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -970,60 +970,60 @@ export const TOOLS: Tool[] = [
   {
     name: "subtasks_write",
     description:
-      "Edit ONE subtask of a task by id, without re-sending the task. op=add (title, summary, content_md, position?), op=update (id, patch), op=delete (id), op=toggle (id, done? — omit to flip), op=reorder (ids = full order, or id + position). You write the summary: it is what the card shows. if_updated_at optional: omitted, a lost race retries; given, a mismatch is a 409. task/bug nodes only.",
+      "Edit ONE subtask of a task by id, without re-sending the task. op=add (title, summary, content_md, position?), op=update (id, patch), op=delete (id), op=toggle (id, done? — omit to flip), op=reorder (ids = full order, or id + position). You write the summary: it is what the card shows. if_updated_at optional (omitted → a lost race retries; given → 409). task/bug nodes only.",
     inputSchema: zodToJsonSchema(SubtasksWriteInput),
     annotations: { destructiveHint: true },
   },
   {
     name: "goals",
     description:
-      "What this workspace is aiming at: the tree (North Star \u2192 company \u2192 project) with each goal's status, progress aggregated from its key results, pace against its horizon and its contributes_to edges. Filter by scope/status; `id` returns one goal; include_inactive:true adds windows already closed.",
+      "Goals as a tree (North Star → company → project): status, progress aggregated from key results, pace against the horizon, contributes_to edges. Filter by scope/status; `id` returns one goal; include_inactive:true adds closed windows.",
     inputSchema: zodToJsonSchema(GoalsInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "goals_write",
     description:
-      "op=checkin (id, key_result_id, current, status?) moves ONE key result and stamps the review \u2014 no body rewrite, no if_updated_at. op=create (title, key_results, cycle \"2027-Q1\" or start/end, stored as due_date): no parent_id and no contributes_to means a company goal, parented to the North Star, and needs the goals:write verb. op=update renames, moves the horizon or sets status; scope is fixed at create. op=add_kr/update_kr take `kr`, op=remove_kr takes key_result_id. Statuses: on_track|at_risk|off_track|achieved|missed|abandoned, not the task ones.",
+      "op=checkin (id, key_result_id, current, status?) moves ONE key result and stamps the review — no body rewrite, no if_updated_at. op=create (title, key_results, cycle \"2027-Q1\" or start/end, stored as due_date): without parent_id and contributes_to it is a company goal under the North Star and needs the goals:write verb. op=update renames, moves the horizon or sets status (scope is fixed at create). op=add_kr/update_kr take `kr`; op=remove_kr takes key_result_id. Statuses: on_track|at_risk|off_track|achieved|missed|abandoned, not the task ones.",
     inputSchema: zodToJsonSchema(GoalsWriteInput),
     annotations: { destructiveHint: true },
   },
   {
     name: "data",
     description:
-      "Read a dataset (kind `data`): its rows live in their own table, so nodes(op=get) returns the schema and not the table. op=schema — columns and types, row count, whether the original file is kept. op=sample (limit, default " +
-      `${DATASET_SAMPLE_DEFAULT}) — the first rows, which is what tells you \`plan\` means free|pro|enterprise. op=query — filter, sort, group and aggregate server-side; limit defaults to ${DATASET_QUERY_DEFAULT_LIMIT} and caps at ${DATASET_QUERY_MAX_LIMIT}. ` +
-      "A column the schema does not have is an error naming the ones it does, never an empty answer. op=metrics (no node_id): business KPIs by month, with deltas and series.",
+      "Read a dataset (kind `data`; nodes(op=get) returns its schema, not its rows). op=schema — columns and types, row count, whether the original file is kept. op=sample (limit, default " +
+      `${DATASET_SAMPLE_DEFAULT}) — first rows, which tell you \`plan\` means free|pro|enterprise. op=query — filter, sort, group and aggregate server-side; limit defaults to ${DATASET_QUERY_DEFAULT_LIMIT} and caps at ${DATASET_QUERY_MAX_LIMIT}. ` +
+      "An unknown column is an error naming the real ones, never an empty answer. op=metrics (no node_id): business KPIs by month, deltas (like-for-like mid-month) and series.",
     inputSchema: zodToJsonSchema(DataInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "data_write",
     description:
-      "Write a dataset. op=create (title, description, and `rows` or `csv`) makes the `data` node and its rows in one call; op=append_rows adds to one; op=replace_rows swaps the whole table and re-infers the schema — there is no delete_rows, because removing rows IS a replace. `rows` is [{column: value}]: an agent has rows from a query far more often than it has a file. Types are inferred per column; `columns` overrides a wrong guess. append_rows refuses a column the schema lacks — changing the shape is replace_rows. At most " +
+      "Write a dataset. op=create (title, description, `rows` or `csv`) makes the `data` node and its rows in one call; op=append_rows adds rows; op=replace_rows swaps the whole table and re-infers the schema (removing rows IS a replace; there is no delete_rows). `rows` is [{column: value}]. Types are inferred per column; `columns` overrides a wrong guess. append_rows refuses a column the schema lacks (a new shape is replace_rows). At most " +
       `${DATASET_MAX_ROWS_PER_WRITE} rows per write, ${DATASET_MAX_ROWS} per dataset. ` +
-      "`description` is the only prose that reaches the index: it is what makes the dataset findable. op=upsert_rows merges rows by `key_column`. op=promote_row turns row `key` into a `record_type` node (`mapping` column→field).",
+      "`description` is the only prose indexed: it makes the dataset findable. op=upsert_rows merges rows by `key_column`. op=promote_row turns row `key` into a `record_type` node (`mapping` column→field).",
     inputSchema: zodToJsonSchema(DataWriteInput),
     annotations: { destructiveHint: true },
   },
   {
     name: "tags",
     description:
-      "List the active workspace tag taxonomy with stable ids, usage counts, and `relations` (the tag_relations graph: {id, from_tag_id, to_tag_id, relation}). relation 'parent' means from_tag_id is a CHILD of to_tag_id (a tag may have several parents); 'related' is a symmetric same-level association. Tag filters (nodes op=list, view queries, RAG tags scope) inherit downward: a parent tag matches nodes tagged with any descendant; 'related' never inherits. Read this before assigning tag_ids or editing the hierarchy.",
+      "The workspace tag taxonomy: stable ids, usage counts and `relations` ({id, from_tag_id, to_tag_id, relation}). 'parent': from_tag_id is a CHILD of to_tag_id (a tag may have several parents); 'related': symmetric, same level. Tag filters (nodes op=list, view queries, RAG tags scope) inherit downward — a parent tag matches nodes tagged with any descendant; 'related' never inherits. Read it before assigning tag_ids or editing the hierarchy.",
     inputSchema: zodToJsonSchema(ListTagsInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "tags_write",
     description:
-      "Shape the taxonomy — any writer may (call `tags` first to reuse what exists; assigning tags to a node is nodes_write op=set_node_tags). op=create adds a tag, optionally with parent_ids (this tag becomes a CHILD of each — multi-parent DAG, cycles rejected) and related_ids (symmetric), atomically. op=update edits name and/or description (omitted keeps, null clears); a rename keeps the id and the old name as an alias. op=link/unlink add or remove one edge (relation parent|related; idempotent). op=merge folds source_id into target_id, MOVING every node assignment, and keeps the old id as a redirect; op=delete soft-deletes a tag and drops its assignments (nodes survive). merge/delete need tags:delete (admin). Tags classify; they never grant access.",
+      "Shape the taxonomy; any writer may (call `tags` first to reuse what exists; tagging a node is nodes_write op=set_node_tags). op=create adds a tag, optionally with parent_ids (it becomes a CHILD of each; multi-parent DAG, cycles rejected) and related_ids (symmetric), atomically. op=update edits name/description (omitted keeps, null clears); a rename keeps the id and the old name as an alias. op=link/unlink one edge (relation parent|related; idempotent). op=merge folds source_id into target_id, MOVING every assignment, old id kept as a redirect; op=delete soft-deletes a tag and drops its assignments (nodes survive). merge/delete need tags:delete (admin). Tags classify; they never grant access.",
     inputSchema: zodToJsonSchema(TagsWriteInput),
     annotations: { destructiveHint: true },
   },
   {
     name: "views",
     description:
-      "Read saved views. op=list, get, resolve (a saved view to node ids; the `roadmap` view adds `roadmap`: goals × now/next/later derived from status, priority and blockers, cards placed by `contributes_to` — move a card by editing the node, never the view), or query (resolve the shared query contract without saving). tags_any/tags_all inherit through the tag hierarchy: a parent tag matches nodes tagged with any descendant. A view holds a versioned query and presentation only — never node copies or embeddings.",
+      "Read saved views. op=list, get, resolve (a saved view to node ids; the `roadmap` view adds `roadmap`: goals × now/next/later from status, priority and blockers, cards placed by `contributes_to` — move a card by editing the node, never the view), or query (run the shared query contract unsaved). tags_any/tags_all inherit down the tag hierarchy. A view holds a versioned query and presentation only, never node copies or embeddings.",
     inputSchema: zodToJsonSchema(ViewsInput),
     annotations: { readOnlyHint: true },
   },
@@ -1037,14 +1037,14 @@ export const TOOLS: Tool[] = [
   {
     name: "admin",
     description:
-      "Read who can reach this workspace. op=access lists every principal — people and agents, in one list — with their verbs, reach and who granted them. op=preview answers what a reach would actually reach before you grant it: how many nodes and which. op=held_invitations lists invitations an agent created that await release by a person. op=business: business_model, currency and full record type definitions. Requires the admin verb.",
+      "Who can reach this workspace. op=access: every principal (people and agents) with verbs, reach and who granted them. op=preview: what a reach would reach before you grant it (how many nodes, which). op=held_invitations: invitations an agent created, awaiting a person's release. op=business: business_model, currency and full record type definitions. Requires the admin verb.",
     inputSchema: zodToJsonSchema(AdminInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "admin_write",
     description:
-      "Grant, revoke or invite. op=grant sets one principal's verbs and reach (one per principal per workspace — granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting, so you can admit someone with no account yet; nothing is granted before they accept. An agent's invitation is HELD until a person calls op=release_invite. You can never hand out more than you hold, a wider reach than yours, or anything to yourself. op=set_business (business_model, currency). op=record_type upserts one by key; definition = {label, fields:[{key,label,type,required,options,target,description,total}], stage_field, storage, promotes_from}. op=delete_record_type. op=apply_business_template (business_model?) adds its template's missing record types and views, never overwriting. Requires the admin verb, not given to agents by default.",
+      "Grant, revoke or invite. op=grant sets a principal's verbs and reach (one grant per principal; granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting (no account needed yet; nothing granted before). An agent's invitation is HELD until a person calls op=release_invite. Never more than you hold, a wider reach than yours, or anything to yourself. op=set_business (business_model, currency). op=record_type upserts one by key; definition = {label, fields:[{key,label,type,required,options,target,description,total,unit:\"money\"?}], stage_field, storage, promotes_from}. op=delete_record_type. op=apply_business_template (business_model?) adds the template's missing record types and views, never overwriting. Requires the admin verb, not given to agents by default.",
     inputSchema: zodToJsonSchema(AdminWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -1058,14 +1058,14 @@ export const TOOLS: Tool[] = [
   {
     name: "capabilities_write",
     description:
-      "op=connect registers an endpoint as `key` (tools discovered; `tools` keeps a subset; api/workflow pass a webhook `contract`). auth.type bearer/header: token in auth.secret, write-only, never returned; oauth without attempt_id returns authorization_url for a person to consent, poll capabilities(op=status, attempt_id) until authorized, then reconnect with it. Connect grants nobody: op=grant gives a principal (default you) discover+invoke, allowed_tools narrows it; op=revoke one; op=disconnect removes it and its grants.",
+      "op=connect registers an endpoint as `key` (tools discovered; `tools` keeps a subset; api/workflow pass a webhook `contract`). auth.type bearer/header: token in auth.secret, write-only, never returned; oauth without attempt_id returns an authorization_url for a person; poll capabilities(op=status, attempt_id) until authorized, then reconnect with it. Connect grants nobody: op=grant gives a principal (default you) discover+invoke, allowed_tools narrows it; op=revoke one; op=disconnect removes it and its grants.",
     inputSchema: zodToJsonSchema(CapabilitiesWriteInput),
     annotations: { destructiveHint: true },
   },
   {
     name: "skills",
     description:
-      "op=list: the skill nodes here (name, description, version, source id). op=get(id, input): the skill as instructions for you to run with your own model — prompt rendered with the validated input, the scopes it needs (refused if you lack one), the tools of this MCP it uses in order. Prefer it over skills_run.",
+      "op=list: the skill nodes (name, description, version, source id). op=get(id, input): the skill as instructions to run with your own model — prompt rendered with the validated input, scopes it needs (refused if you lack one), this MCP's tools it uses, in order. Prefer it to skills_run.",
     inputSchema: zodToJsonSchema(SkillsInput),
     annotations: { readOnlyHint: true },
   },
@@ -1079,7 +1079,7 @@ export const TOOLS: Tool[] = [
   {
     name: "ask_rag",
     description:
-      "Ask with cited retrieval. `scope` is an object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}); workspace is the default. Auto keeps a visible global candidate lane. Returns effective scope metadata and hits; broad graph neighbors are marked outside_scope. Pass synthesize:false for retrieval-only.",
+      "Ask with cited retrieval. `scope` object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}; default workspace); auto keeps a visible global candidate lane. Returns the effective scope and hits; broad graph neighbors are marked outside_scope. synthesize:false for retrieval only.",
     inputSchema: zodToJsonSchema(AskRagInput),
     // Retrieval plus an optional synthesis call: it reads the graph and never
     // writes to it. (It does meter AI usage, which is a ledger entry, not a
@@ -1089,35 +1089,35 @@ export const TOOLS: Tool[] = [
   {
     name: "brief",
     description:
-      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker, best priority first, ties by the goal each pushes, see `goal` on the card), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null \u2014 never 0 \u2014 when no key result is measurable; needs_review = past its declared cadence; strategic_changes = North Star/company goals touched since `since`), changes:{since,entries[],more} (since your previous brief, remembered per token; `since` overrides), views:[{id,name,renderer}], capabilities:{external_tools,skills} (what capability_search finds), business?:{model,currency,record_types}}. `top` caps each list (default 10).",
+      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker; best priority first, ties by the goal each pushes), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null — never 0 — when no key result is measurable; needs_review: past its declared cadence; strategic_changes: North Star/company goals touched since `since`), changes:{since,entries[],more} (since your last brief, per token; `since` overrides), views:[{id,name,renderer}], capabilities:{external_tools,skills} (what capability_search finds), business?:{model,currency,record_types}}. `top` caps each list (default 10).",
     inputSchema: zodToJsonSchema(BriefInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "list_changes",
     description:
-      "Workspace-scoped supervision feed shared with the Changes UI. Filter by human/agent actor, action, node kind/tag/id, source and date; paginate with cursor or re-sync with since. Entries include principal, correlation id, redacted before/after snapshots when recorded, provenance/references, affected relations, audit evidence, and `strategic` when the change touched the North Star or a company goal. Missing snapshots are explicit; generic rollback is never implied.",
+      "The workspace's change feed (the Changes UI's). Filter by human/agent actor, action, node kind/tag/id, source and date; paginate with cursor or re-sync with since. Entries carry principal, correlation id, redacted before/after snapshots when recorded, provenance/references, affected relations, audit evidence, and `strategic` when the North Star or a company goal changed. Missing snapshots are explicit; no generic rollback is implied.",
     inputSchema: zodToJsonSchema(ListChangesInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "links_write",
     description:
-      "Typed relations between two nodes. op=link creates one: blocked_by (from waits on to; `to` must carry a status — a task or bug, never a decision or doc — or it could never unblock), references, caused_by, relates_to, supersedes (from replaces to — to stays findable but is degraded in retrieval, never deleted). Prefer an edge over prose like 'depends on A9': edges power nodes(op=get)'s dependency status and nodes(op=list, unblocked:true). Direction matters — { from_id: TASK, to_id: BLOCKER, relation: 'blocked_by' } means TASK is blocked by BLOCKER. op=unlink removes one (exact from_id + to_id + relation match). Both are idempotent.",
+      "Typed relations between two nodes. op=link creates one: blocked_by (from waits on to; `to` must carry a status — a task or bug, not a decision or doc — or it never unblocks), references, caused_by, relates_to, supersedes (from replaces to; to stays findable, degraded in retrieval, never deleted). Prefer an edge to prose like 'depends on A9': edges power nodes(op=get)'s dependency status and nodes(op=list, unblocked:true). Direction: { from_id: TASK, to_id: BLOCKER, relation: 'blocked_by' } means TASK is blocked by BLOCKER. op=unlink removes one (exact from_id + to_id + relation). Both are idempotent.",
     inputSchema: zodToJsonSchema(LinksWriteInput),
     annotations: { destructiveHint: true, idempotentHint: true },
   },
   {
     name: "ingest",
     description:
-      "List the workspace's ingestion inbox — node candidates proposed from ingested sources such as meeting transcripts (decision/task/bug/adr), awaiting accept/dismiss. Filter by status; omit for all. Each candidate carries its own provenance and never mutates the graph until accepted.",
+      "The ingestion inbox: node candidates (decision/task/bug/adr) proposed from ingested sources such as meeting transcripts, awaiting accept/dismiss. Filter by status (omit for all). A candidate carries its own provenance and changes nothing until accepted.",
     inputSchema: zodToJsonSchema(ListIngestCandidatesInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "ingest_write",
     description:
-      "Resolve one pending ingest candidate. op=accept creates the proposed node (stamped with ingest provenance in `data`) plus its declared links and marks the candidate accepted. op=dismiss creates nothing; the row is kept for traceability and won't be resurrected by a redelivered signal. Both fail if the candidate isn't pending.",
+      "Resolve one pending ingest candidate. op=accept creates the proposed node (ingest provenance in `data`) and its declared links, and marks the candidate accepted. op=dismiss creates nothing; the row stays for traceability and a redelivered signal won't revive it. Both fail unless the candidate is pending.",
     inputSchema: zodToJsonSchema(IngestWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -1141,7 +1141,7 @@ export const TOOLS: Tool[] = [
   {
     name: "list_workspaces",
     description:
-      "List the workspaces this token can access. Workspace tokens return their bound workspace; multi-workspace agent tokens return only explicitly approved workspaces. Use the returned `slug` in the `X-Bcontext-Workspace` request header to select the active workspace.",
+      "The workspaces this token can access: a workspace token's bound one; a multi-workspace agent token's explicitly approved ones. Select one by sending its `slug` in the `X-Bcontext-Workspace` request header.",
     inputSchema: {
       type: "object",
       properties: {},
