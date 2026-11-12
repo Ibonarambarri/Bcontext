@@ -84,6 +84,17 @@ describe("record type definitions", () => {
     expect(JSON.stringify(result.error!.issues)).toContain("`ltv` is a money");
   });
 
+  it("lets a dataset type's number field be shown as money, and only a number field", () => {
+    const ok = RecordTypeInputSchema.safeParse({
+      key: "client", label: "Client", storage: "dataset", dataset_node_id: "d",
+      fields: [{ key: "ltv", label: "LTV", type: "number", unit: "money" }],
+    });
+    expect(ok.success).toBe(true);
+    const bad = RecordTypeInputSchema.safeParse({ key: "client", label: "Client", fields: [{ key: "zone", label: "Zone", type: "text", unit: "money" }] });
+    expect(bad.success).toBe(false);
+    expect(JSON.stringify(bad.error!.issues)).toContain("only number fields take unit");
+  });
+
   it("re-checks a merged definition", () => {
     expect(definitionIssues(account)).toEqual([]);
     expect(definitionIssues({ ...account, stage_field: "seats" }).join()).toContain("stage_field");

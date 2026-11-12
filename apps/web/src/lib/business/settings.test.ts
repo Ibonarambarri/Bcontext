@@ -137,6 +137,16 @@ describe("record type draft", () => {
     const text = patchFromDraft({ ...draft, fields: [{ ...draft.fields[0]!, type: "text", total: "sum" }] });
     expect(text.ok && text.value.fields?.[0]).not.toHaveProperty("total");
   });
+
+  it("keeps a number shown as money through an edit (a B2C MRR), and only on a number", () => {
+    const type = { key: "customer", label: "Customer", storage: "dataset", dataset_node_id: "d", fields: [{ key: "mrr", label: "MRR", type: "number", unit: "money" }] } as unknown as RecordType;
+    const draft = draftFromType(type);
+    expect(draft.fields[0]!.unit).toBe("money");
+    const patch = patchFromDraft(draft);
+    expect(patch.ok && patch.value.fields?.[0]).toMatchObject({ key: "mrr", type: "number", unit: "money" });
+    const text = patchFromDraft({ ...draft, fields: [{ ...draft.fields[0]!, type: "text" }] });
+    expect(text.ok && text.value.fields?.[0]).not.toHaveProperty("unit");
+  });
 });
 
 describe("endpoints", () => {

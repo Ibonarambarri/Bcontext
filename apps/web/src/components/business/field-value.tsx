@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * One record field, displayed: money with its currency, dates as dates,
+ * One record field, displayed: money with its currency (and a number field
+ * marked `unit: "money"` in the reporting currency), dates as dates,
  * selects as chips, relations as links that open the node in the floating
  * panel, urls/emails as links. The text comes from the contract's
  * `displayFieldValue`, so a table cell, a board card and an agent's reading
@@ -17,9 +18,11 @@ import { cn } from "@bcontext-dev/contract/utils";
 import { useWorkspace } from "@/components/workspace-context";
 import { workspacePath } from "@/web/workspace-url";
 import { NodeLink } from "@/components/node-open-link";
+import { useBusiness } from "./business-context";
 
-export function FieldValue({ field, value, className }: { field: Pick<RecordFieldDef, "type">; value: RecordFieldValue | undefined; className?: string }) {
-  const display = displayFieldValue(field, value);
+export function FieldValue({ field, value, className }: { field: Pick<RecordFieldDef, "type" | "unit">; value: RecordFieldValue | undefined; className?: string }) {
+  // A number field with `unit: "money"` is in the reporting currency.
+  const display = displayFieldValue(field, value, { currency: useBusiness().currency });
   switch (display.kind) {
     case "empty":
       return <span className={cn("text-[var(--ink-mute)]", className)}>—</span>;
