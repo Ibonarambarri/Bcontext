@@ -23,6 +23,9 @@ const SECTIONS = [
   "member-detail.tsx",
   "invitations-section.tsx",
   "usage-section.tsx",
+  "business-section.tsx",
+  "record-types-section.tsx",
+  "ingest-keys-section.tsx",
 ];
 
 describe("the workspace panel", () => {
@@ -34,9 +37,9 @@ describe("the workspace panel", () => {
     expect(modal).not.toContain("Sheet");
   });
 
-  it("groups its sections into the workspace and the people in it", () => {
+  it("groups its sections into the workspace, the people in it and its business", () => {
     const modal = read("workspace-admin-modal.tsx");
-    for (const group of ["Workspace", "People"]) {
+    for (const group of ["Workspace", "People", "Business"]) {
       expect(modal).toContain(`label: "${group}"`);
     }
     for (const section of PANEL_SECTIONS) {
@@ -48,6 +51,7 @@ describe("the workspace panel", () => {
     const modal = read("workspace-admin-modal.tsx");
     expect(modal).toMatch(/id: "invitations"[^}]*manageOnly: true/);
     expect(modal).toMatch(/id: "usage"[^}]*manageOnly: true/);
+    expect(modal).toMatch(/id: "ingest-keys"[^}]*manageOnly: true/);
     expect(modal).toContain("can_manage");
   });
 
@@ -90,6 +94,21 @@ describe("the workspace panel", () => {
     expect(detail).toContain('method: "DELETE"');
   });
 
+  it("offers a record type's storage only while creating it, and says why", () => {
+    const source = read("record-types-section.tsx");
+    expect(source).toContain("disabled={!draft.isNew || pending}");
+    expect(source).toContain("cannot be changed after the type is created");
+    // An existing field's key is where its values are stored.
+    expect(source).toContain("isDisabled={disabled || !field.isNew}");
+  });
+
+  it("shows an ingest key's secret once, from state, with a copy button", () => {
+    const source = read("ingest-keys-section.tsx");
+    expect(source).toContain("will not be shown again");
+    expect(source).toContain("navigator.clipboard");
+    expect(source).not.toMatch(/localStorage|sessionStorage|console\./);
+  });
+
   it("speaks only to the workspace routes of the API", () => {
     for (const file of [...SECTIONS, "workspace-admin-modal.tsx"]) {
       expect(read(file), file).not.toMatch(/\/api\/(?!workspaces\/)/);
@@ -98,7 +117,7 @@ describe("the workspace panel", () => {
 });
 
 describe("parsePanelSection", () => {
-  it("accepts the four sections and nothing else", () => {
+  it("accepts every section and nothing else", () => {
     for (const section of PANEL_SECTIONS) expect(parsePanelSection(section)).toBe(section);
     expect(parsePanelSection("overview")).toBeNull();
     expect(parsePanelSection("")).toBeNull();

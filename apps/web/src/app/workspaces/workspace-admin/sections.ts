@@ -9,7 +9,15 @@
  * `workspace-admin-modal.tsx` (`workspace-panel.test.ts` checks it).
  */
 
-export const PANEL_SECTIONS = ["general", "members", "invitations", "usage"] as const;
+export const PANEL_SECTIONS = [
+  "general",
+  "members",
+  "invitations",
+  "usage",
+  "business",
+  "record-types",
+  "ingest-keys",
+] as const;
 
 export type PanelSection = (typeof PANEL_SECTIONS)[number];
 
