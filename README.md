@@ -48,7 +48,7 @@ flowchart LR
     CX[Codex / any MCP client]
   end
   subgraph Bcontext
-    MCP["/mcp/org/workspace<br/>OAuth 2.1 · scoped tokens"]
+    MCP["/mcp/workspace<br/>OAuth 2.1 · scoped tokens"]
     G[("Workspace graph<br/>tasks · decisions · docs<br/>meetings · bugs · ADRs")]
     R[Hybrid search<br/>pgvector + keyword]
   end
@@ -114,7 +114,7 @@ Ollama or LiteLLM.
 <td valign="top">
 
 **👥 Built for teams, with an audit trail**<br>
-Organizations, workspaces, invitations and per-principal grants. Every
+Workspaces with members, roles, invitations and per-principal grants. Every
 write records who made it, person or agent, in an append-only log with a
 hash chain. A collaborative editor for the humans.
 
@@ -183,7 +183,7 @@ git clone https://github.com/Ibonarambarri/bcontext.git && cd bcontext
 docker compose up -d
 ```
 
-Open <http://localhost>, create your account and organization at `/start`,
+Open <http://localhost>, create your account and your first workspace at `/start`,
 and you're in. The first `up` builds the images from source when no release
 image is available, which takes a few minutes. Port 80 taken? Add
 `--http-port 8080` to `setup.sh`.
@@ -198,7 +198,7 @@ In the web app, **Agents → Add agent** gives you a ready-to-paste snippet for
 each client. For Claude Code by hand:
 
 ```bash
-claude mcp add --transport http bcontext https://your-host/mcp/<org>/<workspace>
+claude mcp add --transport http bcontext https://your-host/mcp/<workspace>
 ```
 
 Claude Code opens the browser to approve the connection (OAuth). For the

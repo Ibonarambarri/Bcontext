@@ -20,7 +20,7 @@ Then connect, one of two ways.
 browser, no secret to manage:
 
 ```bash
-claude mcp add -s project --transport http bcontext-<org>-<ws> https://ctx.example.com/mcp/<org>/<ws>
+claude mcp add -s project --transport http bcontext-<ws> https://ctx.example.com/mcp/<ws>
 ```
 
 This writes a `.mcp.json` in the project folder (it holds only the URL, so
@@ -34,7 +34,7 @@ these variables; set them in the shell that starts Claude Code:
 ```bash
 export BCONTEXT_URL="https://ctx.example.com"   # your instance, without /mcp
 export BCONTEXT_TOKEN="bctx_live_…"             # Agents → Add agent → API key
-export BCONTEXT_WORKSPACE="acme/docs"           # only for a user-scoped token
+export BCONTEXT_WORKSPACE="docs"                # workspace slug; only for a user-scoped token
 ```
 
 `BCONTEXT_URL` has no default: until it is set, `/mcp` shows the plugin's

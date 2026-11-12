@@ -16,7 +16,8 @@ work through this surface, and it is ordered by how much it saved them.
    accurate for the build you are talking to, and they are the only manual.
 2. **`list_workspaces`** — which workspaces this token reaches. A workspace
    token is bound to one; a user token picks one per call with
-   `X-Bcontext-Workspace` (or `?workspace=`).
+   `X-Bcontext-Workspace: <slug>` (or `?workspace=<slug>`). A workspace is
+   named by its slug alone; an old `<org>/<workspace>` name still resolves.
 3. **`brief({})`** — one read-only call: counts, the unblocked queue by
    priority, open decisions, what is assigned to you, what changed since your
    previous brief (remembered per token), the workspace's views and how many

@@ -1,6 +1,6 @@
 {
   "name": "bcontext",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Bcontext workspace integration: MCP server registration, the agent skill for the 25 MCP tools (brief, blocks, subtasks, goals, datasets, skills, if_updated_at, typed dependencies, cited retrieval with ask_rag, working alongside other agents), and a daily-brief command.",
   "author": {
     "name": "Ibon Arambarri"
