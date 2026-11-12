@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   QUEUES,
   QUEUE_TASKS_AUTO_ARCHIVE,
+  QUEUE_CAPABILITY_HEALTH,
+  QUEUE_CAPABILITY_OAUTH_EXPIRE,
   QUEUE_ERRORS_RETENTION,
   QUEUE_SKILLS_RUN_SCHEDULED,
   QUEUE_SKILLS_SCHEDULE,
@@ -16,12 +18,12 @@ import {
 /** The per-minute drains. They are the ones
  *  the cadence assertion is about; anything else here is maintenance and
  *  keeps its own clock. */
-const DRAINS = [QUEUE_WEBHOOK_DRAIN];
+const DRAINS = [QUEUE_CAPABILITY_HEALTH, QUEUE_WEBHOOK_DRAIN];
 
 describe("queue catalogue", () => {
   it("declares the drains the cron routes used to run, plus maintenance and the skill clock", () => {
     expect(QUEUES.map((q) => q.name).sort()).toEqual(
-      [...DRAINS, QUEUE_ERRORS_RETENTION, QUEUE_TASKS_AUTO_ARCHIVE, QUEUE_SKILLS_SCHEDULE, QUEUE_SKILLS_RUN_SCHEDULED].sort(),
+      [...DRAINS, QUEUE_CAPABILITY_OAUTH_EXPIRE, QUEUE_ERRORS_RETENTION, QUEUE_TASKS_AUTO_ARCHIVE, QUEUE_SKILLS_SCHEDULE, QUEUE_SKILLS_RUN_SCHEDULED].sort(),
     );
   });
 
@@ -33,6 +35,12 @@ describe("queue catalogue", () => {
   // "older than N days", so a missed tick costs a day of extra rows and
   // running it every minute would only take the same locks 1,439 times for
   // nothing.
+  // The pg_cron job it replaced ran every five minutes; an abandoned flow's
+  // tokens should not sit in Vault much longer than its expiry.
+  it("expires abandoned OAuth attempts every five minutes", () => {
+    expect(queueByName(QUEUE_CAPABILITY_OAUTH_EXPIRE)?.cron).toBe("*/5 * * * *");
+  });
+
   it("runs the retention purge once a day, off the round hours", () => {
     expect(queueByName(QUEUE_ERRORS_RETENTION)?.cron).toBe("20 4 * * *");
   });

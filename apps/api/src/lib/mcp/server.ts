@@ -8,8 +8,11 @@
  * Supabase + AI Gateway are configured.
  *
  * Layout: `TOOLS` (the static catalogue agents see in `tools/list`, filtered
- * per principal by scope and grants), `SERVER_INSTRUCTIONS` (the
- * conventions sent at `initialize`), and `buildMcpServer`, whose `tools/call` handler is one
+ * per principal by scope and grants), `CAPABILITY_ROUTING_TOOLS` (the two
+ * tools through which external tools and skills are found and called — the
+ * external ones resolved per call from `@/lib/capabilities/catalog` and
+ * invoked through the gateway), `SERVER_INSTRUCTIONS` (the conventions sent
+ * at `initialize`), and `buildMcpServer`, whose `tools/call` handler is one
  * large switch over the tool name. Tool descriptions are product text agents
  * read: change them with the plugin `SKILL.md` and `docs/` in mind.
  */
@@ -28,6 +31,7 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import type { Scope } from "@bcontext-dev/contract/auth/scopes";
 import { isTerminalStatus } from "@bcontext-dev/contract/types";
 import { hasScope } from "@bcontext-dev/contract/auth/scopes";
@@ -119,6 +123,17 @@ import {
 } from "@/lib/activity";
 import { changePayload } from "@bcontext-dev/contract/changes";
 import { wsBroadcast } from "@/lib/collab/server-broadcast";
+import { listAuthorizedCapabilityTools } from "@/lib/capabilities/catalog";
+import {
+  isSkillRef,
+  searchCapabilities,
+  skillCandidates,
+  skillMatchesRef,
+} from "@/lib/mcp/capability-search";
+import {
+  CapabilityGatewayError,
+  invokeAuthorizedCapability,
+} from "@/lib/capabilities/gateway";
 import {
   normalizeViewQuery,
   VIEW_QUERY_SCHEMA_VERSION,
@@ -129,6 +144,31 @@ import { matchViewQuery, resolveViewQuery } from "@/lib/views/resolver";
 import { buildRoadmapPayload } from "@/lib/views/roadmap";
 import { appendBlock, listBlocks, replaceBlock } from "@/lib/blocks";
 import { buildBrief, readLastBriefAt, stampBriefAt } from "@/lib/mcp/brief";
+import {
+  type CapabilityAdminActor,
+  CapabilityAdminError,
+  CapabilityStatusInput,
+  ConnectCapabilityInput,
+  DisconnectCapabilityInput,
+  DiscoverCapabilityInput,
+  GrantCapabilityInput,
+  ListCapabilitiesInput,
+  RevokeCapabilityGrantInput,
+  capabilityStatus,
+  connectCapability,
+  disconnectCapability,
+  discoverCapability,
+  grantCapability,
+  listCapabilities,
+  revokeCapabilityGrant,
+} from "@/lib/capabilities/mcp-admin";
+import {
+  CapabilityProvenanceError,
+  CapabilityProvenanceSchema,
+  assertInvocationLinkable,
+  capabilityProvenanceData,
+  linkInvocationToNode,
+} from "@/lib/capabilities/provenance";
 import {
   createView,
   deleteView,
@@ -284,6 +324,10 @@ const CreateNodeInput = z.object({
   // the creator has the context to write each summary, and the cost of
   // writing it is theirs — the server never generates one.
   subtasks: z.array(SubtaskDraftSchema).max(SUBTASK_LIMITS.count).optional(),
+  // Where the content came from when it came back from an external tool:
+  // the gateway's receipt (`_meta.bcontext_gateway.invocation_id`). Stored
+  // under data.provenance and linked from capability_invocations.node_id.
+  provenance: CapabilityProvenanceSchema.optional(),
   change_context: ChangeContextInput.optional(),
 }).strict();
 
@@ -490,6 +534,35 @@ const SkillsWriteInput = z.object({
   /** Where it came from (catalogue URL, repo path); kept in data.source. */
   source: z.string().max(2000).optional(),
 }).strict();
+
+const CapabilitiesInput = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("list") }).merge(ListCapabilitiesInput),
+  z.object({ op: z.literal("discover") }).merge(DiscoverCapabilityInput),
+  z.object({ op: z.literal("status") }).merge(CapabilityStatusInput),
+]);
+
+const CapabilitiesWriteInput = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("connect") }).merge(ConnectCapabilityInput),
+  z.object({ op: z.literal("disconnect") }).merge(DisconnectCapabilityInput),
+  z.object({ op: z.literal("grant") }).merge(GrantCapabilityInput),
+  z.object({ op: z.literal("revoke") }).merge(RevokeCapabilityGrantInput),
+]);
+
+// The two routing tools (`CAPABILITY_ROUTING_TOOLS`): find, then call by ref.
+const CapabilitySearchInput = z.object({
+  /** Words, a tool name, or an exact ref (returns that tool with its schema). `*` lists everything. */
+  query: z.string().trim().min(1).max(200),
+  /** Only this provider's tools; `skill` for the workspace's skills. */
+  provider: z.string().trim().min(1).max(100).optional(),
+  limit: z.number().int().min(1).max(25).default(10),
+}).strict();
+
+const CapabilityCallInput = z.object({
+  /** From capability_search: `<provider>/<capability>/<tool>` or `skill/<slug>`. */
+  ref: z.string().trim().min(1).max(400),
+  args: z.record(z.unknown()).default({}),
+}).strict();
+
 
 const AskRagInput = z.object({
   query: z.string().min(1).max(2000),
@@ -921,6 +994,20 @@ export const TOOLS: Tool[] = [
     annotations: { destructiveHint: true },
   },
   {
+    name: "capabilities",
+    description:
+      "External MCP servers/webhooks whose tools capability_search finds. op=list catalog and grants; op=discover an endpoint's tools before connecting; op=status of a capability (capability_id) or OAuth attempt (attempt_id; cancel:true abandons). Admin verb.",
+    inputSchema: zodToJsonSchema(CapabilitiesInput),
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: "capabilities_write",
+    description:
+      "op=connect registers an endpoint as `key` (tools discovered; `tools` keeps a subset; api/workflow pass a webhook `contract`). auth.type bearer/header: token in auth.secret, write-only, never returned; oauth without attempt_id returns authorization_url for a person to consent, poll capabilities(op=status, attempt_id) until authorized, then reconnect with it. Connect grants nobody: op=grant gives a principal (default you) discover+invoke, allowed_tools narrows it; op=revoke one; op=disconnect removes it and its grants.",
+    inputSchema: zodToJsonSchema(CapabilitiesWriteInput),
+    annotations: { destructiveHint: true },
+  },
+  {
     name: "skills",
     description:
       "op=list: the skill nodes here (name, description, version, source id). op=get(id, input): the skill as instructions for you to run with your own model — prompt rendered with the validated input, the scopes it needs (refused if you lack one), the tools of this MCP it uses in order. Prefer it over skills_run.",
@@ -947,7 +1034,7 @@ export const TOOLS: Tool[] = [
   {
     name: "brief",
     description:
-      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker, best priority first, ties by the goal each pushes, see `goal` on the card), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null \u2014 never 0 \u2014 when no key result is measurable; needs_review = past its declared cadence; strategic_changes = North Star/company goals touched since `since`), changes:{since,entries[],more} (since your previous brief, remembered per token; `since` overrides), views:[{id,name,renderer}], skills (how many skill nodes skills(op=list) returns)}. `top` caps each list (default 10).",
+      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker, best priority first, ties by the goal each pushes, see `goal` on the card), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null \u2014 never 0 \u2014 when no key result is measurable; needs_review = past its declared cadence; strategic_changes = North Star/company goals touched since `since`), changes:{since,entries[],more} (since your previous brief, remembered per token; `since` overrides), views:[{id,name,renderer}], capabilities:{external_tools,skills} (what capability_search finds)}. `top` caps each list (default 10).",
     inputSchema: zodToJsonSchema(BriefInput),
     annotations: { readOnlyHint: true },
   },
@@ -1048,7 +1135,37 @@ const READ_TOOLS = new Set([
 // creates and checks in on project goals with it. The strategic half of the
 // surface refuses at the storage seam, which is where the verb is checked.
 const WRITE_TOOLS = new Set(["nodes_write", "subtasks_write", "goals_write", "data_write", "links_write", "views_write", "ingest_write", "skills_write"]);
-const ADMIN_TOOLS = new Set(["admin", "admin_write"]);
+const ADMIN_TOOLS = new Set(["admin", "admin_write", "capabilities", "capabilities_write"]);
+
+/**
+ * How external tools and skills reach an agent: never inlined, always
+ * through these two.
+ *
+ * Inlining a granted capability's tools into `tools/list` charged every turn
+ * for every remote schema — a single GitHub server is 40 tools and 20 KB,
+ * more than the whole native surface — and it made the list change under an
+ * agent whenever a grant was added. Now `tools/list` is the native tools plus
+ * exactly these, whatever the principal has been granted; `capability_search`
+ * ranks what this caller may use (external tools by grant, the workspace's
+ * skills) and hands back stable refs, `capability_call` re-resolves the ref
+ * and routes it. Exported so the surface test can pin their cost.
+ */
+export const CAPABILITY_ROUTING_TOOLS: Tool[] = [
+  {
+    name: "capability_search",
+    description:
+      "Find the external tools and workspace skills you may call — none are in tools/list. Returns {hits:[{ref, kind: external|skill, provider?, title, description, input_schema?}], total, hint?}: input_schema comes inline when ≤3 hits or the query is an exact ref, otherwise search again by ref. Refs are stable: `<provider>/<capability>/<tool>`, `skill/<slug>`.",
+    inputSchema: zodToJsonSchema(CapabilitySearchInput),
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: "capability_call",
+    description:
+      "Call one hit from capability_search by `ref` with `args` matching its input_schema. External refs are re-authorized on every call and run through the gateway; a `skill/…` ref runs the skill server-side (like skills_run). Do not retry unless the error says to.",
+    inputSchema: zodToJsonSchema(CapabilityCallInput),
+    annotations: { destructiveHint: true, openWorldHint: true },
+  },
+];
 
 export function visibleTools(grant: Grant): Tool[] {
   const has = (verb: Verb) => grant.verbs.includes(verb);
@@ -1245,6 +1362,10 @@ const SERVER_INSTRUCTIONS = [
   "Skills are capabilities of yours, not of the server: skills(op=get, id, input) returns a skill as instructions — prompt rendered with your input, the scopes it needs and the tools of this MCP it uses, in order — for you to execute with your own model; skills_run is for automations without a model, and skills_write(op=import) installs or updates a skill from SKILL.md markdown, bumping data.version.",
   "",
   "To ask the memory a question, call ask_rag: it retrieves the closest blocks within your reach and returns a cited answer (synthesize:false for the hits only).",
+  "",
+  "External tools (connected MCP servers, webhooks, workflows) and the workspace's skills are never in tools/list, so the list does not change when a grant is added: find them with capability_search (ranked over what you may call; refs are stable `<provider>/<capability>/<tool>` or `skill/<slug>`) and execute with capability_call(ref, args). Authorization is re-checked on every call. Do not retry an external action unless the returned error explicitly says to retry.",
+  "",
+  "With the admin verb, capabilities / capabilities_write discover, connect, grant and disconnect external MCP servers from here (OAuth comes back as a URL for a person to consent to, then poll op=status). What an external tool returns can be saved as context: nodes_write(op=create, provenance: { capability, tool, invocation_id }) with the invocation id from the result's _meta.bcontext_gateway.",
 ].join("\n");
 
 export function buildMcpServer(ctx: McpContext): Server {
@@ -1262,9 +1383,61 @@ export function buildMcpServer(ctx: McpContext): Server {
     },
   );
 
+  const authorizedExternalTools = () =>
+    listAuthorizedCapabilityTools({
+      workspaceId: ctx.workspaceId,
+      tokenId: ctx.tokenId,
+      tokenScope: ctx.tokenScope,
+      userId: ctx.userId,
+      agentId: ctx.agentId,
+    });
+
+  /**
+   * The workspace's skills as `capability_search` candidates. Reading them
+   * needs `nodes:read` like `skills` does; a caller without it searches the
+   * external tools only rather than being refused the whole search.
+   */
+  const searchableSkills = async () =>
+    hasScope(ctx.scopes, "nodes:read")
+      ? skillCandidates(await ctx.storage.listNodes({ kinds: ["skill"] }))
+      : [];
+
+  /**
+   * One external call by ref. The ref is resolved against the catalog again
+   * at invocation time instead of trusting an earlier search result, so
+   * grant revocation and capability disablement are immediate.
+   */
+  const callExternal = async (
+    ref: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+  ) => {
+    const external = (await authorizedExternalTools()).find((tool) => tool.ref === ref);
+    if (!external) return errorText(`unknown or unauthorized ref: ${ref}`);
+    const inputValidator = new AjvJsonSchemaValidator().getValidator(external.inputSchema as never);
+    const validated = inputValidator(args);
+    if (!validated.valid) return errorText(`invalid arguments: ${validated.errorMessage}`);
+    try {
+      return await invokeAuthorizedCapability(
+        external,
+        validated.data as Record<string, unknown>,
+        { workspaceId: ctx.workspaceId, tokenId: ctx.tokenId, signal },
+      ) as never;
+    } catch (error) {
+      if (error instanceof CapabilityGatewayError) {
+        return errorText(
+          `${error.code}: ${error.message}${error.retryAfterSec ? ` (retry after ${error.retryAfterSec}s)` : ""}`,
+        );
+      }
+      throw error;
+    }
+  };
+
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    // Native tools are filtered by the principal's verbs.
-    return { tools: visibleTools(ctx.grant) };
+    // Native tools are filtered by the principal's verbs; the two routing
+    // tools are always there, and what they route to is resolved when called.
+    // No catalog read here: the list must not depend on the grants.
+    return { tools: [...visibleTools(ctx.grant), ...CAPABILITY_ROUTING_TOOLS] };
   });
 
   registerResources(server, ctx);
@@ -1274,7 +1447,7 @@ export function buildMcpServer(ctx: McpContext): Server {
     const name = req.params.name;
     const rawArgs = normalizeIdAlias(name, req.params.arguments ?? {});
 
-    // Every tool passes through here,
+    // Every tool — native and external capability alike — passes through here,
     // so this is the one place metering belongs. It is deliberately counted
     // before the switch: what we want to know is how much a workspace asks of
     // the server, and a call that ends in a scope error still cost a request.
@@ -1512,10 +1685,14 @@ export function buildMcpServer(ctx: McpContext): Server {
               `subtasks belong to task or bug nodes, not a ${input.kind}. Put steps for a ${input.kind} in its body as \`- [ ]\` items instead.`,
             );
           }
+          // The receipt has to be real and unclaimed before the node exists;
+          // afterwards the link is best-effort (the node already carries it).
+          if (input.provenance) await assertInvocationLinkable(ctx.workspaceId, input.provenance.invocation_id);
           const createData = {
             ...(input.subtasks && input.subtasks.length > 0
               ? { subtasks: subtasksFromDrafts(input.subtasks) }
               : input.kind === "skill" ? initialSkillData() : {}),
+            ...(input.provenance ? { provenance: capabilityProvenanceData(input.provenance) } : {}),
           };
           const createArgs = {
             title: input.title,
@@ -1570,6 +1747,9 @@ export function buildMcpServer(ctx: McpContext): Server {
             },
           );
           appendMcpChangeAudit(ctx, "node.create", node.id, payload, { id: node.id, kind: node.kind });
+          const invocationLinked = input.provenance
+            ? await linkInvocationToNode({ workspaceId: ctx.workspaceId, invocationId: input.provenance.invocation_id, nodeId: node.id })
+            : undefined;
           // Realtime fan-out: an MCP agent creating a node must show up live in
           // every connected tree, exactly like a human or REST create. Awaited
           // (not voided) so the broadcast POST lands before this function
@@ -1586,6 +1766,7 @@ export function buildMcpServer(ctx: McpContext): Server {
             ...(createdSubtasks.length > 0
               ? { subtasks: createdSubtasks.map(subtaskCard), subtasks_progress: subtaskProgress(createdSubtasks) }
               : {}),
+            ...(invocationLinked !== undefined ? { invocation_linked: invocationLinked } : {}),
             // Embedding is async — a create-then-search in the same breath
             // will miss this node. nodes(op=get|list) see it immediately.
             indexing: "async (~15s until searchable)",
@@ -2784,6 +2965,7 @@ export function buildMcpServer(ctx: McpContext): Server {
                 (id): id is string => typeof id === "string" && id.length > 0,
               ),
               viewPrincipal: mcpViewPrincipal(ctx),
+              countExternalTools: async () => (await authorizedExternalTools()).length,
             },
             { top: input.top, since },
           );
@@ -2999,12 +3181,86 @@ export function buildMcpServer(ctx: McpContext): Server {
           }
         }
 
+        case "capabilities": {
+          requireAdminVerb(ctx);
+          const input = CapabilitiesInput.parse(rawArgs);
+          const actor = capabilityActor(ctx);
+          switch (input.op) {
+            case "list": {
+              const { op: _op, ...args } = input;
+              return json(await listCapabilities(actor, args));
+            }
+            case "discover": {
+              const { op: _op, ...args } = input;
+              return json(await discoverCapability(actor, args));
+            }
+            case "status": {
+              const { op: _op, ...args } = input;
+              return json(await capabilityStatus(actor, args));
+            }
+          }
+          break;
+        }
+
+        case "capabilities_write": {
+          requireAdminVerb(ctx);
+          const input = CapabilitiesWriteInput.parse(rawArgs);
+          const actor = capabilityActor(ctx);
+          switch (input.op) {
+            case "connect": {
+              const { op: _op, ...args } = input;
+              return json(await connectCapability(actor, args));
+            }
+            case "disconnect": {
+              const { op: _op, ...args } = input;
+              return json(await disconnectCapability(actor, args));
+            }
+            case "grant": {
+              const { op: _op, ...args } = input;
+              return json(await grantCapability(actor, args));
+            }
+            case "revoke": {
+              const { op: _op, ...args } = input;
+              return json(await revokeCapabilityGrant(actor, args));
+            }
+          }
+          break;
+        }
+
+        case "capability_search": {
+          const input = CapabilitySearchInput.parse(rawArgs);
+          const [external, skills] = await Promise.all([authorizedExternalTools(), searchableSkills()]);
+          return json(searchCapabilities(input, external, skills));
+        }
+
+        case "capability_call": {
+          const input = CapabilityCallInput.parse(rawArgs);
+          if (!isSkillRef(input.ref)) return callExternal(input.ref, input.args, extra.signal);
+          // A skill ref runs the skill here, with the server's model — the
+          // same thing skills_run does, gated by the same scope. An agent
+          // that wants to run it with its own model has skills(op=get).
+          ensureScope(ctx, "chat:run");
+          const skill = (await searchableSkills()).find(({ node }) => skillMatchesRef(node, input.ref));
+          if (!skill) return errorText(`unknown skill ref: ${input.ref}`);
+          const { runSkill, SkillError } = await import("@/lib/skills/run");
+          try {
+            const out = await runSkill(ctx.storage, { skill_id: skill.node.id, input: input.args }, undefined, ctx.subjectUserId);
+            return json({ ref: input.ref, executed: "server", ...out });
+          } catch (err) {
+            if (err instanceof SkillError) return errorText(err.message);
+            throw err;
+          }
+        }
+
         default:
           return errorText(`unknown tool: ${name}`);
       }
     } catch (err) {
       if (err instanceof ScopeError) {
         return errorText(err.message);
+      }
+      if (err instanceof CapabilityAdminError || err instanceof CapabilityProvenanceError) {
+        return errorText(`${err.code}: ${err.message}`);
       }
       if (err instanceof GrantError || err instanceof InvitationError) {
         // The reason matters here more than anywhere else: the caller is often
@@ -3181,6 +3437,26 @@ let nativeToolNameSet: Set<string> | null = null;
 function nativeToolNames(): Set<string> {
   nativeToolNameSet ??= new Set(TOOLS.map((tool) => tool.name));
   return nativeToolNameSet;
+}
+
+/**
+ * The capability tools gate on the same verb the admin tools do. `admin` and
+ * `admin_write` reach their check inside `listAccess`/`grantAccess`; these
+ * have no such choke point, so the check is explicit and comes first.
+ */
+function requireAdminVerb(ctx: McpContext): void {
+  if (!ctx.grant.verbs.includes("admin")) throw new ForbiddenError("admin");
+}
+
+function capabilityActor(ctx: McpContext): CapabilityAdminActor {
+  return {
+    workspaceId: ctx.workspaceId,
+    userId: ctx.subjectUserId,
+    tokenId: ctx.tokenId,
+    tokenScope: ctx.tokenScope,
+    agentId: ctx.agentId,
+    agentLabel: ctx.agentLabel,
+  };
 }
 
 function ensureScope(ctx: McpContext, scope: Scope) {
