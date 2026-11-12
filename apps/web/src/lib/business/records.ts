@@ -212,9 +212,9 @@ export function labelInSentence(label: string): string {
 
 /**
  * What a dataset table says instead of "Convert to …" when no node record
- * type fits its rows (the API only offers targets that share compatible
- * fields — `promoteTargetsFor`). Null when there is a target: the button is
- * the explanation then.
+ * type fits its rows (the API only offers targets that declare the type in
+ * `promotes_from` or share a non-generic field — `promoteTargetsFor`). Null
+ * when there is a target: the button is the explanation then.
  */
 export function promoteUnavailableNote(
   type: Pick<RecordTypeDefinition, "key" | "label" | "label_plural">,
@@ -222,7 +222,7 @@ export function promoteUnavailableNote(
 ): string | null {
   if (targets.length > 0) return null;
   const plural = type.label_plural || `${type.label}s`;
-  return `${plural} stay rows: no node record type shares compatible fields with them, so none can be converted to a node. Add a node type with some of the same fields (name, email…) to make that possible.`;
+  return `${plural} stay rows: no node record type shares compatible fields with them, so none can be converted to a node. Add a node type made from them (promotes_from: ${type.key}), or one that shares a field beyond name, email or zone, to make that possible.`;
 }
 
 /**

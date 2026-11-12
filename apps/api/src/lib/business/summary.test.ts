@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { RollupEvent } from "./events";
 import { computeRollups } from "./rollup";
+import { currentKpiWording, isPeriodOpen } from "@bcontext-dev/contract/business/metrics";
 import { buildMetricsSummary } from "./summary";
 
 function ev(type: string, at: string, rest: Partial<RollupEvent> = {}): RollupEvent {
@@ -114,6 +115,58 @@ describe("marketplace summary", () => {
     expect(kpi(renamed, "active_suppliers").definition).toMatch(/^Distinct instructors /);
     expect(kpi(renamed, "repeat_buyer_rate").label).toBe("Repeat clients");
     expect(kpi(renamed, "new_buyers").label).toBe("New clients");
+  });
+});
+
+describe("a month still running", () => {
+  // v0.4.2: mid-month, "Net" was a fortnight of prorated revenue minus the
+  // month's whole payroll and read like a loss. Its card now says so.
+  const events = [
+    ev("subscription.started", "2026-10-01", { subject_id: "a", amount: 3000 }),
+    ev("expense.recorded", "2026-11-01", { amount: 2500, properties: { category: "payroll" } }),
+  ];
+  const { rows } = computeRollups(events, { currency: "EUR", today: "2026-11-12", businessModel: "b2b" });
+  const summary = buildMetricsSummary({
+    settings: { business_model: "b2b", currency: "EUR" },
+    monthRows: rows.filter((r) => r.grain === "month"),
+    computedAt: null,
+    now: new Date("2026-11-12T10:00:00Z"),
+  });
+
+  it("labels the flows of the current month as month to date, and keeps their keys", () => {
+    const net = kpi(summary, "net");
+    expect(net.current!).toBeLessThan(0);
+    expect(net).toMatchObject({ key: "net", label: "Net", current_label: "Net (month to date)", current_is_partial: true });
+    expect(net.current_definition).toMatch(/^Revenue minus expenses for the month\. This month is not over/);
+    expect(kpi(summary, "expenses").current_label).toBe("Expenses (month to date)");
+    expect(kpi(summary, "burn").current_label).toBe("Burn (month to date)");
+  });
+
+  it("leaves stocks and rates alone: MRR is what it is today", () => {
+    expect(kpi(summary, "mrr")).toMatchObject({ current_label: "MRR", current_is_partial: false });
+    expect(kpi(summary, "nrr").current_label).toBe("NRR");
+  });
+
+  it("says month to date for the marketplace's GMV, take and bookings, with renamed sides kept", () => {
+    const market = buildMetricsSummary({
+      settings: { business_model: "marketplace", currency: "EUR" },
+      monthRows: [],
+      computedAt: null,
+      now: new Date("2026-11-12T10:00:00Z"),
+      names: { supplier: { one: "Instructor", many: "Instructors" } },
+    });
+    expect(["gmv", "take", "bookings", "net"].map((key) => kpi(market, key).current_label)).toEqual([
+      "GMV (month to date)", "Take (month to date)", "Bookings (month to date)", "Net (month to date)",
+    ]);
+    expect(kpi(market, "active_suppliers").current_label).toBe("Active instructors");
+  });
+
+  it("calls a closed month plain Net", () => {
+    expect(isPeriodOpen("2026-10", new Date("2026-11-01T00:00:00Z"))).toBe(false);
+    expect(isPeriodOpen("2026-11", new Date("2026-11-30T23:59:59Z"))).toBe(true);
+    const net = { label: "Net", definition: "Revenue minus expenses for the month.", to_date: "Month to date." };
+    expect(currentKpiWording(net, false)).toEqual({ label: "Net", definition: net.definition, partial: false });
+    expect(currentKpiWording(net, true).label).toBe("Net (month to date)");
   });
 });
 

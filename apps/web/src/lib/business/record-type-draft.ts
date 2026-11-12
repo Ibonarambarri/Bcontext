@@ -18,6 +18,7 @@ import {
   RecordTypeInputSchema,
   RecordTypePatchSchema,
   definitionIssues,
+  type FieldTotalMode,
   type RecordFieldDef,
   type RecordFieldType,
   type RecordStorage,
@@ -35,6 +36,8 @@ export interface FieldDraft {
   target: string;
   multiple: boolean;
   description: string;
+  /** number / money: the footer total, `""` to let `fieldTotalOf` infer it from the key. */
+  total: "" | FieldTotalMode;
   /** Added in this edit: its key is still editable. */
   isNew: boolean;
 }
@@ -68,8 +71,15 @@ export const FIELD_TYPE_LABELS: Record<RecordFieldType, string> = {
 
 export const FIELD_TYPES = RECORD_FIELD_TYPES;
 
+export const FIELD_TOTAL_LABELS: Record<"" | FieldTotalMode, string> = {
+  "": "Total: automatic",
+  sum: "Total: sum",
+  average: "Total: average",
+  none: "Total: none",
+};
+
 export function emptyField(): FieldDraft {
-  return { key: "", label: "", type: "text", required: false, optionsText: "", target: "", multiple: false, description: "", isNew: true };
+  return { key: "", label: "", type: "text", required: false, optionsText: "", target: "", multiple: false, description: "", total: "", isNew: true };
 }
 
 export function emptyType(): TypeDraft {
@@ -94,6 +104,7 @@ export function draftFromType(type: RecordType): TypeDraft {
       target: field.target ?? "",
       multiple: Boolean(field.multiple),
       description: field.description ?? "",
+      total: field.total ?? "",
       isNew: false,
     })),
     isNew: false,
@@ -111,6 +122,9 @@ export function fieldDefFromDraft(draft: FieldDraft): RecordFieldDef {
     ...(choice ? { options } : {}),
     ...(draft.type === "relation" ? { target: draft.target.trim(), ...(draft.multiple ? { multiple: true } : {}) } : {}),
     ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
+    // Kept through an edit even though most people never touch it: dropping
+    // it would turn an Instructors' "avg 4.7" back into a sum of ratings.
+    ...(draft.total && (draft.type === "number" || draft.type === "money") ? { total: draft.total } : {}),
   };
 }
 
