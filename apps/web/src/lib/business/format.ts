@@ -81,12 +81,22 @@ export function deltaLabel(kpi: Pick<KpiValue, "unit" | "delta" | "delta_pct" | 
   if (kpi.unit === "percent") {
     if (kpi.delta === null || !Number.isFinite(kpi.delta)) return null;
     const pts = kpi.delta * 100;
-    return { text: `${pts >= 0 ? "+" : "−"}${Math.abs(pts).toFixed(1)} pts`, tone: toneOf(pts, kpi.higher_is_better) };
+    return { text: `${signed(pts)} pts`, tone: toneOf(pts, kpi.higher_is_better) };
   }
   if (kpi.unit === "count") return countChange(kpi.delta, kpi.higher_is_better, "");
   if (kpi.delta_pct === null || !Number.isFinite(kpi.delta_pct)) return null;
   const pct = kpi.delta_pct * 100;
-  return { text: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`, tone: toneOf(pct, kpi.higher_is_better) };
+  return { text: `${signed(pct)}%`, tone: toneOf(pct, kpi.higher_is_better) };
+}
+
+/**
+ * One decimal with its sign; a change that rounds to nothing is "0.0", not
+ * "−0.0" (a net that moved by €0.66 on €1,855 read "−0.0%" in v0.4.2).
+ */
+function signed(value: number): string {
+  const text = Math.abs(value).toFixed(1);
+  if (Number(text) === 0) return "0.0";
+  return `${value > 0 ? "+" : "−"}${text}`;
 }
 
 function countChange(delta: number | null, higherIsBetter: boolean, suffix: string): DeltaLabel | null {
@@ -112,7 +122,7 @@ export function yoyLabel(kpi: Pick<KpiValue, "unit" | "current" | "year_ago" | "
   }
   if (kpi.yoy_delta_pct === null || !Number.isFinite(kpi.yoy_delta_pct)) return null;
   const pct = kpi.yoy_delta_pct * 100;
-  return { text: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}% YoY`, tone: toneOf(pct, kpi.higher_is_better) };
+  return { text: `${signed(pct)}% YoY`, tone: toneOf(pct, kpi.higher_is_better) };
 }
 
 function toneOf(change: number, higherIsBetter: boolean): DeltaTone {

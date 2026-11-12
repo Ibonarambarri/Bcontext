@@ -35,6 +35,11 @@ describe("business formatting", () => {
     expect(yoyLabel({ unit: "money", current: 125, year_ago: 100, yoy_delta_pct: 0.25, higher_is_better: true })?.text).toBe("+25.0% YoY");
   });
 
+  it("writes a change that rounds to nothing without a sign", () => {
+    expect(deltaLabel({ unit: "money", delta: -0.66, delta_pct: -0.000356, higher_is_better: true })).toEqual({ text: "0.0%", tone: "flat" });
+    expect(deltaLabel({ unit: "percent", delta: 0.0001, delta_pct: 0.01, higher_is_better: true })?.text).toBe("0.0 pts");
+  });
+
   it("changes a count in units, so two customers fewer is not −100%", () => {
     // v0.4.2's New customers card: 0 so far against 2 read "−100.0%".
     expect(deltaLabel({ unit: "count", delta: -2, delta_pct: -1, higher_is_better: true })).toEqual({ text: "−2", tone: "bad" });

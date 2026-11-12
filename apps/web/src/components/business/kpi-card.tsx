@@ -51,9 +51,12 @@ export function KpiCard({
   // of last year) for a flow, never a whole month against a partial one.
   const deltaTitle = delta ? comparisonTitle(kpi, yearOverYear ? "year_ago" : "previous") : null;
   const currentLabel = kpi.current_label ?? kpi.label;
-  // "(month to date)" is set smaller, so "GMV (month to date)" still fits a
-  // quarter-width card beside its delta chip instead of truncating.
-  const suffix = currentLabel !== kpi.label && currentLabel.startsWith(kpi.label) ? currentLabel.slice(kpi.label.length) : null;
+  // A partial month's title says "MTD", small, with the words on hover and
+  // for screen readers: "(month to date)" fitted "GMV" but truncated "New
+  // customers (month t…" and "Revenue churn (mo…" in a quarter-width card
+  // once every flow KPI said it (v0.4.3). Footers and lists, which wrap,
+  // keep the words.
+  const partial = currentLabel !== kpi.label && currentLabel.startsWith(kpi.label);
   const values = kpi.series.map((point) => point.value);
   return (
     <KPI
@@ -62,10 +65,10 @@ export function KpiCard({
     >
       <KPI.Header>
         <KPI.Title className="min-w-0 truncate" aria-label={currentLabel}>
-          {suffix ? (
+          {partial ? (
             <>
-              {kpi.label}
-              <span className="text-[0.8em] text-muted">{suffix}</span>
+              {kpi.label}{" "}
+              <abbr title="month to date" className="text-[0.75em] tracking-wide text-muted no-underline">MTD</abbr>
             </>
           ) : currentLabel}
         </KPI.Title>
