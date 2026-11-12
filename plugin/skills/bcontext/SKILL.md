@@ -311,7 +311,10 @@ parentheses, the stage field's options in `stages`).
   id; `data_write({ op: "upsert_rows", node_id, key_column: "external_id",
   rows })` merges rows by key. When one person matters to the team (a VIP, an
   incident), `data_write({ op: "promote_row", node_id, key, record_type })`
-  makes them a node — promoting again updates the same node.
+  makes them a node — promoting again updates the same node. Without a
+  `mapping` only the columns whose values fit the target's fields carry
+  over, and a target whose required fields no column fills is refused with
+  the field named: pass a `mapping` or choose a type that fits.
 - **Customer data and events come from the product**, through the ingest API
   with a write-only key — not from you. Do not create `account` nodes by
   hand for customers the product already syncs; enrich them (notes, links,
@@ -321,6 +324,9 @@ parentheses, the stage field's options in `stages`).
   take rate, bookings, cancellations, active/new/repeat buyers), each with
   the current month, the previous one, the delta, last year's same month and
   a 12-month series. Quote these instead of computing your own from rows.
+  Labels use the workspace's own words for its sides (a renamed `supplier`
+  reads "Active instructors"); refer to a KPI by its `key`, which never
+  changes.
 - Defining types and setting the model is an admin's: `admin_write({ op:
   "record_type", key, definition })`, `admin_write({ op: "set_business",
   business_model })`; `admin({ op: "business" })` returns the full

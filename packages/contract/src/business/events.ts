@@ -40,6 +40,9 @@ export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
  *   booking.completed      properties.booking_id; amount / properties.fee
  *                          optional and, when given, the final values
  *   booking.canceled       properties.booking_id
+ *     properties.supplier_id on completed/canceled: optional but
+ *     recommended. Without it a supplier's timeline still shows them, joined
+ *     on booking_id to the booking.created that names the supplier.
  *
  *   expense.recorded       amount ≥ 0, properties.category (infra | ai | tools
  *                          | payroll | marketing | other), properties.vendor?,
@@ -215,8 +218,10 @@ export const SUBJECT_EVENTS_MAX = 200;
 /**
  * One event of a subject's timeline. `role` says how the subject is in it:
  * `subject` when the event is about it, `supplier` when it is a booking that
- * names it in `properties.supplier_id` (a booking's subject is the buyer, so
- * a supplier's own bookings would otherwise never reach its page).
+ * names it in `properties.supplier_id` — or a later event of a booking whose
+ * `booking.created` named it, matched on `properties.booking_id` (a
+ * booking's subject is the buyer, so a supplier's own bookings would
+ * otherwise never reach its page).
  */
 export interface SubjectEvent extends BusinessEvent {
   role: "subject" | "supplier";

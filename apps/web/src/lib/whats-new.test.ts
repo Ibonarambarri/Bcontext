@@ -4,6 +4,8 @@ import {
   DEFAULT_LOOKBACK_DAYS,
   badgeLabel,
   groupByActor,
+  groupIngestBatches,
+  ingestBatchTitle,
   isOwnChange,
   newChanges,
   newDecisions,
@@ -128,5 +130,57 @@ describe("badge", () => {
   it("finds the newest timestamp", () => {
     expect(newestTs([])).toBeNull();
     expect(newestTs([entry({ ts: "2026-11-01T00:00:00.000Z" }), entry({ ts: "2026-11-03T00:00:00.000Z" })])).toBe("2026-11-03T00:00:00.000Z");
+  });
+});
+
+describe("ingest syncs", () => {
+  const ingest = (n: number, over: Partial<ActivityEntry> = {}) =>
+    entry({ actorKind: "system", actorId: undefined, actorName: "System", node_id: `rec-${n}`, node_title: `Account ${n}`, source: "ingest:account", provenance: { via: "ingest", sources: [], references: [] }, ...over });
+
+  it("folds one sync into one entry, and leaves everything else to the actor groups", () => {
+    const sync = Array.from({ length: 95 }, (_, i) => ingest(i, { correlation_id: "sync-1", kind: i < 3 ? "create" : "update" }));
+    const agent = entry({ node_id: "doc-1" });
+    const { batches, rest } = groupIngestBatches([...sync, agent]);
+    expect(batches).toHaveLength(1);
+    expect(batches[0]).toMatchObject({ record_type: "account", created: 3, updated: 92 });
+    expect(batches[0]!.entries).toHaveLength(95);
+    expect(ingestBatchTitle(batches[0]!)).toBe("Ingest: 3 records created, 92 updated");
+    expect(rest).toEqual([agent]);
+    expect(ingestBatchTitle({ created: 0, updated: 95, other: 0 })).toBe("Ingest: 95 records updated");
+  });
+
+  it("tells two syncs apart by a gap, not by request", () => {
+    const at = (iso: string, n: number, over: Partial<ActivityEntry> = {}) => ingest(n, { ts: iso, ...over });
+    // One PUT per record is one request per record, and still one sync.
+    const puts = groupIngestBatches([
+      at("2026-11-10T10:00:00.000Z", 1, { correlation_id: "a" }),
+      at("2026-11-10T10:00:01.000Z", 2, { correlation_id: "b" }),
+      at("2026-11-10T10:00:02.000Z", 3, { correlation_id: "c" }),
+    ]);
+    expect(puts.batches).toHaveLength(1);
+    expect(ingestBatchTitle(puts.batches[0]!)).toBe("Ingest: 3 records updated");
+    const { batches } = groupIngestBatches([
+      at("2026-11-10T10:00:00.000Z", 1),
+      at("2026-11-10T10:01:00.000Z", 2),
+      at("2026-11-10T12:00:00.000Z", 3),
+    ]);
+    expect(batches.map((batch) => batch.entries.length)).toEqual([1, 2]);
+    // A long request stays whole past the gap; another record type is its own sync.
+    const long = groupIngestBatches([
+      at("2026-11-10T10:00:00.000Z", 1, { correlation_id: "big" }),
+      at("2026-11-10T10:09:00.000Z", 2, { correlation_id: "big" }),
+      at("2026-11-10T10:09:30.000Z", 3, { source: "ingest:deal" }),
+    ]);
+    expect(long.batches.map((batch) => [batch.record_type, batch.entries.length])).toEqual([["deal", 1], ["account", 2]]);
+  });
+
+  it("counts records, not changes", () => {
+    const { batches } = groupIngestBatches([
+      ingest(1, { correlation_id: "s", kind: "create" }),
+      ingest(1, { correlation_id: "s", kind: "update" }),
+      ingest(2, { correlation_id: "s", kind: "update" }),
+      ingest(2, { correlation_id: "s", kind: "update" }),
+    ]);
+    expect(ingestBatchTitle(batches[0]!)).toBe("Ingest: 1 record created, 1 updated");
   });
 });

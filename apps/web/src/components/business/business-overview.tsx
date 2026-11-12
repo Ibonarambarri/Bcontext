@@ -21,6 +21,7 @@ import { Card } from "@heroui/react";
 import type { KpiValue, MetricsSummary } from "@bcontext-dev/contract/business/metrics";
 import type { BusinessSettings, RecordType } from "@bcontext-dev/contract/business/record-types";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
+import { renameSides, sideNames, type SideNames } from "@bcontext-dev/contract/business/names";
 import {
   TOP_KPIS,
   accountsAtRisk,
@@ -120,7 +121,7 @@ export async function BusinessOverview({
         )}
 
         {model === "marketplace" ? (
-          <MarketplaceLists ws={ws} roles={{ of, typeOf }} titleOf={titleOf} />
+          <MarketplaceLists ws={ws} roles={{ of, typeOf }} titleOf={titleOf} names={sideNames(types)} />
         ) : (
           <SaasLists ws={ws} model={model} roles={{ of, typeOf }} types={types} nodes={nodes} now={now} money={money} titleOf={titleOf} />
         )}
@@ -307,14 +308,15 @@ function SaasLists({
   );
 }
 
-function MarketplaceLists({ ws, roles, titleOf }: { ws: WorkspaceAddress; roles: Roles; titleOf: (id: string) => string | undefined }) {
+function MarketplaceLists({ ws, roles, titleOf, names }: { ws: WorkspaceAddress; roles: Roles; titleOf: (id: string) => string | undefined; names: SideNames }) {
   return (
     <div className="mt-8 grid gap-5 lg:grid-cols-2">
       <ActionList
         ws={ws}
-        title="Zones with demand and few suppliers"
+        // The workspace's word for its suppliers (KPI labels arrive renamed from the API).
+        title={renameSides("Zones with demand and few suppliers", names)}
         rows={underSuppliedZones(roles.of("zone"), roles.typeOf("zone"), roles.of("supplier"), roles.typeOf("supplier"))}
-        empty="Every zone with demand has supply."
+        empty={renameSides("Every zone with demand has suppliers.", names)}
       />
       <ActionList ws={ws} title="Open incidents" rows={openIncidents(roles.of("incident"), roles.typeOf("incident"))} empty="No open incidents." />
       <RequestsBySegment segments={requestsBySegment(roles.of("request"), roles.typeOf("request"), titleOf)} />

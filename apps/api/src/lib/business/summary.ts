@@ -21,9 +21,10 @@ import {
   type MetricRollupRow,
   type MetricsSummary,
 } from "@bcontext-dev/contract/business/metrics";
+import { renameSides, sideNames, type SideNames } from "@bcontext-dev/contract/business/names";
 import type { Storage } from "@/lib/storage";
 import { readRollups } from "./events";
-import { getBusinessSettings } from "./record-types";
+import { getBusinessSettings, listRecordTypes } from "./record-types";
 
 type MonthMetrics = Map<string, number>;
 
@@ -115,12 +116,18 @@ export interface SummaryInput {
   computedAt: string | null;
   /** Defaults to now; decides the current month (UTC). */
   now?: Date;
+  /**
+   * The sides the workspace renamed (`sideNames`): "Active suppliers" reads
+   * "Active instructors" wherever the summary is shown. Keys never change.
+   */
+  names?: SideNames;
 }
 
 export function buildMetricsSummary(input: SummaryInput): MetricsSummary {
   const now = input.now ?? new Date();
   const currentPeriod = now.toISOString().slice(0, 7);
   const set = kpiSetFor(input.settings.business_model);
+  const names = input.names ?? {};
   const notes: string[] = [];
 
   const months = new Map<string, MonthMetrics>();
@@ -162,6 +169,8 @@ export function buildMetricsSummary(input: SummaryInput): MetricsSummary {
       const yearAgo = value(yearAgoPeriod);
       kpis.push({
         ...definition,
+        label: renameSides(definition.label, names),
+        definition: renameSides(definition.definition, names),
         current,
         previous,
         delta: current === null || previous === null ? null : current - previous,
@@ -191,7 +200,11 @@ export function buildMetricsSummary(input: SummaryInput): MetricsSummary {
 }
 
 export async function getMetricsSummary(storage: Pick<Storage, "backend" | "workspace">): Promise<MetricsSummary> {
-  const settings = await getBusinessSettings(storage);
-  const { rows, computed_at } = await readRollups(storage, "month");
-  return buildMetricsSummary({ settings, monthRows: rows, computedAt: computed_at });
+  const [settings, { rows, computed_at }, types] = await Promise.all([
+    getBusinessSettings(storage),
+    readRollups(storage, "month"),
+    // Only for the words; a failed read keeps the template's.
+    listRecordTypes(storage).catch(() => []),
+  ]);
+  return buildMetricsSummary({ settings, monthRows: rows, computedAt: computed_at, names: sideNames(types) });
 }

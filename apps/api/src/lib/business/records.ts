@@ -20,6 +20,7 @@
 import {
   RECORD_RESERVED_DATA_KEYS,
   datasetColumnTypeFor,
+  promoteFit,
   readRecordFields,
   unknownKindMessage,
   validateRecordFields,
@@ -346,8 +347,27 @@ export async function promoteDatasetRow(
   }
   const { node: dataset, row } = await readDatasetRowByKey(storage, input.node_id, input.key);
   if (!row) throw new RecordWriteError("not_found", `no row with key \`${input.key}\` in \`${dataset.title}\``);
-  const fieldKeys = new Set(type.fields.map((field) => field.key));
-  const mapping = input.mapping ?? Object.fromEntries(Object.keys(row).filter((column) => fieldKeys.has(column)).map((column) => [column, column]));
+  // The default mapping: when the dataset is a record type's, only the
+  // columns whose values fit the target's field (`promoteFit`) — a column
+  // that shares a name but not a meaning (a supplier's `status` vs an
+  // incident's) would only fail validation. A bare dataset keeps the
+  // name-for-name mapping it always had.
+  const sourceType = types.find((candidate) => candidate.storage === "dataset" && candidate.dataset_node_id === dataset.id);
+  let mapping = input.mapping;
+  if (!mapping && sourceType) {
+    const fit = promoteFit(sourceType, type);
+    if (fit.missing_required.length > 0) {
+      throw new RecordWriteError(
+        "invalid_fields",
+        `a \`${sourceType.key}\` row cannot become \`${type.key}\`: no compatible column fills its required field(s) ${fit.missing_required.join(", ")}; pass a mapping or promote into another type`,
+      );
+    }
+    mapping = fit.mapping;
+  }
+  if (!mapping) {
+    const fieldKeys = new Set(type.fields.map((field) => field.key));
+    mapping = Object.fromEntries(Object.keys(row).filter((column) => fieldKeys.has(column)).map((column) => [column, column]));
+  }
   const fields: Record<string, unknown> = {};
   for (const [column, field] of Object.entries(mapping)) {
     if (!(column in row)) throw new RecordWriteError("invalid_fields", `mapping names column \`${column}\`, which the row does not have (columns: ${Object.keys(row).join(", ")})`);

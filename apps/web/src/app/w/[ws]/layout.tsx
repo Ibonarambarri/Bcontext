@@ -17,7 +17,8 @@ import { workspaceAccentCss } from "@/lib/workspace-accent";
 import { displayName, userColor } from "@/lib/collab/user-color";
 import { getSession } from "@/web/session";
 import { findWorkspace, listNodeSummaries, listWorkspaces } from "@/web/workspace";
-import { getBusinessSettings } from "@/web/business";
+import { getBusinessSettings, listRecordTypes } from "@/web/business";
+import { sideNames } from "@bcontext-dev/contract/business/names";
 
 // Force the layout to be dynamic on every render — the sidebar's `nodes`
 // list reflects live user activity (new meetings, renames, deletes) and
@@ -63,6 +64,10 @@ export default async function WorkspaceLayout({
   ]);
   const workspace = workspaces.find((item) => item.slug === ws);
   if (!workspace || !nodes) notFound();
+  // A renamed side ("Instructors") renames the template's views in the
+  // sidebar and the header. Product workspaces have no record types to ask
+  // about; the read is cached per request, so the page below reuses it.
+  const names = business.business_model === "product" ? {} : sideNames(await listRecordTypes(address));
 
   // Anonymous fallback: still let the collab provider paint a cursor so
   // demo-mode and signed-out previews show live activity between two tabs.
@@ -92,7 +97,7 @@ export default async function WorkspaceLayout({
         workspaces={workspaces}
         nodes={nodes}
         currentUser={finalUser}
-        business={business}
+        business={{ ...business, side_names: names }}
       >
         {children}
       </WorkspaceShell>

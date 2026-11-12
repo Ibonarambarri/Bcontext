@@ -200,6 +200,32 @@ export function kindLabelPlural(kind: string, types: readonly Pick<RecordTypeDef
 }
 
 /**
+ * A record type's label inside a sentence ("Convert to lead instructor"):
+ * lower case, except a leading acronym, so "VIP customer" stays "VIP
+ * customer" and does not become "vip customer".
+ */
+export function labelInSentence(label: string): string {
+  const [first = "", ...rest] = label.split(" ");
+  const acronym = first.length > 1 && first === first.toUpperCase() && /[A-Z]/.test(first);
+  return [acronym ? first : first.toLowerCase(), ...rest.map((word) => word.toLowerCase())].join(" ");
+}
+
+/**
+ * What a dataset table says instead of "Convert to …" when no node record
+ * type fits its rows (the API only offers targets that share compatible
+ * fields — `promoteTargetsFor`). Null when there is a target: the button is
+ * the explanation then.
+ */
+export function promoteUnavailableNote(
+  type: Pick<RecordTypeDefinition, "key" | "label" | "label_plural">,
+  targets: readonly unknown[],
+): string | null {
+  if (targets.length > 0) return null;
+  const plural = type.label_plural || `${type.label}s`;
+  return `${plural} stay rows: no node record type shares compatible fields with them, so none can be converted to a node. Add a node type with some of the same fields (name, email…) to make that possible.`;
+}
+
+/**
  * Everything related to one record, grouped by kind: what its own relation
  * fields point at, the records whose relation fields point at it, and the
  * plain links (mentions, edges) the knowledge graph already has. One item

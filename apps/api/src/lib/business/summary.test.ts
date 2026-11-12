@@ -100,6 +100,21 @@ describe("marketplace summary", () => {
     // December has no bookings: a rate over nothing is null, not 0.
     expect(kpi(summary, "take_rate").current).toBeNull();
   });
+
+  it("says the workspace's own words for its sides, and keeps the keys", () => {
+    expect(kpi(summary, "active_suppliers").label).toBe("Active suppliers");
+    const renamed = buildMetricsSummary({
+      settings: { business_model: "marketplace", currency: "EUR" },
+      monthRows: rows.filter((r) => r.grain === "month"),
+      computedAt: null,
+      now: new Date("2026-12-12T10:00:00Z"),
+      names: { supplier: { one: "Instructor", many: "Instructors" }, buyer: { one: "Client", many: "Clients" } },
+    });
+    expect(kpi(renamed, "active_suppliers")).toMatchObject({ label: "Active instructors", previous: kpi(summary, "active_suppliers").previous });
+    expect(kpi(renamed, "active_suppliers").definition).toMatch(/^Distinct instructors /);
+    expect(kpi(renamed, "repeat_buyer_rate").label).toBe("Repeat clients");
+    expect(kpi(renamed, "new_buyers").label).toBe("New clients");
+  });
 });
 
 describe("product workspaces", () => {

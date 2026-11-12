@@ -11,9 +11,11 @@
  * column (and counts the values present), so "how much MRR renews this
  * quarter" is read, not computed. Read-only: a node row opens in the floating
  * panel; a dataset row offers "Convert to node" — the API's promote op, which
- * makes the row a node record (an account, a VIP customer) and opens it. The
- * action is hidden when no node record type exists to promote into, or once
- * the API answers that it has no promote route.
+ * makes the row a node record (an account, a VIP customer) and opens it.
+ * The API lists only targets the row's fields fit (`promoteTargetsFor`);
+ * with none, the table says so under the rows (with the way to add a type)
+ * instead of offering a conversion that would fail. The action is also
+ * hidden once the API answers that it has no promote route.
  */
 import { useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
@@ -30,9 +32,11 @@ import {
 import type { DatasetViewPayload, RecordViewPayload } from "@bcontext-dev/contract/views/business";
 import type { ViewPresentation } from "@bcontext-dev/contract/views/schema";
 import { useToast, useWorkspace } from "@/components/workspace-context";
+import { labelInSentence, promoteUnavailableNote } from "@/lib/business/records";
 import { promoteRow } from "@/lib/business/requests";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 import { FieldValue } from "./field-value";
+import { OpenBusinessSettings } from "./open-business-settings";
 
 type Source =
   | { kind: "records"; payload: RecordViewPayload }
@@ -54,6 +58,7 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const promoteTarget = source.kind === "dataset" ? source.payload.promote_targets[0] ?? null : null;
   const canPromote = source.kind === "dataset" && Boolean(promoteTarget) && !promoteHidden && Boolean(source.payload.type.dataset_node_id);
+  const promoteNote = source.kind === "dataset" && !promoteHidden ? promoteUnavailableNote(source.payload.type, source.payload.promote_targets) : null;
 
   async function convert(row: RecordRow) {
     if (source.kind !== "dataset" || !promoteTarget || !source.payload.type.dataset_node_id) return;
@@ -68,7 +73,7 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
       toast.error(outcome.message);
       return;
     }
-    toast.info(outcome.created ? `Converted to a ${promoteTarget.label.toLowerCase()}.` : `Updated the existing ${promoteTarget.label.toLowerCase()}.`);
+    toast.info(outcome.created ? `Converted to a ${labelInSentence(promoteTarget.label)}.` : `Updated the existing ${labelInSentence(promoteTarget.label)}.`);
     selectNode(outcome.node_id);
   }
 
@@ -107,7 +112,7 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
                 <td className="px-2 py-1 text-right">
                   <Button size="sm" variant="ghost" isDisabled={busyKey === row.id} onPress={() => void convert(row)} className="gap-1 text-[11px] text-[var(--ink-2)]">
                     <ArrowUpRight size={12} />
-                    Convert to {promoteTarget!.label.toLowerCase()}
+                    Convert to {labelInSentence(promoteTarget!.label)}
                   </Button>
                 </td>
               ) : null}
@@ -132,6 +137,14 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
       {source.kind === "dataset" && source.payload.truncated ? (
         <p className="border-t border-[var(--line)] px-3 py-1.5 text-[11px] text-[var(--ink-3)]">
           Showing {rows.length} of {source.payload.total} rows. Ask an agent to query the dataset for the rest.
+        </p>
+      ) : null}
+      {promoteNote ? (
+        <p className="border-t border-[var(--line)] px-3 py-1.5 text-[11px] text-[var(--ink-3)]">
+          {promoteNote}{" "}
+          <OpenBusinessSettings section="record-types" className="underline underline-offset-2 hover:text-[var(--ink)]">
+            Record types
+          </OpenBusinessSettings>
         </p>
       ) : null}
     </div>

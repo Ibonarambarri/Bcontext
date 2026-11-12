@@ -11,7 +11,9 @@
  *      only to someone who may write), changes whose writer asked for a
  *      review, and decisions created since the last visit.
  *   2. Everything else since the last visit, grouped by who did it and then
- *      by the node it touched.
+ *      by the node it touched — except what the ingest API wrote, which is
+ *      one collapsed entry per sync ("Ingest: 95 records updated", expand
+ *      for the records) so a product's nightly push does not bury the rest.
  *
  * It is a lens over the existing Changes feed (`GET /api/activity`), not a
  * feed of its own: the full history with diffs stays in Activity, which this
@@ -48,12 +50,16 @@ import { lastVisit } from "@/lib/local-settings";
 import { systemViewPath } from "@/lib/view-shell";
 import {
   groupByActor,
+  groupIngestBatches,
+  ingestBatchTitle,
   newChanges,
   newDecisions,
   newestTs,
   pendingReviews,
   sinceFor,
   type ActorGroup,
+  type IngestBatch,
+  type NodeGroup,
 } from "@/lib/whats-new";
 import { workspaceApiRef } from "@/web/workspace-url";
 import { fetchChangesSince, useFeedTick, useLastVisitMark } from "./whats-new-data";
@@ -136,7 +142,8 @@ export function WhatsNewView() {
   const visible = useMemo(() => newChanges(entries, currentUser.id), [entries, currentUser.id]);
   const decisions = useMemo(() => newDecisions(visible), [visible]);
   const reviews = useMemo(() => pendingReviews(visible), [visible]);
-  const groups = useMemo(() => groupByActor(visible), [visible]);
+  const split = useMemo(() => groupIngestBatches(visible), [visible]);
+  const groups = useMemo(() => groupByActor(split.rest), [split]);
   const knownNodes = useMemo(() => new Set(nodes.map((node) => node.id)), [nodes]);
   const open = useCallback((nodeId: string | null) => {
     if (nodeId && knownNodes.has(nodeId)) selectNode(nodeId);
@@ -264,10 +271,13 @@ export function WhatsNewView() {
               </section>
             )}
 
-            {groups.length > 0 && (
+            {(groups.length > 0 || split.batches.length > 0) && (
               <section aria-label="Changes by author">
                 <SectionTitle title="Changes" count={visible.length} />
                 <div className="space-y-4">
+                  {split.batches.map((batch) => (
+                    <IngestBatchCard key={batch.key} batch={batch} known={knownNodes} onOpen={open} />
+                  ))}
                   {groups.map((group) => (
                     <ActorCard key={group.key} group={group} known={knownNodes} onOpen={open} />
                   ))}
@@ -374,40 +384,76 @@ function ActorCard({ group, known, onOpen }: { group: ActorGroup; known: Set<str
           {group.count} {group.count === 1 ? "change" : "changes"} · <time dateTime={group.latest}>{formatRelative(group.latest)}</time>
         </span>
       </header>
-      <ul className="divide-y divide-[var(--line)]">
-        {group.nodes.map((node) => {
-          const Icon = node.node_kind ? nodeKindIcon(node.node_kind) : Settings2;
-          const openable = Boolean(node.node_id && known.has(node.node_id));
-          const body = (
-            <>
-              <Icon size={14} className="shrink-0 text-[var(--ink-3)]" />
-              <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink)]">{node.title}</span>
-              <span className="shrink-0 text-[11px] text-muted">
-                {node.actions.join(" · ")}
-                {node.entries.length > 1 ? ` ×${node.entries.length}` : ""}
-              </span>
-              <time dateTime={node.latest} className="w-16 shrink-0 text-right text-[11px] text-muted">{formatRelative(node.latest)}</time>
-            </>
-          );
-          return (
-            <li key={node.key}>
-              {openable ? (
-                <button
-                  type="button"
-                  data-node-id={node.node_id ?? undefined}
-                  onClick={() => onOpen(node.node_id)}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[var(--paper-2)]"
-                >
-                  {body}
-                </button>
-              ) : (
-                <div className="flex items-center gap-3 px-3 py-2">{body}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      <NodeRows nodes={group.nodes} known={known} onOpen={onOpen} />
     </article>
+  );
+}
+
+/** One sync of the ingest API, folded; the records it touched behind a toggle. */
+function IngestBatchCard({ batch, known, onOpen }: { batch: IngestBatch; known: Set<string>; onOpen: (id: string | null) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const nodes = useMemo(() => groupByActor(batch.entries).flatMap((actor) => actor.nodes), [batch.entries]);
+  return (
+    <article className="rounded-xl border border-[var(--line)] bg-[var(--paper)]" data-ingest-batch>
+      <header className="flex items-center gap-2 px-3 py-2.5">
+        <Settings2 size={15} className="shrink-0 text-[var(--ink-3)]" />
+        {/* The counts are the point of the row, so the title wraps on a
+            phone instead of being cut to "Ingest: 1 r…". */}
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+          <span className="text-[13px] font-medium text-[var(--ink)]">{ingestBatchTitle(batch)}</span>
+          {batch.record_type ? <span className="mono text-[10px] uppercase tracking-wider text-[var(--ink-mute)]">{batch.record_type}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
+          <time dateTime={batch.latest}>{formatRelative(batch.latest)}</time>
+          <Button size="sm" variant="ghost" aria-expanded={expanded} onPress={() => setExpanded((value) => !value)}>
+            {expanded ? "Hide records" : `Show ${nodes.length === 1 ? "record" : `${nodes.length} records`}`}
+          </Button>
+        </span>
+      </header>
+      {expanded ? (
+        <div className="border-t border-[var(--line)]">
+          <NodeRows nodes={nodes} known={known} onOpen={onOpen} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function NodeRows({ nodes, known, onOpen }: { nodes: NodeGroup[]; known: Set<string>; onOpen: (id: string | null) => void }) {
+  return (
+    <ul className="divide-y divide-[var(--line)]">
+      {nodes.map((node) => {
+        const Icon = node.node_kind ? nodeKindIcon(node.node_kind) : Settings2;
+        const openable = Boolean(node.node_id && known.has(node.node_id));
+        const body = (
+          <>
+            <Icon size={14} className="shrink-0 text-[var(--ink-3)]" />
+            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink)]">{node.title}</span>
+            <span className="shrink-0 text-[11px] text-muted">
+              {node.actions.join(" · ")}
+              {node.entries.length > 1 ? ` ×${node.entries.length}` : ""}
+            </span>
+            <time dateTime={node.latest} className="w-16 shrink-0 text-right text-[11px] text-muted">{formatRelative(node.latest)}</time>
+          </>
+        );
+        return (
+          <li key={node.key}>
+            {openable ? (
+              <button
+                type="button"
+                data-node-id={node.node_id ?? undefined}
+                onClick={() => onOpen(node.node_id)}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[var(--paper-2)]"
+              >
+                {body}
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 px-3 py-2">{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

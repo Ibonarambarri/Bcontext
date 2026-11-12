@@ -54,3 +54,36 @@ export function bucketLabel(period: string, bucket: "day" | "week" | "month" | n
     ? { month: "short", year: "2-digit", timeZone: "UTC" }
     : { day: "numeric", month: "short", timeZone: "UTC" }).format(date);
 }
+
+export interface HeatLegend {
+  /** CSS gradient through the same colours the cells use, low → high. */
+  gradient: string;
+  /** The colouring number at each end, formatted; null when nothing is coloured. */
+  low: string | null;
+  high: string | null;
+  /** One sentence for the caption, in words that hold in light and dark. */
+  caption: string;
+}
+
+/**
+ * The heatmap's legend. The cells mix the hue into the page colour, so a
+ * high value is darker on a light page and BRIGHTER on a dark one — "darker
+ * is tighter" was only true in one theme. The legend draws the scale itself
+ * (a swatch through `heatColor`) and words it as faint → strong, which is
+ * true in both.
+ */
+export function heatmapLegend(
+  domain: { min: number; max: number } | null,
+  measure: string,
+  highIs: "good" | "bad",
+  format: (n: number) => string,
+): HeatLegend {
+  const steps = [0, 0.25, 0.5, 0.75, 1].map((t) => heatColor(t, highIs));
+  const strong = highIs === "bad" ? "the strongest colour is where it is tightest" : "the strongest colour is the most";
+  return {
+    gradient: `linear-gradient(to right, ${steps.join(", ")})`,
+    low: domain ? format(domain.min) : null,
+    high: domain ? format(domain.max) : null,
+    caption: `Colour: ${measure}, faint for the lowest and strong for the highest — ${strong}.`,
+  };
+}
