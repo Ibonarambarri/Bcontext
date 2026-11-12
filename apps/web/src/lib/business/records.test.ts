@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessEvent } from "@bcontext-dev/contract/business/events";
 import type { RecordTypeDefinition } from "@bcontext-dev/contract/business/record-types";
-import { describeEvent, formatFieldValue, headerFields, isHubType, mrrHistory, relatedGroups } from "./records";
+import { describeEvent, formatFieldValue, headerFields, isHubType, mrrHistory, promoteUnavailableNote, relatedGroups } from "./records";
 
 const account: RecordTypeDefinition = {
   key: "account",
@@ -119,5 +119,13 @@ describe("mrrHistory", () => {
     expect(describeEvent(event("subscription.started", "2026-11-01T00:00:00Z", 490), "EUR")).toBe("Subscription started · €490/mo");
     expect(describeEvent({ type: "feature.used", properties: {} }, "EUR")).toBe("feature.used");
     expect(describeEvent({ type: "booking.created", amount: 90, currency: "EUR", properties: {}, role: "supplier" }, "EUR")).toBe("Booked with them · €90.00");
+  });
+});
+
+describe("promoteUnavailableNote", () => {
+  it("explains why rows cannot be converted, and says nothing when a target fits", () => {
+    const supplier = { key: "supplier", label: "Instructor", label_plural: "Instructors" };
+    expect(promoteUnavailableNote(supplier, [])).toMatch(/^Instructors stay rows: no node record type shares compatible fields/);
+    expect(promoteUnavailableNote(supplier, [{ key: "vip", label: "VIP" }])).toBeNull();
   });
 });

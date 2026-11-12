@@ -61,6 +61,7 @@ import type { ViewRenderer } from "@bcontext-dev/contract/views/schema";
 import { useWorkspace } from "./workspace-context";
 import { useBusiness } from "./business/business-context";
 import { businessNavViews, isBusinessView } from "@/lib/business/nav";
+import { displayViewName, type SideNames } from "@bcontext-dev/contract/business/names";
 import { UserMenu } from "./user-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { OPEN_GUIDE_EVENT } from "./onboarding/events";
@@ -117,6 +118,7 @@ export type NavIcon = ComponentType<{ size?: number; className?: string }>;
 export function activeViewMeta(
   slug: string | null,
   views: SavedView[],
+  names: SideNames = {},
 ): { label: string; Icon: NavIcon; section?: string } | null {
   if (!slug) return null;
   if (slug === "overview") return { label: "Dashboard", Icon: Home };
@@ -127,7 +129,7 @@ export function activeViewMeta(
   const admin = ADMIN_VIEWS.find((view) => view.key === slug);
   if (admin) return { label: admin.label, Icon: admin.Icon, section: "Agents & Tools" };
   const custom = views.find((view) => view.slug === slug);
-  if (custom) return { label: custom.name, Icon: viewIcon(custom), section: isBusinessView(custom) ? "Business" : "Knowledge" };
+  if (custom) return { label: displayViewName(custom, names), Icon: viewIcon(custom), section: isBusinessView(custom) ? "Business" : "Knowledge" };
   return null;
 }
 
@@ -180,7 +182,7 @@ export function Sidebar({
     openWorkspacePanel,
     views,
   } = useWorkspace();
-  const { business_model } = useBusiness();
+  const { business_model, side_names: names = {} } = useBusiness();
   const businessViews = useMemo(() => businessNavViews(views, business_model), [views, business_model]);
   const router = useRouter();
   // Width state lives in the shell (the offcanvas wrapper reads
@@ -270,13 +272,13 @@ export function Sidebar({
                         <SidebarPrimitive.MenuItem
                           key={view.id}
                           id={`business-${view.id}`}
-                          textValue={view.name}
+                          textValue={displayViewName(view, names)}
                           href={customViewPath(address, view.slug)}
                           isCurrent={activeViewSlug === view.slug}
                         >
                           <SidebarPrimitive.MenuIcon><Icon size={13} /></SidebarPrimitive.MenuIcon>
                           <SidebarPrimitive.MenuItemContent>
-                            <SidebarPrimitive.MenuLabel>{view.name}</SidebarPrimitive.MenuLabel>
+                            <SidebarPrimitive.MenuLabel>{displayViewName(view, names)}</SidebarPrimitive.MenuLabel>
                           </SidebarPrimitive.MenuItemContent>
                         </SidebarPrimitive.MenuItem>
                       );

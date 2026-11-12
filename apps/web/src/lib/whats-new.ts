@@ -159,3 +159,91 @@ export function badgeLabel(count: number, capped = false): string | null {
   if (capped || count > 99) return "99+";
   return String(count);
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Ingest syncs                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A change the ingest API made: the product pushing its records
+ * (`via: "ingest"`, `source: "ingest:<type>"`). One sync writes one change
+ * per record, and listed one by one they bury everything a person or an
+ * agent did — 95 "System" rows after a single sync.
+ */
+export function isIngestChange(entry: ActivityEntry): boolean {
+  return entry.provenance?.via === "ingest" || (entry.source ?? "").startsWith("ingest");
+}
+
+/** Two ingest changes of the same source further apart than this are two syncs. */
+export const INGEST_BATCH_GAP_MS = 5 * 60_000;
+
+export interface IngestBatch {
+  key: string;
+  /** The record type the sync wrote (`ingest:<type>`), when the source says. */
+  record_type: string | null;
+  created: number;
+  updated: number;
+  /** Anything else the batch did (a delete, a rename). */
+  other: number;
+  latest: string;
+  entries: ActivityEntry[];
+}
+
+/**
+ * Split ingest changes out of the feed and fold them into one batch per
+ * sync. A batch is one request when the rows carry its correlation id (every
+ * change one ingest call writes shares it); rows without one fall back to
+ * "same source, no gap over `INGEST_BATCH_GAP_MS`". Newest batch first;
+ * `rest` is everything else, untouched, for `groupByActor`.
+ */
+export function groupIngestBatches(entries: ActivityEntry[]): { batches: IngestBatch[]; rest: ActivityEntry[] } {
+  const rest: ActivityEntry[] = [];
+  const ingest: ActivityEntry[] = [];
+  for (const entry of entries) (isIngestChange(entry) ? ingest : rest).push(entry);
+  const batches = new Map<string, IngestBatch>();
+  const open = new Map<string, { key: string; last: number }>();
+  for (const entry of [...ingest].sort((a, b) => a.ts.localeCompare(b.ts))) {
+    const source = entry.source ?? "ingest";
+    let key: string;
+    if (entry.correlation_id) {
+      key = `cid:${entry.correlation_id}`;
+    } else {
+      const at = Date.parse(entry.ts);
+      const current = open.get(source);
+      key = current && at - current.last <= INGEST_BATCH_GAP_MS ? current.key : `src:${source}:${entry.ts}`;
+      open.set(source, { key, last: at });
+    }
+    let batch = batches.get(key);
+    if (!batch) {
+      batch = {
+        key,
+        record_type: source.startsWith("ingest:") ? source.slice("ingest:".length) || null : null,
+        created: 0,
+        updated: 0,
+        other: 0,
+        latest: entry.ts,
+        entries: [],
+      };
+      batches.set(key, batch);
+    }
+    if (entry.kind === "create") batch.created += 1;
+    else if (entry.kind === "update") batch.updated += 1;
+    else batch.other += 1;
+    if (entry.ts > batch.latest) batch.latest = entry.ts;
+    batch.entries.push(entry);
+  }
+  return { batches: [...batches.values()].sort((a, b) => b.latest.localeCompare(a.latest)), rest };
+}
+
+/** "Ingest: 95 records updated", "Ingest: 3 records created, 92 updated". */
+export function ingestBatchTitle(batch: Pick<IngestBatch, "created" | "updated" | "other">): string {
+  const parts: string[] = [];
+  const add = (n: number, verb: string) => {
+    if (!n) return;
+    parts.push(parts.length ? `${n} ${verb}` : `${n} ${n === 1 ? "record" : "records"} ${verb}`);
+  };
+  add(batch.created, "created");
+  add(batch.updated, "updated");
+  add(batch.other, "changed");
+  return `Ingest: ${parts.join(", ") || "no changes"}`;
+}

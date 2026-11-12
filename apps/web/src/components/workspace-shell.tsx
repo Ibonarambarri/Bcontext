@@ -27,8 +27,7 @@ import { WorkspaceRealtimeProvider } from "@/lib/collab/workspace-realtime";
 import { ViewHeaderSlotProvider, useViewHeaderSlotTarget } from "./view-header-slot";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
-import type { BusinessSettings } from "@bcontext-dev/contract/business/record-types";
-import { BusinessProvider } from "./business/business-context";
+import { BusinessProvider, useSideNames, type BusinessShellValue } from "./business/business-context";
 
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
 const CreateNodeDialogHost = dynamic(() => import("./create-node-dialog-host").then((m) => m.CreateNodeDialogHost));
@@ -56,8 +55,8 @@ export function WorkspaceShell({
   workspaces: WorkspaceCard[];
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
-  /** Model and currency (@/web/business); drives the sidebar's Business section. */
-  business?: BusinessSettings;
+  /** Model, currency and renamed sides (@/web/business); drives the sidebar's Business section. */
+  business?: BusinessShellValue;
   children: React.ReactNode;
 }) {
   return (
@@ -103,7 +102,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
     views,
   } = useWorkspace();
 
-  const viewMeta = activeViewMeta(activeViewSlug, views);
+  const sideNames = useSideNames();
+  const viewMeta = activeViewMeta(activeViewSlug, views, sideNames);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
   // Controls the active view portals next to its title — see view-header-slot.tsx.
   const [headerSlot, setHeaderSlot] = useViewHeaderSlotTarget();

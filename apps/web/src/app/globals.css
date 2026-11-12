@@ -1691,6 +1691,56 @@ body:has(.auth-paper) {
   color: var(--pa-ink-3);
 }
 
+/* The business model question: four radio cards, one column, the checked
+   one outlined in ink. Native radios so the server action reads them. */
+.pa-choices {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.pa-choices legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.pa-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--pa-line);
+  border-radius: 12px;
+  background: var(--pa-paper-2);
+  cursor: pointer;
+}
+.pa-choice + .pa-choice {
+  margin-top: 6px;
+}
+.pa-choice:has(input:checked) {
+  border-color: var(--pa-ink);
+  box-shadow: inset 0 0 0 1px var(--pa-ink);
+}
+.pa-choice input {
+  margin-top: 3px;
+  accent-color: var(--pa-ink);
+}
+.pa-choice-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pa-ink);
+}
+.pa-choice-line {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--pa-ink-3);
+}
+.pa-choices:disabled .pa-choice {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ── the workspace wizard ──
    A link that submits nothing and a card you pick from: the two controls the
    paper language did not have yet. Both are buttons, so both are reset. */

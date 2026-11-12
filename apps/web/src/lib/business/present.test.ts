@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bucketLabel, formatKpi, heatColor } from "./present";
+import { bucketLabel, formatKpi, heatColor, heatmapLegend } from "./present";
 
 describe("formatKpi", () => {
   it("never invents a value", () => {
@@ -17,5 +17,20 @@ describe("heatmap + labels", () => {
   it("labels buckets", () => {
     expect(bucketLabel("2026-02-09", "week", "en-GB")).toBe("9 Feb");
     expect(bucketLabel("alps", null)).toBe("alps");
+  });
+});
+
+describe("heatmap legend", () => {
+  it("draws the cells' own scale with its two ends, in words true in both themes", () => {
+    const legend = heatmapLegend({ min: 0.5, max: 4 }, "bookings per supplier", "bad", (n) => String(n));
+    expect(legend.low).toBe("0.5");
+    expect(legend.high).toBe("4");
+    expect(legend.gradient).toContain(heatColor(0, "bad"));
+    expect(legend.gradient).toContain(heatColor(1, "bad"));
+    expect(legend.caption).toContain("bookings per supplier");
+    // The mix goes towards the page colour, which is dark in dark mode:
+    // "darker" would be wrong there.
+    expect(legend.caption).not.toMatch(/dark/i);
+    expect(heatmapLegend(null, "x", "good", String)).toMatchObject({ low: null, high: null });
   });
 });
