@@ -187,10 +187,9 @@ export interface NodeSummary extends KnowledgeNode {
 
 export interface Workspace {
   id: string;
-  organization_id: string;
   /**
-   * Unique **within its organization**, not globally — which is why a
-   * workspace is addressed as `<org>/<workspace>` everywhere it is named.
+   * Unique across the instance: the workspace's address in `/w/<slug>`,
+   * `/mcp/<slug>` and every API call. Fixed at creation.
    */
   slug: string;
   name: string;
