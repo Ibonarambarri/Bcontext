@@ -101,8 +101,7 @@ export async function BusinessOverview({
             {businessModelLabel(model)} · {summary ? periodLabel(summary.current_period, { year: true }) : "this month"}
           </h1>
           <span className="text-xs text-muted">
-            {summary?.computed_at ? `Metrics as of ${new Date(summary.computed_at).toISOString().slice(0, 16).replace("T", " ")} UTC` : null}
-            {" · "}
+            {summary?.computed_at ? `Metrics as of ${new Date(summary.computed_at).toISOString().slice(0, 16).replace("T", " ")} UTC · ` : null}
             {currency}
           </span>
         </div>
