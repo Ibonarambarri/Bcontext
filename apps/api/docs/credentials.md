@@ -124,5 +124,7 @@ reporter.
 
 ## What is still open
 
-Nothing on the server injects a value into a call on an agent's behalf: the
-shell recipe is the boundary.
+Server-side injection — `{{credential:<id>#<field>}}` resolved by the
+capability gateway at invocation time, so the value never reaches even the
+agent's shell — is a possible next step, not this one. Today the shell
+recipe is the boundary.
