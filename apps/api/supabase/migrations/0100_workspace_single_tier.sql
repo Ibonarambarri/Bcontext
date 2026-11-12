@@ -16,7 +16,8 @@
 --      oldest workspace keeps it and every other one is renamed, in a fixed
 --      order, to `<org>-<slug>` (then `-2`, `-3`… if that is taken too).
 --      The old pair stays in `workspace_legacy_refs`, so nothing anybody
---      wrote down breaks. Each rename is raised as a NOTICE.
+--      wrote down breaks. Each rename is raised as a WARNING, so it shows in
+--      `docker compose logs migrate` (which hides notices).
 --   3. Organization owners and admins reached every workspace of their
 --      organization without a membership row (`orgAdminRole` in the API).
 --      They get the membership they implicitly had, with the same role, so
@@ -123,7 +124,7 @@ begin
       n := n + 1;
     end loop;
     update public.workspaces set slug = candidate where id = r.id;
-    raise notice 'workspace %: slug % renamed to % (was %/%)',
+    raise warning 'workspace %: slug % renamed to % (was %/%)',
       r.id, r.slug, candidate, r.org_slug, r.slug;
   end loop;
 end;
