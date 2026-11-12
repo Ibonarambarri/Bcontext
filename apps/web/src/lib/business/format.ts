@@ -14,24 +14,19 @@
  * another language agree, as `panel-ui.tsx` already does for dates.
  */
 import type { KpiUnit, KpiValue } from "@bcontext-dev/contract/business/metrics";
+import { DISPLAY_LOCALE, formatMoney as formatMoneyValue } from "@bcontext-dev/contract/views/fields";
 
 const DASH = "—";
 
-/** `1234567` → `€1.2M`; small amounts keep their units. */
+/**
+ * Money on the dashboard: the contract's one formatter (`formatMoney` in
+ * `views/fields`, which tables, boards and timelines use too), with null as
+ * a dash. A figure from 10,000 up is compact unless the caller says, so a
+ * KPI card stays one line on a phone.
+ */
 export function formatMoney(value: number | null | undefined, currency: string, opts: { compact?: boolean } = {}): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
-  const compact = opts.compact ?? Math.abs(value) >= 10_000;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      notation: compact ? "compact" : "standard",
-      maximumFractionDigits: compact ? 1 : Math.abs(value) < 100 ? 2 : 0,
-    }).format(value);
-  } catch {
-    // An ISO code Intl does not know still has to print something honest.
-    return `${formatCount(value)} ${currency}`;
-  }
+  return formatMoneyValue(value, currency, { locale: DISPLAY_LOCALE, compact: opts.compact ?? Math.abs(value) >= 10_000 });
 }
 
 /** Fractions: `0.052` → `5.2%`. */

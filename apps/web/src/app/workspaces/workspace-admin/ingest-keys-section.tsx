@@ -10,7 +10,10 @@
  * button — the API stores only its hash, so there is no "show again". Below
  * the list, a short "how to send data" panel with curl examples
  * (`@/lib/business/ingest-examples`, written from the ingest API docs) so
- * the person who just made a key can use it without leaving the dialog.
+ * the person who just made a key can use it without leaving the dialog. The
+ * examples follow the workspace's business model (a marketplace sees a
+ * booking, not a subscription), read here from its business settings: the
+ * dialog also opens from the workspaces list, outside the shell's context.
  *
  * Revoking is one press away from stopping an app's data, and cannot be
  * undone, so "Revoke" first turns its row into an inline confirmation
@@ -24,7 +27,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, Plus } from "lucide-react";
 import { Alert, Button, Chip, Input, Label, Skeleton, TextField } from "@heroui/react";
 import type { IngestKey } from "@bcontext-dev/contract/business/ingest";
-import { createIngestKey, fetchIngestKeys, revokeIngestKey } from "@/lib/business/client";
+import type { BusinessModel } from "@bcontext-dev/contract/business/record-types";
+import { createIngestKey, fetchBusinessSettings, fetchIngestKeys, revokeIngestKey } from "@/lib/business/client";
 import { ingestExamples } from "@/lib/business/ingest-examples";
 import { Block, SectionHead, relAgo } from "./panel-ui";
 
@@ -38,6 +42,8 @@ export function IngestKeysSection({ slug }: { slug: string }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState("https://your-bcontext");
+  /** The business model the examples are for; `null` until the settings answered (or failed). */
+  const [model, setModel] = useState<BusinessModel | undefined | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -54,6 +60,22 @@ export function IngestKeysSection({ slug }: { slug: string }) {
     // examples are written against it too.
     setOrigin(window.location.origin);
   }, [load]);
+
+  useEffect(() => {
+    let live = true;
+    // Without settings (an older API, a failed read) the b2b examples stay:
+    // they are still correct calls, only not the closest ones.
+    fetchBusinessSettings(slug)
+      .then((settings) => {
+        if (live) setModel(settings?.business_model);
+      })
+      .catch(() => {
+        if (live) setModel(undefined);
+      });
+    return () => {
+      live = false;
+    };
+  }, [slug]);
 
   async function create() {
     const trimmed = name.trim();
@@ -88,7 +110,9 @@ export function IngestKeysSection({ slug }: { slug: string }) {
 
   const active = (keys ?? []).filter((key) => !key.revoked_at);
   const revoked = (keys ?? []).filter((key) => key.revoked_at);
-  const examples = ingestExamples({ origin, slug, key: secret?.key });
+  // Skeletons until the model is known, so a marketplace never flashes a
+  // subscription example first.
+  const examples = model === null ? null : ingestExamples({ origin, slug, key: secret?.key, model });
 
   return (
     <div>
@@ -181,7 +205,12 @@ export function IngestKeysSection({ slug }: { slug: string }) {
 
       <Block title="How to send data" hint="Send the key as a bearer token. Every call is idempotent on the key you choose, so retries are safe.">
         <div className="space-y-4">
-          {examples.map((example) => (
+          {examples === null ? (
+            <>
+              <Skeleton className="h-4 w-40 rounded-md" />
+              <Skeleton className="h-32 w-full rounded-[10px]" />
+            </>
+          ) : examples.map((example) => (
             <div key={example.title}>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[12.5px] font-medium text-foreground">{example.title}</span>

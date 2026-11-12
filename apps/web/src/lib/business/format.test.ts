@@ -12,6 +12,9 @@ describe("business formatting", () => {
 
   it("writes money in the reporting currency, compact when large", () => {
     expect(formatMoney(490, "EUR")).toBe("€490");
+    expect(formatMoney(90, "EUR")).toBe("€90");
+    expect(formatMoney(49.9, "EUR")).toBe("€49.90");
+    expect(formatKpiValue("money", 150, "EUR")).toBe("€150");
     expect(formatMoney(12_500, "USD")).toBe("$12.5K");
     expect(formatMoney(5, "XXQ")).toContain("XXQ");
   });
@@ -43,5 +46,14 @@ describe("sparklinePath", () => {
     expect(sparklinePath([1, 2, null, 3, 4], 80, 32)).toMatch(/^M.*L.*M.*L/);
     expect(sparklinePath([5, 5, 5], 80, 32)).toBe("M0.0,16.0L40.0,16.0L80.0,16.0");
     expect(sparklinePath([null, 1], 80, 32)).toBeNull();
+  });
+});
+
+describe("one money formatter", () => {
+  it("is the contract's, so a KPI, a table cell and a timeline agree", async () => {
+    const { formatMoney: shared } = await import("@bcontext-dev/contract/views/fields");
+    for (const amount of [0, 9.99, 49.9, 90, 150, 999.5, 1240.5, 9_999]) {
+      expect(formatMoney(amount, "EUR"), String(amount)).toBe(shared(amount, "EUR"));
+    }
   });
 });

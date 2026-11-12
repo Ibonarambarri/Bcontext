@@ -21,10 +21,9 @@ import { useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@heroui/react";
 import {
-  formatMoney,
-  formatNumber,
   recordTableColumns,
   sortRecordRows,
+  totalText,
   totalsFor,
   type RecordColumn,
   type RecordRow,
@@ -171,10 +170,3 @@ function alignOf(column: RecordColumn): "start" | "end" {
 function countText(count: number): string {
   return `${count} ${count === 1 ? "record" : "records"}`;
 }
-
-function totalText(total: ReturnType<typeof totalsFor>["totals"][number]): string {
-  if (total.mixed_currency) return "mixed currencies";
-  if (total.sum === null) return "";
-  return `Σ ${total.type === "money" ? formatMoney(total.sum, total.currency ?? "EUR") : formatNumber(total.sum)}`;
-}
-

@@ -70,6 +70,9 @@ function kpi(key: string, current: number | null, series: (number | null)[] = []
   return {
     ...def,
     current,
+    current_label: def.label,
+    current_definition: def.definition,
+    current_is_partial: false,
     previous: null,
     delta: null,
     delta_pct: null,
