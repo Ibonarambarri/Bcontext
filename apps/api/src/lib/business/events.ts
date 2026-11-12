@@ -2,7 +2,8 @@
  * Business events and their rollups, in the database (`business_events`,
  * `business_metric_rollups`, 0103).
  *
- * Callers: `POST /api/workspaces/:ws/events` (insert), the record erasure
+ * Callers: `POST /api/workspaces/:ws/events` (insert) and its `GET` (one
+ * subject's events, for a record's 360 page), the record erasure
  * path (unlink), the `business.rollup` worker job (read events, replace
  * rollups) and the metrics summary (read month rollups).
  *
@@ -19,6 +20,7 @@
 import { randomUUID } from "node:crypto";
 import {
   CANONICAL_EVENT_TYPES,
+  type BusinessEvent,
   type BusinessEventInput,
   type EventIngestStatus,
 } from "@bcontext-dev/contract/business/events";
@@ -184,6 +186,63 @@ export async function unlinkSubject(storage: Scoped, subjectType: string, subjec
     [storage.workspace.id, subjectId, subjectType, token],
   );
   return result.rowCount ?? 0;
+}
+
+/**
+ * One subject's events, newest first — a record's 360 timeline
+ * (`GET /events?subject_type=&subject_id=`). An event sent without a
+ * `subject_type` belongs to whichever type asks, the same reading
+ * `unlinkSubject` gives it.
+ */
+export async function listSubjectEvents(
+  storage: Scoped,
+  subjectType: string,
+  subjectId: string,
+  limit: number,
+): Promise<BusinessEvent[]> {
+  if (storage.backend !== "supabase") {
+    return [...(demoEvents.get(storage.workspace.id) ?? [])]
+      .filter((event) => event.subject_id === subjectId && (event.subject_type === subjectType || event.subject_type === null))
+      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+      .slice(0, limit)
+      .map((event) => ({
+        id: event.id,
+        workspace_id: storage.workspace.id,
+        type: event.type,
+        occurred_at: event.occurred_at,
+        idempotency_key: event.idempotency_key,
+        ...(event.subject_type ? { subject_type: event.subject_type } : {}),
+        ...(event.subject_id ? { subject_id: event.subject_id } : {}),
+        ...(event.amount !== null ? { amount: event.amount } : {}),
+        ...(event.currency ? { currency: event.currency } : {}),
+        properties: event.properties,
+        received_at: event.occurred_at,
+        subject_erased_at: null,
+      }));
+  }
+  const result = await pool().query(
+    `select id, type, occurred_at, received_at, idempotency_key, subject_type, subject_id,
+            amount, currency, properties, subject_erased_at
+       from public.business_events
+      where workspace_id = $1::uuid and subject_id = $2 and (subject_type = $3 or subject_type is null)
+      order by occurred_at desc, received_at desc, id desc
+      limit $4`,
+    [storage.workspace.id, subjectId, subjectType, limit],
+  );
+  return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    workspace_id: storage.workspace.id,
+    type: String(row.type),
+    occurred_at: new Date(row.occurred_at as string).toISOString(),
+    received_at: new Date(row.received_at as string).toISOString(),
+    idempotency_key: String(row.idempotency_key),
+    ...(row.subject_type ? { subject_type: String(row.subject_type) } : {}),
+    ...(row.subject_id ? { subject_id: String(row.subject_id) } : {}),
+    ...(row.amount !== null && row.amount !== undefined ? { amount: Number(row.amount) } : {}),
+    ...(row.currency ? { currency: String(row.currency) } : {}),
+    properties: (row.properties as Record<string, unknown>) ?? {},
+    subject_erased_at: row.subject_erased_at ? new Date(row.subject_erased_at as string).toISOString() : null,
+  }));
 }
 
 /** Every canonical event of a workspace, oldest first — the rollup's input. */

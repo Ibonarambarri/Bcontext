@@ -120,7 +120,7 @@ describe("business routes: direct vs Hono", () => {
     expect((again.body as { duplicates: number }).duplicates).toBe(1);
   });
 
-  it("GET the metrics summary, record types and business settings", async () => {
+  it("GET the metrics summary, record types, business settings, records and a subject's events", async () => {
     // Without Supabase every session-less call is the demo actor, which the
     // demo backend lets read: these prove the path and params, not auth.
     const plain = (path: string, module: object, params: Record<string, string>) =>
@@ -130,10 +130,18 @@ describe("business routes: direct vs Hono", () => {
     const types = await plain(`/api/workspaces/${slug}/record-types`, recordTypesRoute, { ws: slug });
     expect((types.body as { record_types: Array<{ key: string }> }).record_types.map((t) => t.key)).toEqual(["account"]);
     expect((await plain(`/api/workspaces/${slug}/business`, businessRoute, { ws: slug })).body).toEqual({ business_model: "product", currency: "EUR" });
+    // The two reads the web's record pages make.
+    const records = await plain(`/api/workspaces/${slug}/records/account?limit=5`, recordsRoute, { ws: slug, type: "account" });
+    expect(records.status).toBe(200);
+    expect((records.body as { records: unknown[] }).records.length).toBeGreaterThan(0);
+    expect((await plain(`/api/workspaces/${slug}/records/nope`, recordsRoute, { ws: slug, type: "nope" })).status).toBe(404);
+    expect((await plain(`/api/workspaces/${slug}/events?subject_type=account&subject_id=b1`, eventsRoute, { ws: slug })).status).toBe(200);
+    expect((await plain(`/api/workspaces/${slug}/events`, eventsRoute, { ws: slug })).status).toBe(400);
   });
 
   it("is exhaustive about which methods each path answers", () => {
     expect(Object.keys(recordRoute).sort()).toEqual(["DELETE", "PUT"]);
-    expect(Object.keys(recordsRoute)).toEqual(["POST"]);
+    expect(Object.keys(recordsRoute).sort()).toEqual(["GET", "POST"]);
+    expect(Object.keys(eventsRoute).sort()).toEqual(["GET", "POST"]);
   });
 });

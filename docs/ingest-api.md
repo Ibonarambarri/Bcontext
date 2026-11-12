@@ -109,6 +109,11 @@ curl -X POST "$BCONTEXT/api/workspaces/denak/ingest-keys" \
 The plaintext is shown once. To list keys use `GET …/ingest-keys`, and to
 revoke one use `DELETE …/ingest-keys/<id>`.
 
+In the web app this is **workspace settings → Business → Ingest keys**: name
+the key, create it, copy the secret from the one-time box, and revoke it from
+the list. The same screen carries curl examples written against your
+instance and workspace (section 9).
+
 An ingest key is **write-only by construction**. It is accepted only by the
 endpoints below. Every other route and the MCP server answer
 `401 invalid_token`, because they only accept `bctx_live_…` bearers. A leaked
@@ -275,6 +280,16 @@ are fractions. A KPI whose inputs are missing is `null`, never 0.
 The same month a year earlier (`year_ago`) is there for seasonality: a ski
 school's December is compared with last December, not with November.
 
+### Reading records and a subject's events
+
+Two reads for members (a session or a `bctx_live_` token, read verb; an
+ingest key gets `401`). The web's overview and record pages use them.
+
+| Method and path | Answer |
+|---|---|
+| `GET /api/workspaces/<ws>/records/<type>?limit=` (≤ 1,000) | `{ records: KnowledgeNode[], truncated }` with each record's `data.fields`. `404` for an unknown type, `400` for a dataset-backed one |
+| `GET /api/workspaces/<ws>/events?subject_type=&subject_id=&limit=` (≤ 200) | `{ events: BusinessEvent[] }`, newest first. An event sent without `subject_type` counts for any type |
+
 ## 7. Personal data (GDPR)
 
 Send the least you can. Bcontext needs your **id** for a person, not their
@@ -315,3 +330,63 @@ There are no new tools. Record types are ordinary kinds:
 - With the admin verb: `admin({ op: "business" })` lists the full
   definitions, and `admin_write` takes `op` = `set_business`, `record_type`
   or `delete_record_type`.
+
+## 9. In the web app
+
+Agents and your product write; the web is for reading and reviewing fast.
+There are no data-entry forms beyond light edits and settings.
+
+- **Creating a workspace** asks what kind of business it is: B2B, B2C,
+  Marketplace, or Just product / team (the default). A business model sets
+  `business_model` and applies the model's template, which adds its record
+  types and views.
+- **Workspace settings → Business** has three sections:
+  - *Business*: the model, the reporting currency, and **Apply template**.
+    The template is additive: it adds the model's record types, fields and
+    views and keeps everything that is already there.
+  - *Record types*: the list, and an editor for each type: label, plural,
+    description, and the fields (key, label, type, required, options,
+    relation target, a one-line description for agents), plus the stage
+    field. Storage (`node` or `dataset`) is chosen when the type is created
+    and cannot be changed later, and the screen says why. An existing field's
+    key and type are fixed too, because values are stored under them.
+  - *Ingest keys* (owners and admins): create a key (the secret is shown
+    once, with a copy button), list keys, revoke one, and "How to send data"
+    with curl examples for a subscription event, an expense and a record batch.
+- **The dashboard** of a b2b, b2c or marketplace workspace leads with the
+  business. A product workspace keeps the knowledge dashboard.
+  - *B2B*: MRR with month-on-month growth and net-new MRR; new customers
+    (active below); revenue churn (logo churn below); net of the month (burn
+    and runway when a `cash.balance` is known). Then MRR over 12 months with
+    the month's new, expansion, contraction and churned MRR as bars; unit
+    economics (NRR, ARPA, expenses by category); and lists to act on:
+    accounts at risk, renewals this month, top requests by the MRR asking
+    for them, open bugs affecting customers, and the weighted pipeline by
+    stage.
+  - *B2C*: the same SaaS figures over customers, without the pipeline.
+  - *Marketplace*: GMV against the same month last season, take and take
+    rate, bookings and cancellation rate, net. Then GMV and bookings over 12
+    months, marketplace health (active suppliers and buyers, new buyers,
+    repeat rate), expenses, and lists: zones with demand and few suppliers,
+    open incidents, requests by segment.
+  - At the bottom, *What's being built* is a compact list of the latest
+    tasks, bugs, decisions and docs.
+  - Before the first event, the dashboard explains what to send and links to
+    the ingest keys. This is not an error.
+  - The lists find their record types by role, not by a fixed key: a
+    customer type called `account`, `customer` or `client`; `deal` or
+    `opportunity`; `request`; `incident` or `ticket`; `supplier`; `zone`. They
+    read fields the same way (`mrr`, `health`, `renewal_date`, `amount`,
+    `probability`, `demand`, `segment`…). A list whose type does not exist is
+    not shown.
+- **A record's page** shows its fields as a read-first header, with the stage
+  first. Click a value to edit that one field; relation, person and
+  multi-select fields are read-only there. A type that other types point at
+  (an account, a supplier, a zone) gets a **360** layout: MRR history rebuilt
+  from its subscription events, its related records grouped by kind
+  (contacts, deals, requests, tickets, bugs, decisions, through relation
+  fields and links), and its event timeline.
+- **The sidebar** of a business workspace lists the template's views (for
+  example Pipeline, Accounts, Renewals, Metrics, or Supply vs demand,
+  Suppliers, Incidents) under **Business**, above Knowledge. These are the
+  saved views over record types.

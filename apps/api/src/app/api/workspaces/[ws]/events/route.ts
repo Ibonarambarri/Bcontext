@@ -9,6 +9,12 @@
  * when others in the batch are invalid — each slot says which. A stored
  * event schedules the workspace's rollup (debounced). Vocabulary and
  * examples: docs/ingest-api.md.
+ *
+ * GET /api/workspaces/:ws/events?subject_type=&subject_id=&limit= — one
+ * subject's events, newest first (`SubjectEventsResponse`): a record's 360
+ * page draws its timeline and MRR history from them. The read verb through
+ * `openWorkspace`, so a member or a `bctx_live_` token reads it and an
+ * ingest key — which only POSTs — cannot.
  */
 import {
   BusinessEventInputSchema,
@@ -16,9 +22,11 @@ import {
   type BusinessEventInput,
   type EventIngestResult,
   type EventsIngestResponse,
+  SUBJECT_EVENTS_MAX,
+  type SubjectEventsResponse,
 } from "@bcontext-dev/contract/business/events";
-import { openIngestWorkspace } from "@/lib/auth/workspace";
-import { insertEvents } from "@/lib/business/events";
+import { openIngestWorkspace, openWorkspace } from "@/lib/auth/workspace";
+import { insertEvents, listSubjectEvents } from "@/lib/business/events";
 import { businessErrorResponse } from "@/lib/business/http";
 import { enqueueBusinessRollup } from "@/lib/business/rollup-job";
 import { readJsonBody } from "@/lib/parse-json";
@@ -89,4 +97,36 @@ export const POST = withRoute(async (
   // sees the failure in the status; a batch reports per slot with 200.
   const single = !Array.isArray(raw?.events);
   return Response.json(response, { status: single && response.invalid === 1 ? 422 : 200 });
+});
+
+const SUBJECT_KEY = /^[a-z][a-z0-9_]{1,39}$/;
+
+export const GET = withRoute(async (
+  req: Request,
+  { params }: { params: Promise<{ ws: string }> },
+) => {
+  const { ws } = await params;
+  const ctx = await openWorkspace(req, ws, "read");
+  if (ctx instanceof Response) return ctx;
+  const url = new URL(req.url);
+  const subjectType = url.searchParams.get("subject_type")?.trim() ?? "";
+  const subjectId = url.searchParams.get("subject_id")?.trim() ?? "";
+  // One subject at a time, on purpose: the workspace-wide stream is the
+  // rollup's input, not something a page should page through.
+  if (!SUBJECT_KEY.test(subjectType) || !subjectId || subjectId.length > EVENT_LIMITS.maxIdLength) {
+    return Response.json(
+      { error: "invalid_request", message: "subject_type (a record type key) and subject_id are required" },
+      { status: 400 },
+    );
+  }
+  const rawLimit = Number(url.searchParams.get("limit") ?? 100);
+  const limit = Math.max(1, Math.min(SUBJECT_EVENTS_MAX, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 100));
+  try {
+    const body: SubjectEventsResponse = { events: await listSubjectEvents(ctx.storage, subjectType, subjectId, limit) };
+    return Response.json(body);
+  } catch (err) {
+    const mapped = businessErrorResponse(err);
+    if (mapped) return mapped;
+    throw err;
+  }
 });
