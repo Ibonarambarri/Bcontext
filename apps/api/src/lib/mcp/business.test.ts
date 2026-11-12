@@ -304,6 +304,17 @@ describe("business layer over MCP", () => {
     const repromoted = await ok<{ id: string; created: boolean }>("data_write", { op: "promote_row", node_id: dataset.id, key: "cli_1", record_type: "vip" });
     expect(repromoted).toMatchObject({ id: promoted.id, created: false });
 
+    // A row its sender pushed without some column (no lessons here) still
+    // promotes: the default mapping skips what the row lacks (v0.4.2 browser
+    // pass: "mapping names column `email`, which the row does not have").
+    await upsertDatasetRecords(storage, type, [{ external_id: "cli_4", fields: { zone: "Cerler" } }]);
+    const partial = await ok<{ created: boolean; node: { data: Record<string, unknown> } }>("data_write", {
+      op: "promote_row", node_id: dataset.id, key: "cli_4", record_type: "vip",
+    });
+    expect(partial.created).toBe(true);
+    expect(partial.node.data).toMatchObject({ fields: { zone: "Cerler" } });
+    expect((partial.node.data.fields as Record<string, unknown>).lessons).toBeUndefined();
+
     // A target whose required field no column fills is refused up front,
     // naming the field, instead of a validation error per row.
     await ok("admin_write", {
