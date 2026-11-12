@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deltaLabel, formatCount, formatKpiValue, formatMoney, formatMonths, formatPercent, periodLabel, yoyLabel } from "./format";
+import { comparisonTitle, deltaLabel, formatCount, formatKpiValue, formatMoney, formatMonths, formatPercent, periodLabel, yoyLabel } from "./format";
 import { sparklinePath } from "./sparkline";
 
 describe("business formatting", () => {
@@ -32,7 +32,23 @@ describe("business formatting", () => {
     // A rate changes in points, not in percent of itself.
     expect(deltaLabel({ unit: "percent", delta: -0.012, delta_pct: -0.3, higher_is_better: false })).toEqual({ text: "−1.2 pts", tone: "good" });
     expect(deltaLabel({ unit: "count", delta: null, delta_pct: null, higher_is_better: true })).toBeNull();
-    expect(yoyLabel({ yoy_delta_pct: 0.25, higher_is_better: true })?.text).toBe("+25.0% YoY");
+    expect(yoyLabel({ unit: "money", current: 125, year_ago: 100, yoy_delta_pct: 0.25, higher_is_better: true })?.text).toBe("+25.0% YoY");
+  });
+
+  it("changes a count in units, so two customers fewer is not −100%", () => {
+    // v0.4.2's New customers card: 0 so far against 2 read "−100.0%".
+    expect(deltaLabel({ unit: "count", delta: -2, delta_pct: -1, higher_is_better: true })).toEqual({ text: "−2", tone: "bad" });
+    expect(deltaLabel({ unit: "count", delta: 0, delta_pct: null, higher_is_better: true })).toEqual({ text: "+0", tone: "flat" });
+    expect(yoyLabel({ unit: "count", current: 9, year_ago: 6, yoy_delta_pct: 0.5, higher_is_better: true })).toEqual({ text: "+3 YoY", tone: "good" });
+    expect(yoyLabel({ unit: "count", current: 9, year_ago: null, yoy_delta_pct: null, higher_is_better: true })).toBeNull();
+  });
+
+  it("says what a change compares", () => {
+    const comparison = { basis: "same_days" as const, through_day: 12, previous_period: "2026-10", year_ago_period: "2025-11" };
+    expect(comparisonTitle({ comparison })).toBe("Change: Nov 1–12 vs Oct 1–12");
+    expect(comparisonTitle({ comparison }, "year_ago")).toBe("Change: Nov 2026 1–12 vs Nov 2025 1–12");
+    expect(comparisonTitle({ comparison: { ...comparison, basis: "full_period", through_day: null } })).toBe("Change: end of Nov vs end of Oct");
+    expect(comparisonTitle({})).toBeNull();
   });
 
   it("names a month", () => {

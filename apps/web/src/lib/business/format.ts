@@ -13,7 +13,7 @@
  * The locale is fixed (`en-US`) so the server render and a browser in
  * another language agree, as `panel-ui.tsx` already does for dates.
  */
-import type { KpiUnit, KpiValue } from "@bcontext-dev/contract/business/metrics";
+import { comparisonText, type KpiUnit, type KpiValue } from "@bcontext-dev/contract/business/metrics";
 import { DISPLAY_LOCALE, formatMoney as formatMoneyValue } from "@bcontext-dev/contract/views/fields";
 
 const DASH = "—";
@@ -69,7 +69,13 @@ export interface DeltaLabel {
 /**
  * A KPI's change against the previous month, as one short label. Percents
  * change in points (`+1.2 pts`), because a relative change of a rate is a
- * number nobody can read; everything else changes in percent.
+ * number nobody can read; counts change in units (`−2`), because "−100%"
+ * for two customers fewer is a scare, not a measure; money and months
+ * change in percent.
+ *
+ * What "the previous month" covers is the contract's `comparison` (the same
+ * days of last month for a flow while the month runs); `comparisonTitle`
+ * words it for the chip's tooltip.
  */
 export function deltaLabel(kpi: Pick<KpiValue, "unit" | "delta" | "delta_pct" | "higher_is_better">): DeltaLabel | null {
   if (kpi.unit === "percent") {
@@ -77,13 +83,33 @@ export function deltaLabel(kpi: Pick<KpiValue, "unit" | "delta" | "delta_pct" | 
     const pts = kpi.delta * 100;
     return { text: `${pts >= 0 ? "+" : "−"}${Math.abs(pts).toFixed(1)} pts`, tone: toneOf(pts, kpi.higher_is_better) };
   }
+  if (kpi.unit === "count") return countChange(kpi.delta, kpi.higher_is_better, "");
   if (kpi.delta_pct === null || !Number.isFinite(kpi.delta_pct)) return null;
   const pct = kpi.delta_pct * 100;
   return { text: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`, tone: toneOf(pct, kpi.higher_is_better) };
 }
 
+function countChange(delta: number | null, higherIsBetter: boolean, suffix: string): DeltaLabel | null {
+  if (delta === null || !Number.isFinite(delta)) return null;
+  return {
+    text: `${delta >= 0 ? "+" : "−"}${formatCount(Math.abs(delta))}${suffix}`,
+    tone: delta === 0 ? "flat" : delta > 0 === higherIsBetter ? "good" : "bad",
+  };
+}
+
+/**
+ * The delta chip's tooltip: what was compared with what ("Change: Nov 1–12
+ * vs Oct 1–12"). Null for a summary from an API that did not say.
+ */
+export function comparisonTitle(kpi: Partial<Pick<KpiValue, "comparison">>, against: "previous" | "year_ago" = "previous"): string | null {
+  return kpi.comparison ? `Change: ${comparisonText(kpi.comparison, against)}` : null;
+}
+
 /** The same, against a year ago (the marketplace's seasonality). */
-export function yoyLabel(kpi: Pick<KpiValue, "yoy_delta_pct" | "higher_is_better">): DeltaLabel | null {
+export function yoyLabel(kpi: Pick<KpiValue, "unit" | "current" | "year_ago" | "yoy_delta_pct" | "higher_is_better">): DeltaLabel | null {
+  if (kpi.unit === "count") {
+    return countChange(kpi.current === null || kpi.year_ago === null ? null : kpi.current - kpi.year_ago, kpi.higher_is_better, " YoY");
+  }
   if (kpi.yoy_delta_pct === null || !Number.isFinite(kpi.yoy_delta_pct)) return null;
   const pct = kpi.yoy_delta_pct * 100;
   return { text: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}% YoY`, tone: toneOf(pct, kpi.higher_is_better) };
