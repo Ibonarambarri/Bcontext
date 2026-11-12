@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessEvent } from "@bcontext-dev/contract/business/events";
 import type { RecordTypeDefinition } from "@bcontext-dev/contract/business/record-types";
-import { describeEvent, formatFieldValue, headerFields, isHubType, mrrHistory, promoteUnavailableNote, relatedGroups } from "./records";
+import { describeEvent, formatFieldValue, headerFields, isHubType, labelInSentence, mrrHistory, promoteUnavailableNote, relatedGroups } from "./records";
 
 const account: RecordTypeDefinition = {
   key: "account",
@@ -119,6 +119,15 @@ describe("mrrHistory", () => {
     expect(describeEvent(event("subscription.started", "2026-11-01T00:00:00Z", 490), "EUR")).toBe("Subscription started · €490/mo");
     expect(describeEvent({ type: "feature.used", properties: {} }, "EUR")).toBe("feature.used");
     expect(describeEvent({ type: "booking.created", amount: 90, currency: "EUR", properties: {}, role: "supplier" }, "EUR")).toBe("Booked with them · €90.00");
+  });
+});
+
+describe("labelInSentence", () => {
+  it("lower-cases a label for a sentence but keeps a leading acronym", () => {
+    expect(labelInSentence("Lead instructor")).toBe("lead instructor");
+    expect(labelInSentence("VIP customer")).toBe("VIP customer");
+    expect(labelInSentence("Account")).toBe("account");
+    expect(labelInSentence("A")).toBe("a");
   });
 });
 

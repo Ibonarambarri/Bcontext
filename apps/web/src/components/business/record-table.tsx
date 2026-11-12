@@ -32,7 +32,7 @@ import {
 import type { DatasetViewPayload, RecordViewPayload } from "@bcontext-dev/contract/views/business";
 import type { ViewPresentation } from "@bcontext-dev/contract/views/schema";
 import { useToast, useWorkspace } from "@/components/workspace-context";
-import { promoteUnavailableNote } from "@/lib/business/records";
+import { labelInSentence, promoteUnavailableNote } from "@/lib/business/records";
 import { promoteRow } from "@/lib/business/requests";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 import { FieldValue } from "./field-value";
@@ -73,7 +73,7 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
       toast.error(outcome.message);
       return;
     }
-    toast.info(outcome.created ? `Converted to a ${promoteTarget.label.toLowerCase()}.` : `Updated the existing ${promoteTarget.label.toLowerCase()}.`);
+    toast.info(outcome.created ? `Converted to a ${labelInSentence(promoteTarget.label)}.` : `Updated the existing ${labelInSentence(promoteTarget.label)}.`);
     selectNode(outcome.node_id);
   }
 
@@ -112,7 +112,7 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
                 <td className="px-2 py-1 text-right">
                   <Button size="sm" variant="ghost" isDisabled={busyKey === row.id} onPress={() => void convert(row)} className="gap-1 text-[11px] text-[var(--ink-2)]">
                     <ArrowUpRight size={12} />
-                    Convert to {promoteTarget!.label.toLowerCase()}
+                    Convert to {labelInSentence(promoteTarget!.label)}
                   </Button>
                 </td>
               ) : null}

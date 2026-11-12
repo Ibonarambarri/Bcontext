@@ -200,6 +200,17 @@ export function kindLabelPlural(kind: string, types: readonly Pick<RecordTypeDef
 }
 
 /**
+ * A record type's label inside a sentence ("Convert to lead instructor"):
+ * lower case, except a leading acronym, so "VIP customer" stays "VIP
+ * customer" and does not become "vip customer".
+ */
+export function labelInSentence(label: string): string {
+  const [first = "", ...rest] = label.split(" ");
+  const acronym = first.length > 1 && first === first.toUpperCase() && /[A-Z]/.test(first);
+  return [acronym ? first : first.toLowerCase(), ...rest.map((word) => word.toLowerCase())].join(" ");
+}
+
+/**
  * What a dataset table says instead of "Convert to …" when no node record
  * type fits its rows (the API only offers targets that share compatible
  * fields — `promoteTargetsFor`). Null when there is a target: the button is
