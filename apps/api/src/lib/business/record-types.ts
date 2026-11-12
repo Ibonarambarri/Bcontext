@@ -301,7 +301,8 @@ export async function getBusinessSettings(storage: Scoped): Promise<BusinessSett
   if (storage.backend !== "supabase") {
     return demoSettings.get(storage.workspace.id) ?? { business_model: "product", currency: "EUR" };
   }
-  // The storage's workspace row is `select *`, so 0103's columns ride along.
+  // The bound row is read `select *` and `rowToWorkspace` keeps 0103's two
+  // columns (`settings.test.ts` pins that).
   const row = storage.workspace as unknown as Record<string, unknown>;
   return {
     business_model: isBusinessModel(row.business_model) ? row.business_model : "product",

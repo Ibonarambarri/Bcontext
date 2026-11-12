@@ -225,6 +225,14 @@ export interface Workspace {
   github_repo: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
+  /**
+   * The business layer's settings (0103): `product | b2b | b2c | marketplace`
+   * and the ISO 4217 reporting currency. Optional because a row read without
+   * them (the demo store, an older select list) means `product` / `EUR`;
+   * `getBusinessSettings` in the API is the one reader.
+   */
+  business_model?: string;
+  business_currency?: string;
 }
 
 export interface NodeTreeItem extends KnowledgeNode {

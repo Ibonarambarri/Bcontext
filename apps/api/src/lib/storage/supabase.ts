@@ -975,7 +975,7 @@ function throwTagError(
   throw new Error(`tag operation failed: ${error.message}`);
 }
 
-function rowToWorkspace(row: Record<string, unknown>): Workspace {
+export function rowToWorkspace(row: Record<string, unknown>): Workspace {
   return {
     id: row.id as string,
     slug: row.slug as string,
@@ -984,6 +984,11 @@ function rowToWorkspace(row: Record<string, unknown>): Workspace {
     github_repo: (row.github_repo as string | null) ?? null,
     metadata: (row.metadata as Record<string, unknown>) ?? {},
     created_at: row.created_at as string,
+    // The business settings ride on the bound row: `getBusinessSettings`
+    // reads them from here, so dropping them reads every workspace as
+    // `product` (no KPI set, no business dashboard) whatever was saved.
+    ...(typeof row.business_model === "string" ? { business_model: row.business_model } : {}),
+    ...(typeof row.business_currency === "string" ? { business_currency: row.business_currency } : {}),
   };
 }
 
