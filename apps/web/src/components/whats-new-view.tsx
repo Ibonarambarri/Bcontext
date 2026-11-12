@@ -43,7 +43,7 @@ import type { ActivityEntry } from "@bcontext-dev/contract/activity";
 import type { IngestCandidate } from "@bcontext-dev/contract/ingest";
 import { formatRelative } from "@bcontext-dev/contract/utils";
 import { ListSkeleton } from "@/components/skeletons";
-import { NODE_KIND_ICONS } from "./node-kind-icon";
+import { nodeKindIcon } from "./node-kind-icon";
 import { lastVisit } from "@/lib/local-settings";
 import { systemViewPath } from "@/lib/view-shell";
 import {
@@ -335,7 +335,7 @@ function ReviewRow({
   ts: string;
   children?: React.ReactNode;
 }) {
-  const Icon = (kind && NODE_KIND_ICONS[kind as keyof typeof NODE_KIND_ICONS]) || Settings2;
+  const Icon = kind ? nodeKindIcon(kind) : Settings2;
   return (
     <li className="flex flex-wrap items-center gap-3 px-3 py-3">
       <Icon size={15} className="shrink-0 text-[var(--ink-3)]" />
@@ -376,7 +376,7 @@ function ActorCard({ group, known, onOpen }: { group: ActorGroup; known: Set<str
       </header>
       <ul className="divide-y divide-[var(--line)]">
         {group.nodes.map((node) => {
-          const Icon = (node.node_kind && NODE_KIND_ICONS[node.node_kind]) || Settings2;
+          const Icon = node.node_kind ? nodeKindIcon(node.node_kind) : Settings2;
           const openable = Boolean(node.node_id && known.has(node.node_id));
           const body = (
             <>

@@ -27,7 +27,7 @@ import {
 } from "@bcontext-dev/contract/ask";
 import { ASK_EVENT, synthesisHint } from "@/lib/ask";
 import { workspaceApiRef } from "@/web/workspace-url";
-import { NODE_KIND_ICONS } from "./node-kind-icon";
+import { nodeKindIcon } from "./node-kind-icon";
 import { useWorkspace } from "./workspace-context";
 
 type AskState =
@@ -205,7 +205,7 @@ function AskResult({ state, onOpenNode }: { state: AskState; onOpenNode: () => v
           <h3 className="mono mb-1.5 text-[10px] uppercase tracking-wider text-[var(--ink-mute)]">Sources</h3>
           <ol className="flex flex-col divide-y divide-[var(--line)] rounded-lg border border-[var(--line)]">
             {response.sources.map((source) => {
-              const Icon = NODE_KIND_ICONS[source.kind];
+              const Icon = nodeKindIcon(source.kind);
               return (
                 <li key={`${source.n}-${source.node_id}`}>
                   <button
