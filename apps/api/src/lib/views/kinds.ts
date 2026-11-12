@@ -24,7 +24,7 @@ export class ViewKindError extends Error {
 }
 
 export async function assertViewKindsExist(
-  storage: Pick<Storage, "workspace">,
+  storage: Pick<Storage, "backend" | "workspace">,
   query: { kinds?: readonly string[] } | null | undefined,
 ): Promise<void> {
   const kinds = query?.kinds ?? [];

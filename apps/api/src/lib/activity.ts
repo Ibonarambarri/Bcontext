@@ -514,8 +514,13 @@ function defaultActorLabel(kind: ActivityEntry["actor_kind"], id: string | null)
   const suffix = id ? ` · ${id.slice(0, 8)}` : "";
   return kind === "agent" ? `Agent${suffix}` : kind === "system" ? `System${suffix}` : `Human${suffix}`;
 }
+/**
+ * A kind the change feed keeps: a core kind, or anything shaped like a
+ * record type key (`account`). Narrowing to `NODE_KINDS` here is how a new
+ * kind silently stops being classified in the feed (see `NODE_KINDS`).
+ */
 function isNodeKind(value: unknown): value is NodeKind {
-  return typeof value === "string" && (NODE_KINDS as readonly string[]).includes(value);
+  return typeof value === "string" && ((NODE_KINDS as readonly string[]).includes(value) || /^[a-z][a-z0-9_]{1,39}$/.test(value));
 }
 function snapshotOrNull(value: unknown): ChangeSnapshot | null {
   return value && typeof value === "object" && typeof (value as Record<string, unknown>).title === "string" ? value as ChangeSnapshot : null;

@@ -25,6 +25,8 @@ import {
 } from "@/lib/storage";
 import type { Storage } from "@/lib/storage";
 import { withRoute } from "@/lib/route";
+import { prepareNodeUpdate } from "@/lib/business/records";
+import { businessErrorResponse } from "@/lib/business/http";
 import { emitEvent } from "@/lib/webhooks/dispatch";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { WebhookEventType } from "@bcontext-dev/contract/webhooks/events";
@@ -99,6 +101,8 @@ const PatchSchema = z.object({
   priority: z.enum(["low", "med", "high", "urgent"]).nullable().optional(),
   due_date: z.string().datetime({ offset: true }).nullable().optional(),
   data: z.record(z.unknown()).optional(),
+  // Record nodes: the fields to change (merged; null clears an optional one).
+  fields: z.record(z.unknown()).optional(),
   tag_ids: z.array(z.string().min(1)).max(100).optional(),
   change_context: z.object({
     source: z.string().trim().min(1).max(500).optional(),
@@ -127,13 +131,19 @@ export const PATCH = withRoute(async (
       { status: 400 },
     );
   }
-  const { workspace, if_updated_at, change_context, ...patch } = parsed.data;
+  const { workspace, if_updated_at, change_context, fields, ...patch } = parsed.data;
   const ctx = await openWorkspace(req, workspace, "write");
   if (ctx instanceof Response) return ctx;
   const { storage, actor: gated } = ctx;
   const before = await storage.getNode(id);
   let node;
   try {
+    // Record nodes: merge `fields`, keep the reserved data keys a `data`
+    // patch dropped (external_id must survive or the next ingest duplicates).
+    if (before) {
+      const data = await prepareNodeUpdate(storage, before, { fields, data: patch.data });
+      if (data !== undefined) patch.data = data;
+    }
     node = await storage.updateNode(id, withSkillVersionBump(before, patch), {
       ifUpdatedAt: if_updated_at,
     });
@@ -148,6 +158,8 @@ export const PATCH = withRoute(async (
         { status: 409 },
       );
     }
+    const business = businessErrorResponse(err);
+    if (business) return business;
     if (err instanceof TagNotFoundError) {
       return Response.json(
         { error: "unknown_or_inactive_tag", tag_id: err.tagId },

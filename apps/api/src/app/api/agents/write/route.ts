@@ -22,6 +22,7 @@ import { getIdempotent, setIdempotent } from "@/lib/idempotency";
 import { readJsonBody } from "@/lib/parse-json";
 import { gate } from "@/lib/auth/require";
 import { openWorkspaceForActor } from "@/lib/auth/workspace";
+import { prepareNodeCreate, prepareNodeUpdate, RecordWriteError } from "@/lib/business/records";
 import {
   NodeWriteError,
   TagNotFoundError,
@@ -40,22 +41,13 @@ import { redactCredentialForAgents } from "@/lib/credentials";
 
 const NodeCreate = z.object({
   title: z.string().min(1),
-  kind: z.enum([
-    "doc",
-    "task",
-    "decision",
-    "meeting",
-    "bug",
-    "adr",
-    "entity",
-    "skill",
-    "data",
-    "credential",
-    "goal",
-  ]),
+  // A core kind or a record type of this workspace (checked once it is open).
+  kind: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
   parent_id: z.string().nullable(),
   content_md: z.string().optional(),
   data: z.record(z.unknown()).optional(),
+  /** Record types: field values, validated against the type's definition. */
+  fields: z.record(z.unknown()).optional(),
   status: z.string().nullable().optional(),
   priority: z.enum(["low", "med", "high", "urgent"]).nullable().optional(),
   tag_ids: z.array(z.string().min(1)).max(100).optional(),
@@ -220,7 +212,7 @@ export const POST = withRoute(async (req: Request) => {
           // Same per-kind H2 skeleton the MCP surface pre-fills — REST
           // creates must not produce structurally different nodes.
           content_md: skeletonFor(op.node.kind, op.node.content_md),
-          data: op.node.data,
+          data: (await prepareNodeCreate(storage, { kind: op.node.kind, fields: op.node.fields, data: op.node.data })).data,
           status: (op.node.status as NodeStatus | null | undefined) ?? null,
           priority: op.node.priority ?? null,
           tag_ids: op.node.tag_ids,
@@ -237,6 +229,10 @@ export const POST = withRoute(async (req: Request) => {
             error: "unknown_or_inactive_tag",
             tag_id: error.tagId,
           });
+          continue;
+        }
+        if (error instanceof RecordWriteError) {
+          results.push({ op: "create", error: error.code, message: error.message });
           continue;
         }
         if (error instanceof NodeWriteError) {
@@ -298,6 +294,9 @@ export const POST = withRoute(async (req: Request) => {
       const patch = op.patch as UpdateNodePatch;
       let node;
       try {
+        // Reserved record keys survive a `data` patch (see business/records).
+        const data = await prepareNodeUpdate(storage, existing, { data: patch.data });
+        if (data !== undefined) patch.data = data;
         node = await storage.updateNode(op.id, patch, {
           ifUpdatedAt: op.if_updated_at,
         });
@@ -320,6 +319,10 @@ export const POST = withRoute(async (req: Request) => {
             error: "unknown_or_inactive_tag",
             tag_id: err.tagId,
           });
+          continue;
+        }
+        if (err instanceof RecordWriteError) {
+          results.push({ op: "patch", id: op.id, error: err.code, message: err.message });
           continue;
         }
         if (err instanceof NodeWriteError) {
