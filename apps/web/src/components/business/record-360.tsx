@@ -83,8 +83,11 @@ export async function Record360({
     index: new Map(index.map((n) => [n.id, { kind: n.kind, title: n.title, status: n.status }])),
   });
 
-  const hasSubscriptions = events.some((event) => event.type.startsWith("subscription."));
-  const history = hasSubscriptions ? mrrHistory(events, currency, now) : [];
+  // A supplier's timeline also carries the bookings that name it; MRR is
+  // rebuilt from the subject's own events only.
+  const own = events.filter((event) => event.role === "subject");
+  const hasSubscriptions = own.some((event) => event.type.startsWith("subscription."));
+  const history = hasSubscriptions ? mrrHistory(own, currency, now) : [];
   const current = history.at(-1)?.mrr ?? null;
   const yearAgo = history[0]?.mrr ?? null;
 

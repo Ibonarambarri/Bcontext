@@ -20,7 +20,7 @@
 import { randomUUID } from "node:crypto";
 import {
   CANONICAL_EVENT_TYPES,
-  type BusinessEvent,
+  type SubjectEvent,
   type BusinessEventInput,
   type EventIngestStatus,
 } from "@bcontext-dev/contract/business/events";
@@ -192,17 +192,24 @@ export async function unlinkSubject(storage: Scoped, subjectType: string, subjec
  * One subject's events, newest first — a record's 360 timeline
  * (`GET /events?subject_type=&subject_id=`). An event sent without a
  * `subject_type` belongs to whichever type asks, the same reading
- * `unlinkSubject` gives it.
+ * `unlinkSubject` gives it. Bookings that name the id as their supplier
+ * (`properties.supplier_id`) are included with `role: "supplier"`, as
+ * erasure unlinks them — except when the asking type is the booking's own
+ * subject type, so a buyer and a supplier that share an id do not mix.
  */
 export async function listSubjectEvents(
   storage: Scoped,
   subjectType: string,
   subjectId: string,
   limit: number,
-): Promise<BusinessEvent[]> {
+): Promise<SubjectEvent[]> {
+  const isSubject = (event: { subject_id: string | null; subject_type: string | null }) =>
+    event.subject_id === subjectId && (event.subject_type === subjectType || event.subject_type === null);
   if (storage.backend !== "supabase") {
     return [...(demoEvents.get(storage.workspace.id) ?? [])]
-      .filter((event) => event.subject_id === subjectId && (event.subject_type === subjectType || event.subject_type === null))
+      .filter((event) => isSubject(event) || (
+        event.type.startsWith("booking.") && event.properties.supplier_id === subjectId && event.subject_type !== subjectType
+      ))
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
       .slice(0, limit)
       .map((event) => ({
@@ -218,13 +225,17 @@ export async function listSubjectEvents(
         properties: event.properties,
         received_at: event.occurred_at,
         subject_erased_at: null,
+        role: isSubject(event) ? ("subject" as const) : ("supplier" as const),
       }));
   }
   const result = await pool().query(
     `select id, type, occurred_at, received_at, idempotency_key, subject_type, subject_id,
             amount, currency, properties, subject_erased_at
        from public.business_events
-      where workspace_id = $1::uuid and subject_id = $2 and (subject_type = $3 or subject_type is null)
+      where workspace_id = $1::uuid
+        and ((subject_id = $2 and (subject_type = $3 or subject_type is null))
+             or (type like 'booking.%' and properties->>'supplier_id' = $2
+                 and subject_type is distinct from $3))
       order by occurred_at desc, received_at desc, id desc
       limit $4`,
     [storage.workspace.id, subjectId, subjectType, limit],
@@ -242,6 +253,9 @@ export async function listSubjectEvents(
     ...(row.currency ? { currency: String(row.currency) } : {}),
     properties: (row.properties as Record<string, unknown>) ?? {},
     subject_erased_at: row.subject_erased_at ? new Date(row.subject_erased_at as string).toISOString() : null,
+    role: row.subject_id === subjectId && (row.subject_type === subjectType || row.subject_type === null)
+      ? ("subject" as const)
+      : ("supplier" as const),
   }));
 }
 

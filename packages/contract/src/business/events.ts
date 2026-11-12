@@ -213,11 +213,22 @@ export interface BusinessEvent extends BusinessEventInput {
 export const SUBJECT_EVENTS_MAX = 200;
 
 /**
+ * One event of a subject's timeline. `role` says how the subject is in it:
+ * `subject` when the event is about it, `supplier` when it is a booking that
+ * names it in `properties.supplier_id` (a booking's subject is the buyer, so
+ * a supplier's own bookings would otherwise never reach its page).
+ */
+export interface SubjectEvent extends BusinessEvent {
+  role: "subject" | "supplier";
+}
+
+/**
  * `GET /api/workspaces/:ws/events?subject_type=&subject_id=&limit=` — one
  * subject's events, newest first: what a record's 360 page draws as its
- * timeline and rebuilds its MRR history from. A read for members (session
- * or `bctx_live_` token); an ingest key cannot read it.
+ * timeline and rebuilds its MRR history from (from `role: "subject"` events
+ * only). A read for members (session or `bctx_live_` token); an ingest key
+ * cannot read it.
  */
 export interface SubjectEventsResponse {
-  events: BusinessEvent[];
+  events: SubjectEvent[];
 }

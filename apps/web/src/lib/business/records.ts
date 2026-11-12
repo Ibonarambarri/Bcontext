@@ -44,9 +44,14 @@ export function fieldsOf(node: Pick<RecordNodeLike, "data">): RecordFields {
   return readRecordFields(node.data ?? {});
 }
 
-/** The sender's id for a node record, when it came from the ingest API. */
+/**
+ * The app's id for a node record: `external_id` when it came from the ingest
+ * API, else the row key it was promoted from (`source_row.key`) — the id its
+ * events carry either way.
+ */
 export function externalIdOf(node: Pick<RecordNodeLike, "data">): string | null {
-  const value = (node.data as { external_id?: unknown } | null | undefined)?.external_id;
+  const data = node.data as { external_id?: unknown; source_row?: { key?: unknown } } | null | undefined;
+  const value = data?.external_id ?? data?.source_row?.key;
   return typeof value === "string" && value ? value : null;
 }
 
@@ -283,7 +288,7 @@ export interface MrrPoint {
  * subscription when `subscription_id` is omitted). Amounts in another
  * currency than the reporting one are left out, as the rollup does.
  */
-export function mrrHistory(events: readonly BusinessEvent[], currency: string, now: Date, months = 12): MrrPoint[] {
+export function mrrHistory(events: readonly Pick<BusinessEvent, "type" | "occurred_at" | "amount" | "currency" | "properties">[], currency: string, now: Date, months = 12): MrrPoint[] {
   const subscriptionEvents = events
     .filter((event) => event.type.startsWith("subscription."))
     .filter((event) => event.type === "subscription.canceled" || (event.currency ?? currency) === currency)
@@ -312,7 +317,10 @@ export function mrrHistory(events: readonly BusinessEvent[], currency: string, n
 }
 
 /** One line for an event in a timeline: what happened, in words. */
-export function describeEvent(event: Pick<BusinessEvent, "type" | "amount" | "currency" | "properties">, currency: string): string {
+export function describeEvent(
+  event: Pick<BusinessEvent, "type" | "amount" | "currency" | "properties"> & { role?: "subject" | "supplier" },
+  currency: string,
+): string {
   const money = typeof event.amount === "number" ? formatMoney(event.amount, event.currency ?? currency) : null;
   const props = event.properties ?? {};
   switch (event.type) {
@@ -323,7 +331,7 @@ export function describeEvent(event: Pick<BusinessEvent, "type" | "amount" | "cu
     case "subscription.canceled":
       return "Subscription canceled";
     case "booking.created":
-      return `Booking${money ? ` · ${money}` : ""}`;
+      return `${event.role === "supplier" ? "Booked with them" : "Booking"}${money ? ` · ${money}` : ""}`;
     case "booking.completed":
       return "Booking completed";
     case "booking.canceled":

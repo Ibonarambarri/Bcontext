@@ -295,7 +295,7 @@ ingest key gets `401`). The web's overview and record pages use them.
 | Method and path | Answer |
 |---|---|
 | `GET /api/workspaces/<ws>/records/<type>?limit=` (≤ 1,000) | `{ records: KnowledgeNode[], truncated }` with each record's `data.fields`. `404` for an unknown type, `400` for a dataset-backed one |
-| `GET /api/workspaces/<ws>/events?subject_type=&subject_id=&limit=` (≤ 200) | `{ events: BusinessEvent[] }`, newest first. An event sent without `subject_type` counts for any type |
+| `GET /api/workspaces/<ws>/events?subject_type=&subject_id=&limit=` (≤ 200) | `{ events: (BusinessEvent & { role })[] }`, newest first. An event sent without `subject_type` counts for any type. Bookings that name the id in `properties.supplier_id` are included with `role: "supplier"` (unless the asking type is the booking's own subject type) |
 
 ## 7. Personal data (GDPR)
 

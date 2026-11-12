@@ -91,6 +91,23 @@ describe("business reads", () => {
     expect(res.body.events.map((e: { idempotency_key: string }) => e.idempotency_key)).toEqual(["e2", "e1"]);
     expect(res.body.events[0]).toMatchObject({ type: "subscription.changed", amount: 150, currency: "EUR", subject_id: "a1" });
     expect((await listEvents("?subject_type=account&subject_id=a1&limit=1")).body.events).toHaveLength(1);
+    expect(res.body.events.every((e: { role: string }) => e.role === "subject")).toBe(true);
+  });
+
+  it("gives a supplier the bookings that name it, without mixing a buyer that shares its id", async () => {
+    const storage = resolveDemoStorage(door.slug)!;
+    const booking = { amount: 120, currency: "EUR", properties: { booking_id: "bk1", supplier_id: "s1", fee: 18 } };
+    await insertEvents(storage, [
+      { type: "booking.created", occurred_at: "2026-10-01T00:00:00Z", idempotency_key: "b1", subject_type: "buyer", subject_id: "u1", ...booking },
+      { type: "booking.completed", occurred_at: "2026-10-05T00:00:00Z", idempotency_key: "b2", subject_type: "buyer", subject_id: "u1", ...booking },
+      { type: "booking.created", occurred_at: "2026-10-06T00:00:00Z", idempotency_key: "b3", subject_type: "buyer", subject_id: "s1", amount: 80, currency: "EUR", properties: { booking_id: "bk2", supplier_id: "x9" } },
+    ], null);
+    const supplier = await listEvents("?subject_type=supplier&subject_id=s1");
+    expect(supplier.body.events.map((e: { idempotency_key: string }) => e.idempotency_key)).toEqual(["b2", "b1"]);
+    expect(supplier.body.events.every((e: { role: string }) => e.role === "supplier")).toBe(true);
+    // The buyer `s1` sees its own booking, not the ones it supplies under the same id.
+    const buyer = await listEvents("?subject_type=buyer&subject_id=s1");
+    expect(buyer.body.events.map((e: { idempotency_key: string; role: string }) => [e.idempotency_key, e.role])).toEqual([["b3", "subject"]]);
   });
 
   it("needs a subject: the workspace-wide stream is not a page's to read", async () => {

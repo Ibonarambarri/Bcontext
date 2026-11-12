@@ -136,4 +136,6 @@ curl -X POST "$BCONTEXT/api/workspaces/denak/business/apply-template" \
 ## Timeline of one subject
 
 A subject's events are read with `GET /api/workspaces/:ws/events?subject_type=&subject_id=`
-([ingest-api.md](ingest-api.md)); the web's record 360 page draws them.
+([ingest-api.md](ingest-api.md)); the web's record 360 page draws them. A
+supplier's timeline also lists the bookings that name it in
+`properties.supplier_id`.

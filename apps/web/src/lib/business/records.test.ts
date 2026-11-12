@@ -118,5 +118,6 @@ describe("mrrHistory", () => {
   it("describes events in words", () => {
     expect(describeEvent(event("subscription.started", "2026-11-01T00:00:00Z", 490), "EUR")).toBe("Subscription started · €490/mo");
     expect(describeEvent({ type: "feature.used", properties: {} }, "EUR")).toBe("feature.used");
+    expect(describeEvent({ type: "booking.created", amount: 90, currency: "EUR", properties: {}, role: "supplier" }, "EUR")).toBe("Booked with them · €90.00");
   });
 });

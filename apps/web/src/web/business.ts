@@ -24,7 +24,7 @@ import {
   readRecordTypes,
   readRecords,
 } from "@/lib/business/endpoints";
-import type { BusinessEvent, SubjectEventsResponse } from "@bcontext-dev/contract/business/events";
+import type { SubjectEvent, SubjectEventsResponse } from "@bcontext-dev/contract/business/events";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import type { WorkspaceAddress } from "@/web/workspace-url";
 
@@ -82,7 +82,7 @@ export function listSubjectEvents(
   subjectType: string,
   subjectId: string,
   limit = 100,
-): Promise<BusinessEvent[]> {
+): Promise<SubjectEvent[]> {
   return guarded(
     "events",
     ws.slug,
