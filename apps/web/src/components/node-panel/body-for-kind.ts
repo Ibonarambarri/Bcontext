@@ -1,13 +1,15 @@
 /**
  * Which body and which identity-strip properties the floating node panel
  * gives each node kind. Pure and exhaustive: `PLANS` is a `Record` over
- * every `NodeKind`, so adding a kind to the contract fails typecheck here
+ * every `CoreNodeKind`, so adding a kind to the contract fails typecheck here
  * until the panel says what that kind looks like — a new kind can never
- * silently fall through to a generic body. `panel-body.tsx` is the switch
+ * silently fall through to a generic body. A workspace's own record types
+ * (`account`, `deal`) are not known here and get `RECORD_PLAN`: prose, no
+ * task vocabulary — their fields are rendered by the record UI. `panel-body.tsx` is the switch
  * that turns a plan into components; `node-inspector.tsx` reads the
  * property flags for the strip under the title.
  */
-import { NODE_KINDS, type NodeKind } from "@bcontext-dev/contract/types";
+import { NODE_KINDS, isCoreKind, type CoreNodeKind, type NodeKind } from "@bcontext-dev/contract/types";
 
 export type PanelBody =
   /** Prose: the editor when the person can write, rendered Markdown otherwise. */
@@ -43,7 +45,7 @@ export interface PanelPlan {
   subtasks: boolean;
 }
 
-const PLANS: Record<NodeKind, PanelPlan> = {
+const PLANS: Record<CoreNodeKind, PanelPlan> = {
   doc: { body: "markdown", status: null, priority: false, dependencies: false, subtasks: false },
   task: { body: "work", status: "task", priority: true, dependencies: true, subtasks: true },
   bug: { body: "work", status: "task", priority: true, dependencies: true, subtasks: true },
@@ -59,12 +61,15 @@ const PLANS: Record<NodeKind, PanelPlan> = {
   goal: { body: "goal", status: "goal", priority: false, dependencies: false, subtasks: false },
 };
 
+/** A workspace record type: whatever its key, it renders as prose plus its fields. */
+const RECORD_PLAN: PanelPlan = { body: "markdown", status: null, priority: false, dependencies: false, subtasks: false };
+
 export function panelPlanFor(kind: NodeKind): PanelPlan {
-  return PLANS[kind];
+  return isCoreKind(kind) ? PLANS[kind] : RECORD_PLAN;
 }
 
 /** Every kind the panel knows a plan for — the test compares it to the contract's list. */
-export const PLANNED_KINDS: readonly NodeKind[] = Object.keys(PLANS) as NodeKind[];
+export const PLANNED_KINDS: readonly CoreNodeKind[] = Object.keys(PLANS) as CoreNodeKind[];
 
 /** Kinds whose body is the Markdown editor, alone or under a kind-specific header. */
 export function panelBodyIsProse(body: PanelBody): boolean {

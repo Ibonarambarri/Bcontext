@@ -5,6 +5,8 @@
 import { describe, expect, it } from "vitest";
 import {
   QUEUES,
+  QUEUE_BUSINESS_ROLLUP,
+  QUEUE_BUSINESS_ROLLUP_ALL,
   QUEUE_TASKS_AUTO_ARCHIVE,
   QUEUE_CAPABILITY_HEALTH,
   QUEUE_CAPABILITY_OAUTH_EXPIRE,
@@ -21,10 +23,17 @@ import {
 const DRAINS = [QUEUE_CAPABILITY_HEALTH, QUEUE_WEBHOOK_DRAIN];
 
 describe("queue catalogue", () => {
-  it("declares the drains the cron routes used to run, plus maintenance and the skill clock", () => {
+  it("declares the drains the cron routes used to run, plus maintenance, the skill clock and the business rollup", () => {
     expect(QUEUES.map((q) => q.name).sort()).toEqual(
-      [...DRAINS, QUEUE_CAPABILITY_OAUTH_EXPIRE, QUEUE_ERRORS_RETENTION, QUEUE_TASKS_AUTO_ARCHIVE, QUEUE_SKILLS_SCHEDULE, QUEUE_SKILLS_RUN_SCHEDULED].sort(),
+      [...DRAINS, QUEUE_CAPABILITY_OAUTH_EXPIRE, QUEUE_ERRORS_RETENTION, QUEUE_TASKS_AUTO_ARCHIVE, QUEUE_SKILLS_SCHEDULE, QUEUE_SKILLS_RUN_SCHEDULED, QUEUE_BUSINESS_ROLLUP, QUEUE_BUSINESS_ROLLUP_ALL].sort(),
     );
+  });
+
+  // The rollup runs on demand (debounced per workspace by the events route);
+  // the nightly sweep rolls the day over and catches a lost enqueue.
+  it("rolls business metrics up on demand and sweeps nightly", () => {
+    expect(queueByName(QUEUE_BUSINESS_ROLLUP)?.cron).toBeNull();
+    expect(queueByName(QUEUE_BUSINESS_ROLLUP_ALL)?.cron).toBe("10 3 * * *");
   });
 
   it("keeps the production cadence for the drains: every minute", () => {

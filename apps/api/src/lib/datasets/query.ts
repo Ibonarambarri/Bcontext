@@ -124,7 +124,10 @@ const RANGE_OPERATORS = new Set(["lt", "lte", "gt", "gte"]);
 const SQL_COMPARISON: Record<string, string> = { lt: "<", lte: "<=", gt: ">", gte: ">=" };
 
 function whereClause(builder: Builder, filter: DatasetFilter, column: DatasetColumn): string {
-  const key = builder.param(column.name);
+  // `::text` because `jsonb_build_object` is variadic "any": a bare `$n` there
+  // has no type Postgres can infer ("could not determine data type of
+  // parameter"), and `eq` uses the key only there.
+  const key = `${builder.param(column.name)}::text`;
   const op = filter.op;
   if (!DATASET_OPERATORS.includes(op)) {
     throw new DatasetError(
@@ -340,7 +343,8 @@ export function compileDatasetQuery(
     const projected = (query.select?.length ? query.select : columns.map((c) => c.name)).map(need);
     select = projected.length
       ? `jsonb_build_object(${projected
-          .map((column) => `${builder.param(column.name)}, d.data -> ${builder.param(column.name)}`)
+          // The key is cast for the same reason as in `whereClause`.
+          .map((column) => `${builder.param(column.name)}::text, d.data -> ${builder.param(column.name)}`)
           .join(", ")}) as row`
       : `'{}'::jsonb as row`;
     shape = { kind: "rows", columns: projected.map((c) => c.name) };

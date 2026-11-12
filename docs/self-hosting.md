@@ -151,7 +151,8 @@ without it they are skipped and invitations stay copyable links.
 ## AI
 
 Optional. Without an AI backend, search is keyword-only and `ask_rag`
-answers with retrieval alone; embeddings, extraction from meeting
+(and the web's "Ask the brain…" box) answers with the matching nodes alone,
+no written answer; embeddings, extraction from meeting
 transcripts and skills need one. Choose one backend in `.env`:
 
 - **Vercel AI Gateway**: `AI_GATEWAY_API_KEY`. Model ids are

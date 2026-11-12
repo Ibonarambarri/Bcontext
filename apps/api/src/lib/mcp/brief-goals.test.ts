@@ -140,8 +140,14 @@ describe("goals in the brief", () => {
 
     it("does not sink work that belongs to no objective", async () => {
       const healthy = await goal("Ship the thing", { status: "on_track" });
+      // The tiebreak inside a band is `updated_at`, and three nodes created in
+      // the same millisecond tie on it, which made this test fail at random in
+      // CI. A tick between them gives each its own timestamp.
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 3));
       const first = await task("Unaffiliated, oldest", "med");
+      await tick();
       const pushing = await task("Pushes a healthy goal", "med", healthy.id);
+      await tick();
       const last = await task("Unaffiliated, newest", "med");
 
       // Belonging to an objective is not, by itself, a reason to go first: a

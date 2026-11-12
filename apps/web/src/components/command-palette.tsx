@@ -9,8 +9,11 @@
  * request per keystroke. Three modes inferred from the query — `jump`
  * (one word: titles), `search` (spaces: titles + body with a snippet) and
  * `tag` (`#…`: direct tag membership) — with Tab cycling them explicitly.
- * Picking a hit opens the node in the floating panel. Semantic search is
- * the agents' job (`ask_rag` over MCP).
+ * Picking a hit opens the node in the floating panel. Below the hits, two
+ * actions: "Ask the brain" hands the typed query to the header's ask box
+ * (`ask-brain.tsx`, cited answers over `POST /api/ask`), and "Create a
+ * node…" opens the create dialog — manual creation lives here and on ⌘⇧K,
+ * not in the sidebar, because agents are the ones who write.
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -18,6 +21,8 @@ import {
   CheckSquare,
   FileText,
   GitBranch,
+  MessageCircleQuestion,
+  Plus,
   Search,
   Sparkles,
   Target,
@@ -27,6 +32,11 @@ import { Command } from "@/components/ui/command";
 import { Kbd } from "@heroui/react";
 import { getNodeTags, type KnowledgeNode, type NodeKind } from "@bcontext-dev/contract/types";
 import { useWorkspace } from "./workspace-context";
+import { ASK_EVENT } from "@/lib/ask";
+
+/** Item ids for the palette's actions; node ids are UUIDs, so these never collide. */
+const ACTION_ASK = "action:ask";
+const ACTION_CREATE = "action:create-node";
 
 function iconFor(kind: NodeKind) {
   switch (kind) {
@@ -257,7 +267,14 @@ export function CommandPalette() {
             <Command.List
               onAction={(key) => {
                 setOpen(false);
-                selectNode(String(key));
+                const id = String(key);
+                if (id === ACTION_ASK) {
+                  window.dispatchEvent(new CustomEvent(ASK_EVENT, { detail: { query } }));
+                } else if (id === ACTION_CREATE) {
+                  window.dispatchEvent(new CustomEvent("bcontext:new-node"));
+                } else {
+                  selectNode(id);
+                }
               }}
               renderEmptyState={() => (
                 <div className="px-8 py-8 text-center text-[12px] text-[var(--ink-3)]">
@@ -283,6 +300,28 @@ export function CommandPalette() {
                   })}
                 </Command.Group>
               ) : null}
+              {/* Below the nodes on purpose: finding comes first, and making
+                  a node by hand is the secondary path now that agents write
+                  the brain. Asking takes whatever was typed. */}
+              <Command.Group heading="Actions">
+                {query.trim() && mode !== "tag" ? (
+                  <Command.Item id={ACTION_ASK} textValue={`Ask the brain: ${query}`}>
+                    <MessageCircleQuestion size={14} className="shrink-0 text-[var(--ink-3)]" />
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink)]">
+                      Ask the brain: “{query.trim()}”
+                    </span>
+                  </Command.Item>
+                ) : null}
+                <Command.Item id={ACTION_CREATE} textValue="Create a node">
+                  <Plus size={14} className="shrink-0 text-[var(--ink-3)]" />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--ink)]">Create a node…</span>
+                  <Kbd variant="light" className="shrink-0 text-[10px] text-[var(--ink-mute)]">
+                    <Kbd.Abbr keyValue="command" />
+                    <Kbd.Abbr keyValue="shift" />
+                    <Kbd.Content>K</Kbd.Content>
+                  </Kbd>
+                </Command.Item>
+              </Command.Group>
             </Command.List>
             <Command.Footer className="flex items-center gap-3.5 text-[11px] text-[var(--ink-3)]">
               <span className="inline-flex items-center gap-1.5">

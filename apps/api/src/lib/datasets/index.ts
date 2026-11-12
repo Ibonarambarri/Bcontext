@@ -34,11 +34,14 @@ import { parseCsv, CsvError } from "./csv";
 import { DatasetError } from "./errors";
 import { compileDatasetQuery, shapeDatasetRows } from "./query";
 import {
+  deleteRowByKey,
   insertRows,
+  readRowByKey,
   readRowStats,
   readSampleRows,
   replaceAllRows,
   runDatasetSql,
+  upsertKeyedRows,
   type DatasetTarget,
 } from "./rows";
 import { coerceRow, isBlank, widenColumnType, type CellValue } from "./values";
@@ -415,6 +418,123 @@ export async function replaceDatasetRows(
     rows.length,
     opts,
   );
+}
+
+export interface UpsertRowsInput {
+  rows: Record<string, unknown>[];
+  /** The column whose value is each row's stable key (it is stored as a column too). */
+  keyColumn: string;
+}
+
+/**
+ * Upsert rows by key: an existing key's row is merged with the new values, a
+ * new key is appended. The keyed counterpart of `appendRowsToDataset`, with
+ * the same rule on shape — a column the schema lacks is refused — unless the
+ * caller is the ingest path for a dataset-backed record type
+ * (`allowNewColumns`), whose columns were already vetted against the record
+ * type's fields and may arrive one field at a time.
+ */
+export async function upsertDatasetRows(
+  storage: Storage,
+  nodeId: string,
+  input: UpsertRowsInput,
+  opts: UpdateNodeOpts & { allowNewColumns?: boolean; declaredColumns?: DatasetColumn[] } = {},
+): Promise<DatasetWriteResult & { inserted: number; updated: number }> {
+  const node = await storage.getNode(nodeId);
+  if (!node) throw new DatasetError("not_found", `node not found: ${nodeId}`);
+  assertDatasetKind(node);
+  const existing = readDatasetData(node.data).dataset ?? null;
+  if (!existing && !opts.allowNewColumns) {
+    throw new DatasetError("no_dataset", `\`${node.title}\` has no dataset yet. Create its rows with data_write(op=replace_rows) first.`);
+  }
+  const normalized = normalizeRowsInput({ rows: input.rows }, { maxRows: DATASET_MAX_ROWS_PER_WRITE });
+  const keyIndex = normalized.header.indexOf(input.keyColumn);
+  if (keyIndex === -1) {
+    throw new DatasetError("invalid_query", `every row needs the key column \`${input.keyColumn}\``);
+  }
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const cells of normalized.cells) {
+    const raw = cells[keyIndex];
+    if (isBlank(raw) || (typeof raw !== "string" && typeof raw !== "number")) {
+      throw new DatasetError("invalid_query", `a row has no value in the key column \`${input.keyColumn}\``);
+    }
+    const key = String(raw).trim();
+    if (key.length > 200) throw new DatasetError("invalid_query", `row key \`${key.slice(0, 40)}…\` is longer than 200 characters`);
+    if (seen.has(key)) throw new DatasetError("invalid_query", `key \`${key}\` appears twice in one write; send each key once`);
+    seen.add(key);
+    keys.push(key);
+  }
+
+  let base: DatasetColumn[] = existing?.columns ?? [];
+  const known = new Set(base.map((column) => column.name));
+  const unknown = normalized.header.filter((name) => !known.has(name));
+  if (unknown.length > 0) {
+    if (!opts.allowNewColumns) {
+      throw new DatasetError(
+        "unknown_column",
+        `these rows carry column${unknown.length > 1 ? "s" : ""} the dataset does not have: ${unknown.join(", ")}. ` +
+          `Columns: ${base.map((c) => c.name).join(", ")}. Changing the shape is op=replace_rows.`,
+      );
+    }
+    // A new column joins as nullable: every row written before it has no value.
+    const declared = new Map((opts.declaredColumns ?? []).map((column) => [column.name, column]));
+    base = [
+      ...base,
+      ...unknown.map((name) => {
+        const index = normalized.header.indexOf(name);
+        const type = declared.get(name)?.type ?? inferColumnType(normalized.cells.map((cells) => cells[index]));
+        return { name, type, nullable: true };
+      }),
+    ];
+  }
+  const columns = widenColumns(base, normalized);
+  // Only the columns this batch carries are written; a merge must not null
+  // out what a row already holds for a column the sender did not mention.
+  const typed = typedRows(columns, normalized).map((row) => {
+    const out: Record<string, CellValue> = {};
+    for (const name of normalized.header) out[name] = row[name] ?? null;
+    return out;
+  });
+  const target: DatasetTarget = { nodeId: node.id, workspaceId: storage.workspace.id };
+  // The row cap is checked inside the transaction, where it is known which
+  // keys are updates and which are new rows.
+  const result = await upsertKeyedRows(target, typed.map((data, index) => ({ key: keys[index]!, data })));
+  const written = await finishWrite(
+    storage,
+    node,
+    columns,
+    existing ?? schemaOf(columns, 0),
+    `${result.inserted} rows added, ${result.updated} updated by key`,
+    typed.length,
+    opts,
+  );
+  return { ...written, ...result };
+}
+
+/** One keyed row of a dataset, or null. */
+export async function readDatasetRowByKey(
+  storage: Storage,
+  nodeId: string,
+  key: string,
+): Promise<{ node: KnowledgeNode; row: Record<string, unknown> | null }> {
+  const node = await storage.getNode(nodeId);
+  if (!node) throw new DatasetError("not_found", `node not found: ${nodeId}`);
+  assertDatasetKind(node);
+  return { node, row: await readRowByKey({ nodeId: node.id, workspaceId: storage.workspace.id }, key) };
+}
+
+/** Remove one keyed row and refresh the node's row count. */
+export async function deleteDatasetRowByKey(storage: Storage, nodeId: string, key: string): Promise<boolean> {
+  const node = await storage.getNode(nodeId);
+  if (!node) throw new DatasetError("not_found", `node not found: ${nodeId}`);
+  assertDatasetKind(node);
+  const removed = await deleteRowByKey({ nodeId: node.id, workspaceId: storage.workspace.id }, key);
+  const dataset = readDatasetData(node.data).dataset;
+  if (removed && dataset) {
+    await finishWrite(storage, node, dataset.columns, dataset, "1 row removed by key", 0, {});
+  }
+  return removed;
 }
 
 function widenColumns(columns: readonly DatasetColumn[], normalized: NormalizedRows): DatasetColumn[] {

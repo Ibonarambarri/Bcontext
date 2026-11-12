@@ -22,10 +22,13 @@ import { Sidebar, activeViewMeta, useSidebarWidth } from "./sidebar";
 import { Breadcrumbs } from "@heroui/react";
 import { Sidebar as SidebarShell } from "@/components/ui/sidebar";
 import { ToastViewport } from "./toast";
+import { AskBrain } from "./ask-brain";
 import { WorkspaceRealtimeProvider } from "@/lib/collab/workspace-realtime";
 import { ViewHeaderSlotProvider, useViewHeaderSlotTarget } from "./view-header-slot";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
+import type { BusinessSettings } from "@bcontext-dev/contract/business/record-types";
+import { BusinessProvider } from "./business/business-context";
 
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
 const CreateNodeDialogHost = dynamic(() => import("./create-node-dialog-host").then((m) => m.CreateNodeDialogHost));
@@ -45,6 +48,7 @@ export function WorkspaceShell({
   workspaces,
   nodes,
   currentUser,
+  business,
   children,
 }: {
   workspaceSlug: string;
@@ -52,6 +56,8 @@ export function WorkspaceShell({
   workspaces: WorkspaceCard[];
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
+  /** Model and currency (@/web/business); drives the sidebar's Business section. */
+  business?: BusinessSettings;
   children: React.ReactNode;
 }) {
   return (
@@ -69,7 +75,9 @@ export function WorkspaceShell({
         nodes={nodes}
         currentUser={currentUser}
       >
-        <ShellBody>{children}</ShellBody>
+        <BusinessProvider value={business}>
+          <ShellBody>{children}</ShellBody>
+        </BusinessProvider>
       </WorkspaceProvider>
     </WorkspaceRealtimeProvider>
   );
@@ -79,7 +87,8 @@ export function WorkspaceShell({
  * The actual chrome. Lives inside the providers so it can read layout state.
  *
  * Desktop: sidebar (offcanvas, resizable) · a 12-unit header row with the
- * sidebar trigger, the active view's title and the view's own header slot ·
+ * sidebar trigger, the active view's title, the view's own header slot and
+ * the "Ask the brain…" box (`ask-brain.tsx`) on the right ·
  * the active surface, with the floating node panel over it.
  * Mobile (<768px): the surface takes the full width; the same trigger opens
  * the `Sidebar.Mobile` drawer instead of the aside. `zoom-viewport-h`
@@ -139,6 +148,11 @@ function ShellBody({ children }: { children: React.ReactNode }) {
                 )
               ) : null}
               <div ref={setHeaderSlot} className="ml-1 flex min-w-0 items-center" />
+              {/* Reading is the web's job, so the question box sits on
+                  every page rather than inside one view. */}
+              <div className="ml-auto flex min-w-0 flex-1 justify-end pl-2">
+                <AskBrain />
+              </div>
             </div>
             {/* The active view, with the floating node panel over it: half of
                 this surface by default, all of it when expanded, never a

@@ -7,6 +7,12 @@
  * outer bound of every result. Cost is estimated before any read and refused
  * above `VIEW_LIMITS.maxResolverCost`; traversals and results are capped so a
  * pathological query degrades to `truncated: true` rather than to a timeout.
+ *
+ * Record views: `field_filters` need each node's `data.fields`, which the
+ * summary index does not carry, so the matching record kinds are read in full
+ * once (or taken from `preload.recordFields`). A `dataset_type` query lists
+ * dataset rows, not nodes: it resolves to no node ids and the rows come from
+ * the resolve route's business payload.
  */
 import { getNodeTags, type KnowledgeNode, type TagRelation } from "@bcontext-dev/contract/types";
 import type { NodeEdge, Storage } from "@/lib/storage";
@@ -14,6 +20,7 @@ import { expandTagIdsWithDescendants } from "@bcontext-dev/contract/tag-hierarch
 import { normalizeViewQuery, VIEW_LIMITS, type ViewQuery } from "@bcontext-dev/contract/views/schema";
 import type { ResolvedViewQuery } from "@bcontext-dev/contract/views/types";
 import { indexBlockers, isUnblocked } from "@/lib/views/unblocked";
+import { matchesFieldFilters, readRecordFields, type RecordFields } from "@bcontext-dev/contract/business/record-types";
 
 /** Thrown before any read: the query is refused, not partially answered. */
 export class ViewQueryCostError extends Error {
@@ -32,6 +39,8 @@ export class ViewQueryCostError extends Error {
 export interface ViewResolvePreload {
   nodes?: KnowledgeNode[];
   edges?: NodeEdge[];
+  /** node id → `data.fields` for the query's record kinds, when the caller already read them. */
+  recordFields?: Map<string, RecordFields>;
 }
 
 /** Normalize, cost-check, match, then cap and sort ids for a stable payload. */
@@ -94,6 +103,7 @@ export async function matchViewQuery(
 ): Promise<MatchedViewQuery> {
   // Storage is workspace-bound by contract; re-assert it here so a faulty
   // adapter/cache can never turn a view filter into a tenant boundary.
+  if (query.dataset_type) return { nodes: [], traversedEdges: 0, truncated: false };
   const readIndex = storage.listNodeSummaries?.bind(storage) ?? storage.listNodes.bind(storage);
   const nodes = (preload.nodes ?? await readIndex({ limit: 5_000 })).filter(
     (node) => node.workspace_id === storage.workspace.id,
@@ -135,7 +145,23 @@ export async function matchViewQuery(
     filtered = filtered.filter((node) => isUnblocked(node, blockers, byId));
   }
 
+  if (query.field_filters.length > 0) {
+    const fields = preload.recordFields ?? await readRecordFieldIndex(storage, query.kinds);
+    filtered = filtered.filter((node) => matchesFieldFilters(fields.get(node.id) ?? {}, query.field_filters));
+  }
+
   return { nodes: filtered, traversedEdges, truncated };
+}
+
+/**
+ * `data.fields` of every node of the given kinds (all kinds when none), read
+ * through the same scoped storage, so the caller's reach still bounds it.
+ */
+export async function readRecordFieldIndex(storage: Storage, kinds: readonly string[]): Promise<Map<string, RecordFields>> {
+  const full = await storage.listNodes({ ...(kinds.length > 0 ? { kinds: [...kinds] } : {}), limit: 5_000 });
+  return new Map(
+    full.filter((node) => node.workspace_id === storage.workspace.id).map((node) => [node.id, readRecordFields(node.data)]),
+  );
 }
 
 export function estimateQueryCost(query: ViewQuery): number {

@@ -41,8 +41,7 @@ import {
   refForHit,
 } from "@/lib/rag";
 import { RetrievalScopeSchema } from "@/lib/rag/scope";
-import { chatModel } from "@/lib/ai/models";
-import { aiConfigured, languageModel } from "@/lib/ai/provider";
+import { synthesizeAnswer } from "@/lib/rag/ask";
 import { findBacklinks, findForwardLinks } from "@bcontext-dev/contract/backlinks";
 import { appUrl } from "@/lib/env";
 import { redactCredentialForAgents } from "@/lib/credentials";
@@ -91,6 +90,7 @@ import {
   DatasetError,
   appendRowsToDataset,
   createDataset,
+  upsertDatasetRows,
   describeDatasetNode,
   queryDataset,
   readDatasetSchema,
@@ -181,6 +181,33 @@ import {
   ViewNotFoundError,
 } from "@/lib/views/store";
 import { ForbiddenError, NodeOutOfReachError } from "@/lib/storage/scoped";
+import {
+  BUSINESS_MODELS,
+  RecordFieldFilterSchema,
+  matchesFieldFilters,
+  readRecordFields,
+  unknownFilterFields,
+  type RecordFields,
+} from "@bcontext-dev/contract/business/record-types";
+import {
+  RecordTypeError,
+  createRecordType,
+  deleteRecordType,
+  getBusinessSettings,
+  getRecordType,
+  listRecordTypes,
+  nodeRecordType,
+  setBusinessSettings,
+  updateRecordType,
+} from "@/lib/business/record-types";
+import { RecordWriteError, prepareNodeCreate, prepareNodeUpdate, promoteDatasetRow } from "@/lib/business/records";
+import { BusinessBackendError } from "@/lib/business/events";
+import { getMetricsSummary } from "@/lib/business/summary";
+import { enqueueBusinessRollup } from "@/lib/business/rollup-job";
+import { assertViewKindsExist, ViewKindError } from "@/lib/views/kinds";
+import { assertViewAgainstWorkspace } from "@/lib/views/business-checks";
+import { buildBusinessExtras, readViewRecords } from "@/lib/views/business-payload";
+import { applyBusinessTemplate } from "@/lib/business/templates";
 import type { ViewPrincipal } from "@bcontext-dev/contract/views/types";
 import { VERBS, canGrant, type Grant, type Reach, type Verb } from "@/lib/auth/grants";
 import { listAccess, grantAccess, revokeAccess, GrantError } from "@/lib/auth/admin";
@@ -192,7 +219,6 @@ import {
 } from "@/lib/auth/invitations";
 import { buildInspectorRelations } from "@bcontext-dev/contract/node-inspector";
 import { appendAudit } from "@/lib/audit";
-import { recordAiUsageEvent, tokensFromUsage } from "@/lib/telemetry/ai-usage";
 
 export interface McpContext {
   workspaceId: string;
@@ -229,19 +255,21 @@ export interface McpContext {
   grant: Grant;
 }
 
-const NODE_KINDS = [
-  "doc",
-  "task",
-  "decision",
-  "meeting",
-  "bug",
-  "adr",
-  "entity",
-  "skill",
-  "data",
-  "credential",
-  "goal",
-] as const;
+/**
+ * A kind argument: a core kind or one of the workspace's record types
+ * (`account`), which `brief` lists. Not an enum any more — which kinds exist
+ * is per workspace (0103) — so the handler checks the set and the error
+ * names what exists. The description carries the core list an enum used to.
+ */
+const KindInput = z.string().min(2).max(40);
+/**
+ * The create argument carries the list in its description, once: that is
+ * where an agent picks a kind. Filters stay bare — an unknown kind there is
+ * an error naming the valid ones, and four copies of the list would cost
+ * every reader ~350 bytes a turn.
+ */
+const CreateKindInput = KindInput
+  .describe("doc|task|decision|meeting|bug|adr|entity|skill|data|credential|goal, or a record type key (brief)");
 
 /**
  * How many nodes to scan when a filter has to be applied in memory.
@@ -278,7 +306,7 @@ const NODE_STATUSES = [
 
 const SearchNodesInput = z.object({
   query: z.string().min(1).max(2000),
-  kinds: z.array(z.enum(NODE_KINDS)).optional(),
+  kinds: z.array(KindInput).max(20).optional(),
   limit: z.number().int().min(1).max(50).default(10),
   scope: RetrievalScopeSchema.optional(),
 }).strict();
@@ -312,7 +340,9 @@ const ChangeContextInput = z.object({
 
 const CreateNodeInput = z.object({
   title: z.string().trim().min(1).max(200),
-  kind: z.enum(NODE_KINDS),
+  kind: CreateKindInput,
+  // Record types: field values (validated against the type; see brief).
+  fields: z.record(z.unknown()).optional(),
   // Optional: omitted → root. (Was required-but-nullable, which cost every
   // agent creating a root node one failed round-trip.)
   parent_id: NullableString.optional(),
@@ -349,6 +379,8 @@ const UpdateNodeInput = z.object({
     priority: z.enum(["low", "med", "high", "urgent"]).nullable().optional(),
     due_date: z.string().datetime({ offset: true }).nullable().optional(),
     data: z.record(z.unknown()).optional(),
+    // Record nodes: merged into data.fields; null clears an optional field.
+    fields: z.record(z.unknown()).optional(),
     tag_ids: z.array(z.string().min(1)).max(100).optional(),
   }).strict(),
   change_context: ChangeContextInput.optional(),
@@ -364,7 +396,9 @@ const ListNodesInput = z.object({
   parent_id: z
     .preprocess((v) => (v === "null" || v === "" ? null : v), z.string().nullable())
     .optional(),
-  kind: z.enum(NODE_KINDS).optional(),
+  kind: KindInput.optional(),
+  // With a record-type `kind`: filter on its fields; matches come back with `fields`.
+  fields: z.array(RecordFieldFilterSchema).max(20).optional(),
   status: z.enum(NODE_STATUSES).optional(),
   // Archived nodes are out of the way by default; ask for them with
   // status:"archived" or include_archived:true.
@@ -494,6 +528,7 @@ const ReachSchema = z.discriminatedUnion("type", [
 
 const AdminInput = z.discriminatedUnion("op", [
   z.object({ op: z.literal("access") }).strict(),
+  z.object({ op: z.literal("business") }).strict(),
   z.object({ op: z.literal("preview"), reach: ReachSchema }).strict(),
   z.object({ op: z.literal("held_invitations") }).strict(),
 ]);
@@ -516,6 +551,19 @@ const AdminWriteInput = z.discriminatedUnion("op", [
     expires_in_days: z.number().int().min(1).max(90).optional(),
   }).strict(),
   z.object({ op: z.literal("release_invite"), invite_id: z.string().min(1) }).strict(),
+  z.object({
+    op: z.literal("set_business"),
+    business_model: z.enum(BUSINESS_MODELS).optional(),
+    currency: z.string().length(3).optional(),
+  }).strict(),
+  // Create, or patch by key. Opaque here, validated on the call with the
+  // contract's RecordTypeInputSchema / RecordTypePatchSchema — inlining the
+  // definition schema would charge every admin turn for it.
+  z.object({ op: z.literal("record_type"), key: z.string().min(2).max(40), definition: z.record(z.unknown()) }).strict(),
+  z.object({ op: z.literal("delete_record_type"), key: z.string().min(2).max(40) }).strict(),
+  // Additive and idempotent: existing record type keys and template views
+  // are skipped. Defaults to the workspace's own business model.
+  z.object({ op: z.literal("apply_business_template"), business_model: z.enum(BUSINESS_MODELS).optional() }).strict(),
 ]);
 
 const SkillsInput = z.object({
@@ -724,8 +772,9 @@ const GoalsWriteInput = z.object({
  * on one call than the schema costs on every turn.
  */
 const DataInput = z.object({
-  op: z.enum(["schema", "sample", "query"]),
-  node_id: z.string().min(1),
+  op: z.enum(["schema", "sample", "query", "metrics"]),
+  // Every op but metrics.
+  node_id: z.string().min(1).optional(),
   // op=sample: rows to return.
   limit: z.number().int().min(1).max(DATASET_SAMPLE_MAX).optional(),
   query: DatasetQuerySchema.optional(),
@@ -734,7 +783,7 @@ const DataInput = z.object({
 // Flat, like subtasks_write and goals_write: three ops that restate the node
 // address in a `oneOf` cost more than the fields that discriminate them.
 const DataWriteInput = z.object({
-  op: z.enum(["create", "append_rows", "replace_rows"]),
+  op: z.enum(["create", "append_rows", "replace_rows", "upsert_rows", "promote_row"]),
   // Every op but create.
   node_id: z.string().min(1).optional(),
   title: z.string().trim().min(1).max(200).optional(),
@@ -748,6 +797,12 @@ const DataWriteInput = z.object({
   ...DatasetRowsFields,
   // create: keep the original file alongside the rows.
   filename: z.string().min(1).max(200).optional(),
+  // upsert_rows: the column holding each row's stable key.
+  key_column: z.string().min(1).max(200).optional(),
+  // promote_row: the row's key, the node record type, column→field (default: same names).
+  key: z.string().min(1).max(200).optional(),
+  record_type: z.string().min(2).max(40).optional(),
+  mapping: z.record(z.string()).optional(),
   if_updated_at: z.string().min(1).optional(),
 }).strict();
 
@@ -759,7 +814,7 @@ const ListChangesInput = z.object({
   node_id: z.string().optional(),
   actor: z.array(z.enum(["human", "agent", "system"])).max(3).optional(),
   action: z.array(z.enum(["create", "update", "delete", "agent", "rename", "move", "workspace"])).max(7).optional(),
-  kind: z.array(z.enum(NODE_KINDS)).max(NODE_KINDS.length).optional(),
+  kind: z.array(KindInput).max(20).optional(),
   tag_id: z.string().min(1).optional(),
   source: z.string().min(1).max(500).optional(),
   from: z.string().optional(),
@@ -894,14 +949,14 @@ export const TOOLS: Tool[] = [
   {
     name: "nodes",
     description:
-      "Read nodes. op=get fetches one node with its tags, links, typed dependencies and attachments (include_content/include_links=false to trim; keep updated_at for if_updated_at). op=list walks the workspace with parent_id/kind/status/tag filters (any|all) or a full `query` (the views(op=query) contract, merged with the shortcuts — query wins); tag filters inherit through the tag hierarchy, unblocked:true answers \"what can I start now\"; archived nodes stay out unless status:\"archived\"/include_archived:true. op=search is semantic + keyword; `scope` is an object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}, workspace by default) applied before retrieval; ONE hit per node, matching H2 blocks nested. op=get on a credential returns its shape only (values `[redacted]`) plus a `credential_use` recipe; credentials never appear in op=search. op=get on a `data` node returns its schema and row count, never its rows — those are the `data` tool's.",
+      "Read nodes. op=get fetches one node with its tags, links, typed dependencies and attachments (include_content/include_links=false to trim; keep updated_at for if_updated_at). op=list walks the workspace with parent_id/kind/status/tag filters (any|all) or a full `query` (the views(op=query) contract, merged with the shortcuts — query wins); tag filters inherit through the tag hierarchy, unblocked:true answers \"what can I start now\"; archived nodes stay out unless status:\"archived\"/include_archived:true; a record-type kind takes `fields` filters and returns field values. op=search is semantic + keyword; `scope` is an object ({schema_version:1,type:\"workspace\"|view|tags|selection|neighborhood|auto}, workspace by default) applied before retrieval; ONE hit per node, matching H2 blocks nested. op=get on a credential returns its shape only (values `[redacted]`) plus a `credential_use` recipe; credentials never appear in op=search. op=get on a `data` node returns its schema and row count, never its rows — those are the `data` tool's.",
     inputSchema: zodToJsonSchema(NodesInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "nodes_write",
     description:
-      "Write nodes. op=create classifies with `tag_ids` and uses `parent_id` only for real hierarchy — `folder` and `category` are not node fields; H2 headings become addressable blocks and decision/adr/meeting/bug get a skeleton body. A task's steps go in `subtasks` (title + summary + content_md each) on the SAME create, not as separate task nodes. Titles are plain names: no `F01`/`P4-05` codes, no ` — ` separators. op=update takes fields INSIDE `patch` (unlike create, which is flat) and only touches supplied keys; patching content_md requires if_updated_at from your last read; on 409 re-fetch, rebase, retry. op=delete is irreversible and cascades to descendants. op=toggle_checklist_item flips one `- [ ]` by 0-based index (optionally scoped to a block_id) without rewriting the body. op=append adds an H2 block at the end (heading, body_md); op=replace_block rewrites one by block_id (body_md, heading to rename) — only that block is spliced, so edits to different blocks never conflict; if_updated_at optional (omitted → retried on a fresh read; given → 409). op=attach_file adds a base64 image (png/jpeg/webp/gif, ≤ 4 MB) and returns its URL. A `credential` node is ONE credential — one platform, one environment: data.credential = { type, environment, service } and data.fields = [{ key, name, value, secret }]; secrets never go in content_md, and values come back redacted.",
+      "Write nodes. Record types (brief.business) are kinds: kind:\"account\", values in `fields` (patch.fields on update, merged). op=create classifies with `tag_ids` and uses `parent_id` only for real hierarchy — `folder` and `category` are not node fields; H2 headings become addressable blocks and decision/adr/meeting/bug get a skeleton body. A task's steps go in `subtasks` (title + summary + content_md each) on the SAME create, not as separate task nodes. Titles are plain names: no `F01`/`P4-05` codes, no ` — ` separators. op=update takes fields INSIDE `patch` (unlike create, which is flat) and only touches supplied keys; patching content_md requires if_updated_at from your last read; on 409 re-fetch, rebase, retry. op=delete is irreversible and cascades to descendants. op=toggle_checklist_item flips one `- [ ]` by 0-based index (optionally scoped to a block_id) without rewriting the body. op=append adds an H2 block at the end (heading, body_md); op=replace_block rewrites one by block_id (body_md, heading to rename) — only that block is spliced, so edits to different blocks never conflict; if_updated_at optional (omitted → retried on a fresh read; given → 409). op=attach_file adds a base64 image (png/jpeg/webp/gif, ≤ 4 MB) and returns its URL. A `credential` node is ONE credential — one platform, one environment: data.credential = { type, environment, service } and data.fields = [{ key, name, value, secret }]; secrets never go in content_md, and values come back redacted.",
     inputSchema: zodToJsonSchema(NodesWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -938,7 +993,7 @@ export const TOOLS: Tool[] = [
     description:
       "Read a dataset (kind `data`): its rows live in their own table, so nodes(op=get) returns the schema and not the table. op=schema — columns and types, row count, whether the original file is kept. op=sample (limit, default " +
       `${DATASET_SAMPLE_DEFAULT}) — the first rows, which is what tells you \`plan\` means free|pro|enterprise. op=query — filter, sort, group and aggregate server-side; limit defaults to ${DATASET_QUERY_DEFAULT_LIMIT} and caps at ${DATASET_QUERY_MAX_LIMIT}. ` +
-      "A column the schema does not have is an error naming the ones it does, never an empty answer.",
+      "A column the schema does not have is an error naming the ones it does, never an empty answer. op=metrics (no node_id): business KPIs by month, with deltas and series.",
     inputSchema: zodToJsonSchema(DataInput),
     annotations: { readOnlyHint: true },
   },
@@ -947,7 +1002,7 @@ export const TOOLS: Tool[] = [
     description:
       "Write a dataset. op=create (title, description, and `rows` or `csv`) makes the `data` node and its rows in one call; op=append_rows adds to one; op=replace_rows swaps the whole table and re-infers the schema — there is no delete_rows, because removing rows IS a replace. `rows` is [{column: value}]: an agent has rows from a query far more often than it has a file. Types are inferred per column; `columns` overrides a wrong guess. append_rows refuses a column the schema lacks — changing the shape is replace_rows. At most " +
       `${DATASET_MAX_ROWS_PER_WRITE} rows per write, ${DATASET_MAX_ROWS} per dataset. ` +
-      "`description` is the only prose that reaches the index: it is what makes the dataset findable.",
+      "`description` is the only prose that reaches the index: it is what makes the dataset findable. op=upsert_rows merges rows by `key_column`. op=promote_row turns row `key` into a `record_type` node (`mapping` column→field).",
     inputSchema: zodToJsonSchema(DataWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -982,14 +1037,14 @@ export const TOOLS: Tool[] = [
   {
     name: "admin",
     description:
-      "Read who can reach this workspace. op=access lists every principal — people and agents, in one list — with their verbs, reach and who granted them. op=preview answers what a reach would actually reach before you grant it: how many nodes and which. op=held_invitations lists invitations an agent created that await release by a person. Requires the admin verb.",
+      "Read who can reach this workspace. op=access lists every principal — people and agents, in one list — with their verbs, reach and who granted them. op=preview answers what a reach would actually reach before you grant it: how many nodes and which. op=held_invitations lists invitations an agent created that await release by a person. op=business: business_model, currency and full record type definitions. Requires the admin verb.",
     inputSchema: zodToJsonSchema(AdminInput),
     annotations: { readOnlyHint: true },
   },
   {
     name: "admin_write",
     description:
-      "Grant, revoke or invite. op=grant sets one principal's verbs and reach (one per principal per workspace — granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting, so you can admit someone with no account yet; nothing is granted before they accept. An agent's invitation is HELD until a person calls op=release_invite. You can never hand out more than you hold, a wider reach than yours, or anything to yourself. Requires the admin verb, not given to agents by default.",
+      "Grant, revoke or invite. op=grant sets one principal's verbs and reach (one per principal per workspace — granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting, so you can admit someone with no account yet; nothing is granted before they accept. An agent's invitation is HELD until a person calls op=release_invite. You can never hand out more than you hold, a wider reach than yours, or anything to yourself. op=set_business (business_model, currency). op=record_type creates or patches one by key; definition = {label, fields:[{key,label,type,required,options,target,description}], stage_field, storage}. op=delete_record_type. op=apply_business_template (business_model?) adds its template's missing record types and views, never overwriting. Requires the admin verb, not given to agents by default.",
     inputSchema: zodToJsonSchema(AdminWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -1034,7 +1089,7 @@ export const TOOLS: Tool[] = [
   {
     name: "brief",
     description:
-      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker, best priority first, ties by the goal each pushes, see `goal` on the card), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null \u2014 never 0 \u2014 when no key result is measurable; needs_review = past its declared cadence; strategic_changes = North Star/company goals touched since `since`), changes:{since,entries[],more} (since your previous brief, remembered per token; `since` overrides), views:[{id,name,renderer}], capabilities:{external_tools,skills} (what capability_search finds)}. `top` caps each list (default 10).",
+      "Start here: one read of the workspace. Returns {generated_at, since, counts:{nodes,by_kind,by_status}, unblocked:{total,top[]} (no live blocker, best priority first, ties by the goal each pushes, see `goal` on the card), open_decisions:{total,top[]} (status not terminal), for_you:{total,top[]} (assigned to you, open), goals:{total,north_star,top[],needs_review[],strategic_changes[]} (active; progress null \u2014 never 0 \u2014 when no key result is measurable; needs_review = past its declared cadence; strategic_changes = North Star/company goals touched since `since`), changes:{since,entries[],more} (since your previous brief, remembered per token; `since` overrides), views:[{id,name,renderer}], capabilities:{external_tools,skills} (what capability_search finds), business?:{model,currency,record_types}}. `top` caps each list (default 10).",
     inputSchema: zodToJsonSchema(BriefInput),
     annotations: { readOnlyHint: true },
   },
@@ -1301,7 +1356,10 @@ function describe(schema: z.ZodTypeAny): { [key: string]: unknown } {
     }
     return inner;
   }
-  if (schema instanceof z.ZodString) return { type: "string" };
+  // A string that says what it takes when an enum cannot (kinds: a core kind
+  // or a workspace record type). Only strings carry it — descriptions
+  // elsewhere would be bytes nobody budgeted.
+  if (schema instanceof z.ZodString) return schema.description ? { type: "string", description: schema.description } : { type: "string" };
   if (schema instanceof z.ZodNumber) return { type: "number" };
   if (schema instanceof z.ZodBoolean) return { type: "boolean" };
   if (schema instanceof z.ZodLiteral) {
@@ -1352,6 +1410,8 @@ const SERVER_INSTRUCTIONS = [
   "Credentials are typed nodes and each one is EXACTLY ONE credential: `kind: \"credential\"`, with `data.credential = { schema_version: 1, type, environment, service }` and `data.fields = [{ key, name, value, secret }]`. `type` is one of api_key, api_key_pair, basic_auth, bearer_token, oauth2_client, cloud_keys, database, ssh_key, service_account, webhook, custom (custom is the edge case, not the default); `environment` is local|dev|staging|prod. Two platforms, or the same platform in dev and in prod, are TWO nodes told apart by environment and title — never one node holding several. Classify them with tags like anything else. Secret material lives only in `data.fields[].value`; never in content_md, never in a title.",
   "",
   "You will never be shown a credential's value. nodes(op=get) returns the shape — type, environment, which fields exist, which are secret, each field's `bx://credential/<node>#<field>` reference — with every value `[redacted]`, and credentials are excluded from search and retrieval. This is not distrust: anything you read is written to your client's transcript, replayed to the model provider on every later turn, and often summarised into a log, so a secret you read is a secret copied where nobody rotates it. To USE one, follow the `credential_use` recipe on the node: materialise the value inside the command that consumes it (`KEY=$(curl -sS ... /api/credentials/<node>/materialize?field=<key>) your-command`) or write it straight to a gitignored env file. Requires the `credentials:use` scope, which `admin:*` does not grant. Never echo, cat, print or paste a materialised value, and never copy one into a node, a commit, a PR or a message.",
+  "",
+  "Business workspaces (brief.business) define their own record types — `account`, `deal`, `zone` — and each is an ordinary kind: nodes_write({ op: 'create', kind: 'account', title, fields: { mrr: { amount: 490, currency: 'EUR' }, stage: 'customer' } }). Field values live in `fields` (patch.fields on update, merged), never in content_md; a pipeline stage is a field, not `status`. brief lists each type's `field:type` set (`*` required, `→kind` relation); a bad value is an error naming the field. nodes(op=list, kind, fields:[{field, op: eq|in|gt|lt, value}]) filters on them. People in a B2C business live as rows of a dataset (data_write op=upsert_rows by key) and become a node only when promoted (op=promote_row). Customer data and events are pushed by the product through the ingest API, not by agents; data(op=metrics) reads the KPIs Bcontext computes from them.",
   "",
   "Dependencies are structured, not prose: links_write({ op: 'link', from_id: TASK, to_id: BLOCKER, relation: 'blocked_by' }) instead of writing 'depends on X' in markdown. nodes(op=get) then reports blocker status and nodes({ op: 'list', unblocked: true }) answers 'what can I start now'. Screenshots and images attach via nodes_write(op=attach_file).",
   "",
@@ -1623,6 +1683,14 @@ export function buildMcpServer(ctx: McpContext): Server {
             return errorText(`invalid query: ${issues}. \`query\` takes the views(op=query) contract.`);
           }
           const query = normalizeViewQuery(parsedQuery.data);
+          try {
+            await assertViewKindsExist(ctx.storage, query);
+          } catch (err) {
+            if (err instanceof ViewKindError) {
+              return errorText(`invalid query: ${err.message}. \`query\` takes the views(op=query) contract.`);
+            }
+            throw err;
+          }
           // kind, status and parent_id are applied in memory, so `limit`
           // cannot go to the database with them: it would truncate the
           // workspace FIRST and filter the leftovers, returning a handful of
@@ -1653,11 +1721,35 @@ export function buildMcpServer(ctx: McpContext): Server {
             filtered = filtered.filter((n) => keep.has(n.id));
           }
           if (hasParentFilter) filtered = filtered.filter((n) => n.parent_id === input.parent_id);
+          // Record kinds: the summaries carry no `data`, so the field values
+          // (to filter on and to return) come from one read of that kind.
+          let recordFields: Map<string, RecordFields> | null = null;
+          const recordType = input.kind ? await nodeRecordType(ctx.storage, input.kind) : null;
+          if (input.fields?.length && !recordType) {
+            return errorText("`fields` filters need `kind` set to one of this workspace's record types (see brief.business.record_types)");
+          }
+          if (recordType) {
+            const unknownFields = unknownFilterFields(recordType, input.fields ?? []);
+            if (unknownFields.length > 0) {
+              return errorText(
+                `${recordType.key} has no field ${unknownFields.map((f) => `\`${f}\``).join(", ")}; fields: ${recordType.fields.map((f) => f.key).join(", ")}`,
+              );
+            }
+            const full = await ctx.storage.listNodes({ kinds: [recordType.key], limit: LIST_SCAN_CEILING });
+            recordFields = new Map();
+            for (const node of full) {
+              const values = readRecordFields(node.data);
+              if (matchesFieldFilters(values, input.fields ?? [])) recordFields.set(node.id, values);
+            }
+            const keep = recordFields;
+            filtered = filtered.filter((n) => keep.has(n.id));
+          }
           const page = filtered.slice(0, input.limit);
           return json({
-            nodes: page.map((n) =>
-              Object.fromEntries(NODE_FIELDS.map((f) => [f, n[f]])),
-            ),
+            nodes: page.map((n) => ({
+              ...Object.fromEntries(NODE_FIELDS.map((f) => [f, n[f]])),
+              ...(recordFields ? { fields: recordFields.get(n.id) ?? {} } : {}),
+            })),
             // `matched` vs the page length is how a caller knows the list is
             // cut short. Silently returning fewer is what made the original bug
             // invisible for as long as it was.
@@ -1694,12 +1786,19 @@ export function buildMcpServer(ctx: McpContext): Server {
               : input.kind === "skill" ? initialSkillData() : {}),
             ...(input.provenance ? { provenance: capabilityProvenanceData(input.provenance) } : {}),
           };
+          // Unknown kinds are refused here, naming the ones that exist; a
+          // record kind's `fields` are validated and land in data.fields.
+          const prepared = await prepareNodeCreate(ctx.storage, {
+            kind: input.kind,
+            fields: input.fields,
+            data: Object.keys(createData).length > 0 ? createData : undefined,
+          });
           const createArgs = {
             title: input.title,
             kind: input.kind,
             parent_id: input.parent_id ?? null,
             content_md: skeletonFor(input.kind, input.content_md),
-            ...(Object.keys(createData).length > 0 ? { data: createData } : {}),
+            ...(prepared.data && Object.keys(prepared.data).length > 0 ? { data: prepared.data } : {}),
             // A status-less task/bug is invisible to every unblocked/status
             // sweep — an agent that forgets `status` creates work nobody
             // will ever surface. Default actionable kinds to todo, and a goal
@@ -1789,7 +1888,14 @@ export function buildMcpServer(ctx: McpContext): Server {
                 `). Re-read, rebase your change onto the current body, and retry with it — or use op=toggle_checklist_item for a single checkbox.`,
             );
           }
-          const node = await ctx.storage.updateNode(id, withSkillVersionBump(before, patch), {
+          const { fields: fieldPatch, ...nodePatch } = patch;
+          if (before) {
+            // Record nodes: fields merge into data.fields, and the reserved
+            // keys (external_id, source_row) survive a `data` patch.
+            const data = await prepareNodeUpdate(ctx.storage, before, { fields: fieldPatch, data: nodePatch.data });
+            if (data !== undefined) nodePatch.data = data;
+          }
+          const node = await ctx.storage.updateNode(id, withSkillVersionBump(before, nodePatch), {
             ifUpdatedAt: if_updated_at,
           });
           if (!node) return errorText(`node not found: ${id}`);
@@ -2428,6 +2534,12 @@ export function buildMcpServer(ctx: McpContext): Server {
         case "data": {
           ensureScope(ctx, "nodes:read");
           const input = DataInput.parse(rawArgs);
+          if (input.op === "metrics") {
+            // The same summary the dashboard reads: the KPI set of the
+            // workspace's business model, monthly, with deltas and series.
+            return json(await getMetricsSummary(ctx.storage));
+          }
+          if (!input.node_id) return errorText(`op=${input.op} needs \`node_id\` (the data node)`);
           if (input.op === "schema") {
             return json(await readDatasetSchema(ctx.storage, input.node_id));
           }
@@ -2498,11 +2610,37 @@ export function buildMcpServer(ctx: McpContext): Server {
           }
 
           if (!input.node_id) return errorText(`op=${input.op} needs \`node_id\` (the data node)`);
+
+          if (input.op === "promote_row") {
+            if (!input.key || !input.record_type) return errorText("op=promote_row needs `key` (the row key) and `record_type`");
+            const promoted = await promoteDatasetRow(ctx.storage, {
+              node_id: input.node_id,
+              key: input.key,
+              record_type: input.record_type,
+              title: input.title,
+              mapping: input.mapping,
+            });
+            recordActivity(ctx.workspaceRef, promoted.created ? "create" : "update", promoted.node.id, promoted.node.title, promoted.node.kind, {
+              actorKind: "agent",
+              actorId: ctx.userId ?? null,
+              principalId: ctx.agentId ?? null,
+              principalLabel: ctx.agentLabel ?? null,
+              payload: changePayload({ after: promoted.node, via: "mcp", extra: { promoted_from: { dataset_node_id: input.node_id, key: input.key } } }),
+            });
+            appendMcpChangeAudit(ctx, "node.promote_row", promoted.node.id, { node_id: input.node_id, key: input.key, record_type: input.record_type }, { created: promoted.created });
+            return json({ id: promoted.node.id, created: promoted.created, node: redactCredentialForAgents(promoted.node) });
+          }
+
           const write = { csv: input.csv ?? null, rows: rows ?? null, columns: input.columns ?? null };
+          if (input.op === "upsert_rows" && (!input.key_column || !rows)) {
+            return errorText("op=upsert_rows needs `rows` and `key_column` (the column holding each row's stable key)");
+          }
           const res =
             input.op === "append_rows"
               ? await appendRowsToDataset(ctx.storage, input.node_id, write, { ifUpdatedAt: input.if_updated_at })
-              : await replaceDatasetRows(ctx.storage, input.node_id, write, { ifUpdatedAt: input.if_updated_at });
+              : input.op === "upsert_rows"
+                ? await upsertDatasetRows(ctx.storage, input.node_id, { rows: rows!, keyColumn: input.key_column! }, { ifUpdatedAt: input.if_updated_at })
+                : await replaceDatasetRows(ctx.storage, input.node_id, write, { ifUpdatedAt: input.if_updated_at });
           recordActivity(ctx.workspaceRef, "update", res.node.id, res.node.title, res.summary, {
             actorKind: "agent",
             actorId: ctx.userId ?? null,
@@ -2670,7 +2808,11 @@ export function buildMcpServer(ctx: McpContext): Server {
             case "resolve": {
               const view = await getView(ctx.storage, principal, input.id);
               if (view.presentation.renderer !== "roadmap") {
-                return json({ view, result: await resolveViewQuery(ctx.storage, view.query) });
+                // Views over record types answer with what the web draws:
+                // records and their fields, dataset rows, KPIs, aggregates.
+                const records = await readViewRecords(ctx.storage, view);
+                const result = await resolveViewQuery(ctx.storage, view.query, { recordFields: records?.fields });
+                return json({ view, result, ...(await buildBusinessExtras(ctx.storage, view, result, records?.nodes)) });
               }
               // The roadmap is its rows, not its node ids: an agent asking for
               // it gets the same goals × horizons the web draws, with the
@@ -2684,6 +2826,7 @@ export function buildMcpServer(ctx: McpContext): Server {
               return json({ view, result, roadmap });
             }
             case "query":
+              await assertViewAgainstWorkspace(ctx.storage, input.query);
               return json({ result: await resolveViewQuery(ctx.storage, input.query) });
           }
           break;
@@ -2718,6 +2861,11 @@ export function buildMcpServer(ctx: McpContext): Server {
 
         case "admin": {
           const input = AdminInput.parse(rawArgs);
+          if (input.op === "business") {
+            requireAdminVerb(ctx);
+            const [settings, recordTypes] = await Promise.all([getBusinessSettings(ctx.storage), listRecordTypes(ctx.storage)]);
+            return json({ ...settings, record_types: recordTypes });
+          }
           if (input.op === "access") {
             return json({ access: await listAccess(ctx.grant) });
           }
@@ -2750,6 +2898,38 @@ export function buildMcpServer(ctx: McpContext): Server {
 
         case "admin_write": {
           const input = AdminWriteInput.parse(rawArgs);
+          if (input.op === "set_business" || input.op === "record_type" || input.op === "delete_record_type" || input.op === "apply_business_template") {
+            // Shaping what the workspace is — its business model, the kinds
+            // everyone writes — is an admin's call, like who gets in.
+            requireAdminVerb(ctx);
+            if (input.op === "apply_business_template") {
+              const model = input.business_model ?? (await getBusinessSettings(ctx.storage)).business_model;
+              const applied = await applyBusinessTemplate(ctx.storage, mcpViewPrincipal(ctx), model, ctx.userId ?? ctx.subjectUserId);
+              appendMcpAdminAudit(ctx, "workspace.business_template", "workspace", ctx.workspaceId, { business_model: model }, {
+                record_types: applied.created.record_types,
+                views: applied.created.views.map((view) => view.key),
+              });
+              return json(applied);
+            }
+            if (input.op === "set_business") {
+              const { op: _op, ...patch } = input;
+              const settings = await setBusinessSettings(ctx.storage, patch);
+              void enqueueBusinessRollup(ctx.storage.workspace.id);
+              appendMcpAdminAudit(ctx, "workspace.business", "workspace", ctx.workspaceId, patch, settings);
+              return json(settings);
+            }
+            if (input.op === "delete_record_type") {
+              await deleteRecordType(ctx.storage, input.key);
+              appendMcpAdminAudit(ctx, "record_type.delete", "record_type", input.key, { key: input.key }, { ok: true });
+              return json({ ok: true, key: input.key });
+            }
+            const existing = await getRecordType(ctx.storage, input.key);
+            const recordType = existing
+              ? await updateRecordType(ctx.storage, input.key, input.definition)
+              : await createRecordType(ctx.storage, { ...input.definition, key: input.key }, ctx.userId ?? ctx.subjectUserId);
+            appendMcpAdminAudit(ctx, existing ? "record_type.update" : "record_type.create", "record_type", recordType.key, input.definition, { id: recordType.id });
+            return json({ record_type: recordType, created: !existing });
+          }
           if (input.op === "grant") {
             const reach = input.reach as Reach;
             const confirmation = await confirmPrivilegeWidening(server, ctx, {
@@ -2907,41 +3087,18 @@ export function buildMcpServer(ctx: McpContext): Server {
           }));
           // Synthesized answer with inline [N] citations that map to
           // hits[N-1]. This is what makes ask_rag a sensible FIRST call:
-          // an answer you can act on, where every claim is verifiable.
-          let answer: string | null = null;
-          if (synthesize && hits.length > 0 && aiConfigured()) {
-            try {
-              const { generateText } = await import("ai");
-              const model = chatModel();
-              const context = hits
-                .map(
-                  (h, i) =>
-                    `[${i + 1}] ${h.kind.toUpperCase()} · ${h.title} (${refForHit(h)})\n${(h.content ?? "").trim().slice(0, 1500)}`,
-                )
-                .join("\n\n---\n\n");
-              const result = await generateText({
-                model: languageModel(model),
-                system:
-                  "Answer strictly from the numbered context blocks. Cite every factual claim with its [N] marker inline. If the context doesn't answer the question, say so — never invent. Be concise (under 200 words).",
-                prompt: `Question: ${query}\n\nContext:\n${context}`,
-              });
-              answer = result.text;
-              if (ctx.storage.backend === "supabase") {
-                void recordAiUsageEvent({
-                  workspaceId: ctx.storage.workspace.id,
-                  subjectUserId: ctx.subjectUserId,
-                  surface: "ask_rag",
-                  model,
-                  tokens: tokensFromUsage(result.usage),
-                });
-              }
-            } catch (err) {
-              // Retrieval must never fail because synthesis did — degrade
-              // to hits-only and tell the caller why there's no answer.
-              answer = null;
-              console.warn("[mcp] ask_rag synthesis failed:", err);
-            }
-          }
+          // an answer you can act on, where every claim is verifiable. The
+          // web's ask box (`POST /api/ask`) runs the same synthesis, and it
+          // never throws: no key, no hits or a model error is answer=null.
+          const answer = synthesize
+            ? (await synthesizeAnswer({
+                query,
+                hits,
+                usage: ctx.storage.backend === "supabase"
+                  ? { workspaceId: ctx.storage.workspace.id, subjectUserId: ctx.subjectUserId, surface: "ask_rag" }
+                  : null,
+              })).answer
+            : null;
           return json({
             query,
             scope: retrieval.scope,
@@ -3303,6 +3460,9 @@ export function buildMcpServer(ctx: McpContext): Server {
         return errorText(`409 conflict: view version is ${err.currentVersion}, expected ${err.expectedVersion}. Re-fetch with get_view, rebase, and retry.`);
       }
       if (err instanceof ViewNotFoundError) return errorText("view not found or not readable");
+      if (err instanceof ViewKindError) return errorText(`invalid query: ${err.message}`);
+      if (err instanceof RecordWriteError || err instanceof RecordTypeError) return errorText(err.message);
+      if (err instanceof BusinessBackendError) return errorText(err.message);
       // Taxonomy outcomes an agent can act on: a name already taken (or held
       // as an alias of another tag) is "reuse that tag or pick another name",
       // not a failure worth a panel entry.
@@ -3597,6 +3757,29 @@ async function listWorkspaceChanges(
     from: input.from,
     to: input.to,
     cursor: input.cursor,
+  });
+}
+
+/** Audit for a write that changes the workspace's shape, not a node. */
+function appendMcpAdminAudit(
+  ctx: McpContext,
+  action: string,
+  targetType: string,
+  targetId: string,
+  input?: unknown,
+  output?: unknown,
+): void {
+  if (ctx.storage.backend !== "supabase") return;
+  void appendAudit({
+    workspaceId: ctx.workspaceId,
+    actorType: "agent",
+    actorId: ctx.userId ?? null,
+    agentTokenId: ctx.tokenId,
+    action,
+    targetType,
+    targetId,
+    input,
+    output,
   });
 }
 

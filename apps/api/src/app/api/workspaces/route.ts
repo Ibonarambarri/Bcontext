@@ -3,7 +3,7 @@
  * an agent asks first (MCP has `list_workspaces`).
  *
  *   GET  /api/workspaces[?stats=1]   what `gate` lets this principal see
- *   POST /api/workspaces             { name, description? } → 201 { workspace }
+ *   POST /api/workspaces             { name, description?, business_model? } → 201 { workspace, business_template? }
  *
  * `gate` accepts a session or a bearer token; creating needs a session and
  * is delegated to `createWorkspaceForUser`, which applies the instance's
@@ -21,6 +21,11 @@ import {
   WorkspaceCreateError,
 } from "@/lib/workspaces/registry";
 import { withRoute } from "@/lib/route";
+import { openWorkspace } from "@/lib/auth/workspace";
+import { setBusinessSettings } from "@/lib/business/record-types";
+import { applyBusinessTemplate, type BusinessTemplateResult } from "@/lib/business/templates";
+import { viewPrincipal } from "@/lib/views/access";
+import { BUSINESS_MODELS, type BusinessModel } from "@bcontext-dev/contract/business/record-types";
 import { isSupabaseConfigured } from "@bcontext-dev/contract/env";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getSupabaseForRequest } from "@/lib/supabase/request";
@@ -141,6 +146,7 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
 const CreateSchema = z.object({
   name: z.string().trim().min(1, "The workspace needs a name.").max(WORKSPACE_NAME_MAX),
   description: z.string().max(280).optional(),
+  business_model: z.enum(BUSINESS_MODELS).optional(),
 });
 
 export const POST = withRoute(async (req: Request) => {
@@ -166,9 +172,13 @@ export const POST = withRoute(async (req: Request) => {
     const email = userId && isSupabaseConfigured()
       ? (await getSupabaseForRequest(req).auth.getUser()).data.user?.email ?? null
       : null;
-    const ws = await createWorkspaceForUser({ id: userId, email }, parsed.data);
+    const { business_model, ...input } = parsed.data;
+    const ws = await createWorkspaceForUser({ id: userId, email }, input);
     recordActivity(ws.id, "workspace", null, ws.name, "created");
-    return Response.json({ workspace: ws }, { status: 201 });
+    const businessTemplate = business_model && business_model !== "product"
+      ? await applyCreationTemplate(req, ws.slug, business_model, userId)
+      : undefined;
+    return Response.json({ workspace: ws, ...(businessTemplate ? { business_template: businessTemplate } : {}) }, { status: 201 });
   } catch (err) {
     if (err instanceof WorkspaceCreateError) {
       return Response.json(
@@ -184,3 +194,22 @@ export const POST = withRoute(async (req: Request) => {
     );
   }
 });
+
+/**
+ * A new workspace with a business model: set the model and apply its
+ * template, as the creator (now its owner, through the same `openWorkspace`
+ * every route uses). The workspace exists either way — a template that
+ * fails part-way is reported in `skipped`, and re-applying it from the
+ * business settings finishes the job without duplicating anything.
+ */
+async function applyCreationTemplate(
+  req: Request,
+  slug: string,
+  model: BusinessModel,
+  userId: string | null,
+): Promise<BusinessTemplateResult | undefined> {
+  const ctx = await openWorkspace(req, slug, "admin");
+  if (ctx instanceof Response) return undefined;
+  await setBusinessSettings(ctx.storage, { business_model: model });
+  return applyBusinessTemplate(ctx.storage, await viewPrincipal(ctx.actor, ctx.storage), model, userId);
+}

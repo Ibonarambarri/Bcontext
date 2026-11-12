@@ -125,6 +125,29 @@ export const workspaceNavigation = {
   },
 };
 
+const KEY_LAST_VISIT_PREFIX = "ctx:whats-new:last-visit:v1:";
+
+/**
+ * When this person last looked at "What's new" in a workspace, as an ISO
+ * timestamp, keyed by user id AND workspace so two people sharing a browser
+ * never mark each other's changes as seen.
+ *
+ * Per browser on purpose: the API has no per-person, per-workspace "seen"
+ * mark (`node_read_activity` counts reads per node for retrieval staleness,
+ * the brief's cursor belongs to an agent token), and adding one is a
+ * migration for a convenience. The cost is that a second device starts from
+ * the default look-back window instead of the last visit.
+ */
+export const lastVisit = {
+  get(userId: string, workspaceRef: string): string | null {
+    const raw = safeRead(`${KEY_LAST_VISIT_PREFIX}${userId}:${workspaceRef}`);
+    return raw && Number.isFinite(Date.parse(raw)) ? raw : null;
+  },
+  set(userId: string, workspaceRef: string, iso: string): void {
+    safeWrite(`${KEY_LAST_VISIT_PREFIX}${userId}:${workspaceRef}`, iso);
+  },
+};
+
 /** Clear all bcontext local settings. Used by the "Sign out" stub. */
 export function clearAllLocalSettings(): void {
   safeRemove(KEY_PROFILE);

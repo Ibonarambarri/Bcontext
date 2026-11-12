@@ -5,8 +5,15 @@
  * to do. The API validates and normalises incoming views with these; the web
  * builds the editor from the same shapes. `VIEW_*_SCHEMA_VERSION` is bumped
  * when a stored view needs migrating on read.
+ *
+ * Record types (business layer) add three things, all optional so a stored
+ * view parses unchanged: `query.field_filters`, `query.dataset_type`, and
+ * `field:<key>` wherever the presentation names a column. The `metrics` and
+ * `heatmap` renderers read their configuration from `presentation.layout`
+ * (`views/business.ts` holds those shapes).
  */
 import { z } from "zod";
+import { RecordFieldFilterSchema } from "../business/record-types.js";
 
 export const VIEW_QUERY_SCHEMA_VERSION = 1 as const;
 export const VIEW_PRESENTATION_SCHEMA_VERSION = 1 as const;
@@ -24,23 +31,30 @@ export const VIEW_LIMITS = {
   maxTraversalEdges: 2_000,
   maxResultNodes: 1_000,
   maxResolverCost: 50_000,
+  maxFieldFilters: 20,
 } as const;
 
-const NODE_KINDS = [
-  "doc", "task", "decision", "meeting", "bug", "adr", "entity", "skill", "data", "credential", "goal",
-] as const;
+/**
+ * A kind in a view query: a core kind or one of the workspace's record type
+ * keys. The schema can only check the shape — which record types exist is
+ * per workspace — so the API checks the set when a view is saved or resolved
+ * (`assertViewKindsExist`), and an unknown kind there is an error naming the
+ * kinds that do exist. Same pattern as `RECORD_TYPE_KEY_PATTERN`.
+ */
+const ViewKindSchema = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "kind must be a core kind or a record type key");
 const NODE_STATUSES = [
   "backlog", "todo", "in_progress", "review", "blocked", "done", "archived",
   "on_track", "at_risk", "off_track", "achieved", "missed", "abandoned",
 ] as const;
 const DATE_FIELDS = ["created_at", "updated_at", "due_date"] as const;
-const RENDERERS = ["graph", "board", "table", "list", "changes", "browse", "credentials", "roadmap"] as const;
+/** Every renderer a stored view may name; 0104 lists the same in `saved_views_presentation_keys`. */
+export const VIEW_RENDERERS = ["graph", "board", "table", "list", "changes", "browse", "credentials", "roadmap", "metrics", "heatmap"] as const;
 /**
  * Renderers that no longer exist but may survive in stored presentations or
  * inbound API payloads. They are coerced on parse — a saved "timeline" view
  * keeps working, rendered by the list renderer (timeline retired 2026-07-21).
  */
-const LEGACY_RENDERER_ALIASES: Record<string, (typeof RENDERERS)[number]> = {
+const LEGACY_RENDERER_ALIASES: Record<string, (typeof VIEW_RENDERERS)[number]> = {
   timeline: "list",
 };
 
@@ -70,7 +84,7 @@ export const TraversalSchema = z.object({
 
 export const ViewQuerySchema = z.object({
   schema_version: z.literal(VIEW_QUERY_SCHEMA_VERSION),
-  kinds: z.array(z.enum(NODE_KINDS)).max(VIEW_LIMITS.maxKinds).default([]),
+  kinds: z.array(ViewKindSchema).max(VIEW_LIMITS.maxKinds).default([]),
   tags_any: StringSet(VIEW_LIMITS.maxTagFilters),
   tags_all: StringSet(VIEW_LIMITS.maxTagFilters),
   statuses: z.array(z.enum(NODE_STATUSES)).max(VIEW_LIMITS.maxStatuses).default([]),
@@ -86,14 +100,59 @@ export const ViewQuerySchema = z.object({
    * nodes(op=list, unblocked) and every RAG scope that goes through a view.
    */
   unblocked: z.boolean().default(false),
+  /**
+   * Filters on record fields (`node.data.fields`) with the contract's
+   * `matchesFieldFilters`: eq | in | gt | lt | empty. A field filter only
+   * means something over record kinds, so the API refuses one whose field no
+   * queried record type declares (`assertViewFieldsExist`).
+   */
+  field_filters: z.array(RecordFieldFilterSchema).max(VIEW_LIMITS.maxFieldFilters).default([]),
+  /**
+   * The key of a dataset-backed record type (`customer`, `supplier`): the
+   * view lists that dataset's keyed rows instead of nodes. Rows are not
+   * nodes, so every node filter is refused alongside it; `field_filters`
+   * still apply, to the row's columns.
+   */
+  dataset_type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "dataset_type must be a record type key").nullable().default(null),
 }).strict().superRefine((value, ctx) => {
   if (value.traversal && value.root_node_ids.length === 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["root_node_ids"], message: "traversal requires at least one root node id" });
   }
+  if (value.dataset_type) {
+    const nodeFilters = value.kinds.length + value.statuses.length + value.tags_any.length + value.tags_all.length
+      + value.root_node_ids.length + value.source.length + value.actor.length + value.dates.length;
+    if (nodeFilters > 0 || value.traversal || value.unblocked) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["dataset_type"],
+        message: "dataset_type lists dataset rows, which are not nodes; drop kinds/statuses/tags/roots/dates/traversal/unblocked (field_filters still apply)",
+      });
+    }
+  }
 });
 
+/**
+ * `field:<key>` names a record field wherever the presentation names a
+ * column — `group_by`, `sort_by[].field`, `columns` — while core columns keep
+ * their bare names, so no stored view changes meaning.
+ */
+export const FIELD_REF_PREFIX = "field:";
+export const FIELD_REF_PATTERN = /^field:[a-z][a-z0-9_]{0,39}$/;
+
+/** `field:mrr` → `mrr`; anything else → null. */
+export function parseFieldRef(value: string | null | undefined): string | null {
+  return value && FIELD_REF_PATTERN.test(value) ? value.slice(FIELD_REF_PREFIX.length) : null;
+}
+
+export function fieldRef(key: string): string {
+  return `${FIELD_REF_PREFIX}${key}`;
+}
+
 export const SortFieldSchema = z.object({
-  field: z.enum(["title", "kind", "status", "priority", "created_at", "updated_at", "due_date"]),
+  field: z.union([
+    z.enum(["title", "kind", "status", "priority", "created_at", "updated_at", "due_date"]),
+    z.string().regex(FIELD_REF_PATTERN, "sort field must be a core column or field:<key>"),
+  ]),
   direction: z.enum(["asc", "desc"]).default("asc"),
 }).strict();
 
@@ -101,8 +160,9 @@ export const ViewPresentationSchema = z.object({
   schema_version: z.literal(VIEW_PRESENTATION_SCHEMA_VERSION),
   renderer: z.preprocess(
     (value) => (typeof value === "string" && value in LEGACY_RENDERER_ALIASES ? LEGACY_RENDERER_ALIASES[value] : value),
-    z.enum(RENDERERS),
+    z.enum(VIEW_RENDERERS),
   ),
+  /** A core column (`status`, `tag`…) or `field:<key>`; a record board defaults to its type's `stage_field`. */
   group_by: z.string().trim().min(1).max(80).nullable().default(null),
   sort_by: z.array(SortFieldSchema).max(5).default([]),
   columns: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
