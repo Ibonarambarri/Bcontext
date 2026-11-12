@@ -1,7 +1,8 @@
 /**
  * The path of a sparkline: values scaled into a `width × height` box, one
  * `M`/`L` segment per run of known values. Pure so it is tested without a
- * DOM (`sparkline.test.ts`); drawn by `components/business/sparkline.tsx`.
+ * DOM (`format.test.ts`); drawn by `components/business/sparkline.tsx`, the
+ * one sparkline of every KPI card (overview and metrics views).
  *
  * Must not break: a null is a gap, not a zero, and a flat series draws a
  * flat line in the middle instead of dividing by zero.

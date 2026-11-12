@@ -4,13 +4,10 @@
  * one sentence) is the card's tooltip, so the number and its meaning never
  * sit apart.
  *
- * Who uses it: the SaaS-first overview and the record 360 page. Server-safe
+ * Who uses it: the SaaS-first overview and the `metrics` view renderer
+ * (`metrics-renderer.tsx`) — the one KPI card of the web app. Server-safe
  * (no hooks, no chart library: the sparkline is a hand-drawn SVG), so a top
  * row of four costs no JavaScript.
- *
- * Swappable on purpose: the business views work ships its own KPI card for
- * the `metrics` renderer; when it lands this file should become a thin
- * adapter over it (props are the contract's `KpiValue`, which both read).
  *
  * Must not break: `null` prints as "—" and has no delta, never 0.
  */

@@ -8,6 +8,8 @@
  * against the previous month — or the same month last year when the layout
  * says `compare: "year_ago"` (a ski school's February is compared with last
  * February, not with January) — and a 12-month sparkline drawn in plain SVG.
+ * The card is the overview's own `KpiCard`, so a KPI reads the same on the
+ * dashboard and in a metrics view.
  *
  * Charts are either KPI series from the summary or an aggregate the API ran
  * for this view (dataset rows or business events, bucketed by day/week/month),
@@ -22,9 +24,10 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { Skeleton } from "@heroui/react";
 import { MetricsLayoutSchema, aggregateSeries, type MetricsChart as ChartSpec, type MetricsViewPayload } from "@bcontext-dev/contract/views/business";
-import type { MetricsSummary } from "@bcontext-dev/contract/business/metrics";
+import type { KpiValue, MetricsSummary } from "@bcontext-dev/contract/business/metrics";
 import { cn } from "@bcontext-dev/contract/utils";
-import { bucketLabel, formatKpi, kpiCards, sparklinePath, type KpiCardModel } from "@/lib/business/present";
+import { bucketLabel, formatKpi } from "@/lib/business/present";
+import { KpiCard } from "./kpi-card";
 import type { ChartSeries } from "./metrics-chart-impl";
 
 const MetricsChart = dynamic(() => import("./metrics-chart-impl").then((m) => m.MetricsChart), {
@@ -39,7 +42,7 @@ export function MetricsRenderer({ payload, layout: rawLayout }: { payload: Metri
     return parsed.success ? parsed.data : MetricsLayoutSchema.parse({});
   }, [rawLayout]);
   const summary = payload.summary;
-  const cards = useMemo(() => (summary ? kpiCards(summary, layout.kpis, layout.compare) : []), [summary, layout]);
+  const cards = useMemo(() => (summary ? pickKpis(summary, layout.kpis) : []), [summary, layout]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -51,7 +54,7 @@ export function MetricsRenderer({ payload, layout: rawLayout }: { payload: Metri
       ) : null}
       {cards.length > 0 ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
-          {cards.map((card) => <KpiCard key={card.key} card={card} />)}
+          {cards.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} currency={summary?.currency ?? "EUR"} yoy={layout.compare === "year_ago"} />)}
         </div>
       ) : null}
       {layout.charts.length > 0 ? (
@@ -66,29 +69,6 @@ export function MetricsRenderer({ payload, layout: rawLayout }: { payload: Metri
           {summary.notes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       ) : null}
-    </div>
-  );
-}
-
-function KpiCard({ card }: { card: KpiCardModel }) {
-  const path = sparklinePath(card.series, 120, 28);
-  return (
-    <div className="flex flex-col gap-1 rounded-[calc(var(--radius)*1.5)] border border-[var(--line)] bg-[var(--paper)] p-3" title={card.definition}>
-      <span className="text-[11.5px] font-medium text-[var(--ink-3)]">{card.label}</span>
-      <div className="flex items-end justify-between gap-2">
-        <span className="text-[20px] font-semibold leading-none tabular-nums text-[var(--ink)]">{card.value}</span>
-        {path ? (
-          <svg width={120} height={28} viewBox="0 0 120 28" aria-hidden="true" className="shrink-0 overflow-visible">
-            <path d={path} fill="none" stroke="var(--accent)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
-        ) : null}
-      </div>
-      <span className="text-[11px] text-[var(--ink-mute)]">
-        {card.delta ? (
-          <span className={cn("font-medium tabular-nums", card.tone === "good" && "text-[var(--accent)]", card.tone === "bad" && "text-[var(--warn)]")}>{card.delta}</span>
-        ) : "—"}{" "}
-        vs {card.against}
-      </span>
     </div>
   );
 }
@@ -108,6 +88,13 @@ function ChartFrame({ chart, summary, result }: { chart: ChartSpec; summary: Met
       )}
     </section>
   );
+}
+
+/** The layout's KPIs in its order, else the whole KPI set. */
+function pickKpis(summary: MetricsSummary, keys: readonly string[] | undefined): KpiValue[] {
+  if (!keys || keys.length === 0) return summary.kpis;
+  const byKey = new Map(summary.kpis.map((kpi) => [kpi.key, kpi]));
+  return keys.map((key) => byKey.get(key)).filter((kpi): kpi is KpiValue => Boolean(kpi));
 }
 
 /** Rows `{ label, <series>… }` for recharts, from summary series or the view's aggregate. */
