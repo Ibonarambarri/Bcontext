@@ -90,6 +90,17 @@ definition })` and `admin_write({ op: "delete_record_type", key })`.
   pipeline stages. A stage is a field and never the core `status`.
 - **`description`** on a field is one line, and it's what an agent reads to
   decide what goes there.
+- **`total`** on a `number` or `money` field is what a table footer shows
+  for it: `sum` (amounts, counts), `average` (ratings, scores,
+  probabilities) or `none` (a year, a rank). Leave it out and it is inferred
+  from the key: money sums, `rating`/`score`/`probability`/`…_rate` average,
+  `year`/`rank`/`code` show nothing, other numbers sum.
+- **`promotes_from`** (node types only) lists the dataset-backed types whose
+  rows this type is made from, for example `["supplier"]` on a
+  `lead_instructor`. **Convert to …** on a row offers a node type only when
+  it lists the row's type here, or shares a field with it beyond name,
+  email, zone and the like; a type that lists sources is offered for those
+  only.
 - **`storage: "dataset"`** keeps the records as rows of a `data` node
   (`dataset_node_id`), keyed by your id, instead of as nodes. Use it for
   people in a B2C business: they are too many and too personal to be nodes.
@@ -251,6 +262,15 @@ current month's `expenses_by_category`.
 Definitions. Days are UTC; the current month is month-to-date. Percentages
 are fractions. A KPI whose inputs are missing is `null`, never 0.
 
+KPIs that add up over the month (expenses, net and burn; GMV, take and
+bookings) are partial while the month runs: mid-month, net is the revenue
+recognised up to today minus every expense booked so far, which reads low
+until the month's revenue catches up with bills paid at its start. Each KPI
+therefore carries `current_label`, `current_definition` and
+`current_is_partial`: "Net (month to date)" and a definition that says so
+for the running month, plain "Net" for a closed one. The dashboard shows
+those; keys never change.
+
 **SaaS** (`b2b`, `b2c`):
 
 | KPI | Definition |
@@ -359,7 +379,11 @@ There are no data-entry forms beyond light edits and settings.
     key and type are fixed too, because values are stored under them.
   - *Ingest keys* (owners and admins): create a key (the secret is shown
     once, with a copy button), list keys, revoke one, and "How to send data"
-    with curl examples for a subscription event, an expense and a record batch.
+    with curl examples for the workspace's business model: a subscription
+    on an account (b2b and product), a subscription on a customer row
+    (b2c), or a booking with its supplier and fee (marketplace); then an
+    expense, and a batch of the model's main records (accounts, customers or
+    suppliers).
 - **The dashboard** of a b2b, b2c or marketplace workspace leads with the
   business. A product workspace keeps the knowledge dashboard.
   - *B2B*: MRR with month-on-month growth and net-new MRR; new customers
