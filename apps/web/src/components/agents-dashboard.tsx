@@ -1,16 +1,18 @@
 "use client";
 
 import { AgentConnectionsTab } from "./agent-connections-tab";
-import { WebhooksView } from "./webhooks/webhooks-view";
+import { ToolProvidersView } from "./tools/tool-providers-view";
 import { type WorkspaceAddress } from "@/web/workspace-url";
 
 /**
  * The two admin surfaces that render under `v/<slug>` as system views:
- * `agents` (connected agents, with Add agent) and `webhooks` (outbound
- * signed webhook endpoints). The retired `tools` slug redirects to
- * `webhooks` in `v/[view]/page.tsx`.
+ * `agents` (connected agents, with Add agent and each agent's tool grants)
+ * and `tools` (the MCP servers and API/workflow providers agents reach
+ * through Bcontext's MCP, plus the outbound signed webhooks). The `webhooks`
+ * slug, which stood in for `tools` while the gateway was gone, redirects to
+ * `tools` in `v/[view]/page.tsx`.
  */
-export type WorkspaceAdminSurface = "agents" | "webhooks";
+export type WorkspaceAdminSurface = "agents" | "tools";
 
 /** Mounted by `v/[view]/page.tsx` for the admin slugs; the shell's header owns the title. */
 export function WorkspaceAdminPage({ workspace, surface }: { workspace: WorkspaceAddress; surface: WorkspaceAdminSurface }) {
@@ -21,7 +23,7 @@ export function WorkspaceAdminPage({ workspace, surface }: { workspace: Workspac
             config snippets and token creation live inside the Add agent
             modal (add-agent-modal.tsx), not on the agents page. */}
         {surface === "agents" && <AgentConnectionsTab workspace={workspace} />}
-        {surface === "webhooks" && <WebhooksView workspace={workspace} />}
+        {surface === "tools" && <ToolProvidersView workspace={workspace} />}
       </div>
     </div>
   );

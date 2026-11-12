@@ -4,22 +4,23 @@ import { describe, expect, it } from "vitest";
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 
 describe("workspace sidebar", () => {
-  it("keeps Dashboard on top, then the Knowledge and Agents & Webhooks groups", () => {
+  it("keeps Dashboard on top, then the Knowledge and Agents & Tools groups", () => {
     const sidebar = read("./sidebar.tsx");
     const dashboard = sidebar.indexOf("<SidebarPrimitive.MenuLabel>Dashboard</SidebarPrimitive.MenuLabel>");
     const knowledge = sidebar.indexOf("<SidebarPrimitive.GroupLabel>Knowledge</SidebarPrimitive.GroupLabel>");
-    const agents = sidebar.indexOf("<SidebarPrimitive.GroupLabel>Agents & Webhooks</SidebarPrimitive.GroupLabel>");
+    const agents = sidebar.indexOf("<SidebarPrimitive.GroupLabel>Agents & Tools</SidebarPrimitive.GroupLabel>");
     expect(dashboard).toBeGreaterThan(-1);
     expect(dashboard).toBeLessThan(knowledge);
     expect(knowledge).toBeLessThan(agents);
     const start = sidebar.indexOf("const ADMIN_VIEWS");
     const block = sidebar.slice(start, sidebar.indexOf("];", start));
-    expect([...block.matchAll(/key: "([a-z]+)"/g)].map((m) => m[1])).toEqual(["agents", "webhooks"]);
-    // The in-workspace agents, their conflicts and the integrations are gone.
+    expect([...block.matchAll(/key: "([a-z]+)"/g)].map((m) => m[1])).toEqual(["agents", "tools"]);
+    // The in-workspace agents, their conflicts and the integrations are gone;
+    // webhooks live inside Tools again, not as an entry of their own.
     expect(sidebar).not.toContain("<SidebarPrimitive.MenuLabel>Nexos</SidebarPrimitive.MenuLabel>");
     expect(sidebar).not.toContain("<SidebarPrimitive.MenuLabel>Conflicts</SidebarPrimitive.MenuLabel>");
     expect(sidebar).not.toContain('label: "Integrations"');
-    expect(sidebar).not.toContain('label: "Tools"');
+    expect(sidebar).not.toContain('label: "Webhooks"');
     // The old "Views" section label is gone.
     expect(sidebar).not.toContain("<SidebarPrimitive.GroupLabel>Views</SidebarPrimitive.GroupLabel>");
   });
@@ -73,11 +74,12 @@ describe("workspace sidebar", () => {
     expect(sidebar).toContain('onOpenActivity={() => navigate(systemViewPath(address, "changes"))}');
   });
 
-  it("legacy slugs redirect: tools → webhooks; agents and webhooks render", () => {
+  it("legacy slugs redirect: webhooks → tools; agents and tools render", () => {
     const page = read("../app/w/[ws]/v/[view]/page.tsx");
-    expect(page).toContain('tools: (ws) => systemViewPath(ws, "webhooks")');
+    expect(page).toContain('webhooks: (ws) => systemViewPath(ws, "tools")');
     expect(page).not.toContain("agents: (ws)");
-    expect(page).toContain('new Set<WorkspaceAdminSurface>(["agents", "webhooks"])');
+    expect(page).not.toContain("tools: (ws)");
+    expect(page).toContain('new Set<WorkspaceAdminSurface>(["agents", "tools"])');
     expect(page).toContain("redirect(legacy(address))");
   });
 });

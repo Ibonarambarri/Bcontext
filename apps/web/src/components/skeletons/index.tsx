@@ -18,8 +18,8 @@ import { Card, Skeleton } from "@heroui/react";
 import { cn } from "@bcontext-dev/contract/utils";
 
 /* ────────────────────────────────────────────────────────────────────────
- * GridSkeleton — card grids (Agents, Webhooks, Workspaces).
- * Card anatomy mirrors AgentCard / WebhookCard / WorkspaceCard: icon tile,
+ * GridSkeleton — card grids (Agents, Tools, Workspaces).
+ * Card anatomy mirrors AgentCard / ProviderCard / WorkspaceCard: icon tile,
  * title + subtitle, trailing chip, one description line, bordered footer.
  * ──────────────────────────────────────────────────────────────────────── */
 
@@ -30,7 +30,7 @@ export function GridSkeleton({
   label = "Loading cards",
 }: {
   cards?: number;
-  /** min-h of each card: agents and webhooks use 120px, the default is 150px. */
+  /** min-h of each card: agents and tools use 120px, the default is 150px. */
   minHeightClassName?: string;
   className?: string;
   label?: string;

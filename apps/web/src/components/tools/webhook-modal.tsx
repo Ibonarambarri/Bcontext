@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * "Add webhook" on the Webhooks view (`webhooks-view.tsx`).
+ * The signed-webhook branch of "Add tool provider" (`tool-providers-view.tsx`).
  * `POST /api/webhooks/endpoints` answers with the signing secret exactly once;
  * this dialog is the only place it is ever shown, so it swaps to the reveal
  * in the same window instead of closing.
  */
 import { useState } from "react";
-import { Check, Copy, Plus, Webhook } from "lucide-react";
+import { ArrowLeft, Check, Copy, Plus, Webhook } from "lucide-react";
 import { Button, Input as HeroInput, Modal, TextField } from "@heroui/react";
 import { WEBHOOK_EVENT_TYPES, type WebhookEventType } from "@bcontext-dev/contract/webhooks/events";
 import { cn } from "@bcontext-dev/contract/utils";
@@ -25,12 +25,14 @@ export interface WebhookEndpointRow {
 }
 
 /**
- * Creates the endpoint, then swaps to the one-time secret reveal inside the
- * same dialog.
+ * Add-a-signed-webhook step of the "Add tool provider" flow. Creates the
+ * endpoint, then swaps to the one-time secret reveal inside the same dialog.
  */
-export function WebhookModal({ workspaceId, onClose, onCreated }: {
+export function WebhookModal({ workspaceId, onClose, onBack, onCreated }: {
   workspaceId: string;
   onClose: () => void;
+  /** Returns to the provider-type selector step. */
+  onBack: () => void;
   /** Called after a successful creation so the grid can refresh. */
   onCreated: () => void;
 }) {
@@ -157,6 +159,7 @@ export function WebhookModal({ workspaceId, onClose, onCreated }: {
               </Modal.Body>
 
               <Modal.Footer className="flex items-center gap-2">
+                <Button isDisabled={saving} onPress={onBack} variant="ghost" size="sm" className="gap-1.5"><ArrowLeft size={13} /> Back</Button>
                 <span className="ml-auto" />
                 <Button isDisabled={saving} onPress={onClose} variant="outline" size="sm">Cancel</Button>
                 <Button isDisabled={!valid || saving} onPress={() => void create()} size="sm" className="gap-1.5"><Plus size={12} />{saving ? "Creating…" : "Create endpoint"}</Button>

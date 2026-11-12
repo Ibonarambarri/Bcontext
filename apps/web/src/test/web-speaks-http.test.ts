@@ -28,7 +28,7 @@ const SRC = join(process.cwd(), "src");
 
 /** Modules whose import graph reaches storage, the admin client or the grant engine. */
 const DATA_MODULES =
-  /^@\/lib\/(?:supabase\/(?:admin|server)|storage|queue|auth\/(?:require|grants|admin|invitations|workspace|grant-sync|tokens|oauth)|workspaces|demo-store|activity|meetings\/refine-job|ingest\/candidates|admin\/(?:metrics|access)|enterprise\/store|mcp)(?:\/|$)/;
+  /^@\/lib\/(?:supabase\/(?:admin|server)|storage|queue|auth\/(?:require|grants|admin|invitations|workspace|grant-sync|tokens|oauth)|workspaces|demo-store|activity|meetings\/refine-job|ingest\/candidates|admin\/(?:metrics|access)|enterprise\/store|capabilities\/(?:admin|gateway|catalog|secrets)|mcp)(?:\/|$)/;
 
 /**
  * UI files still being migrated. Every entry is work, and the list only
