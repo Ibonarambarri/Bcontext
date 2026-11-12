@@ -1,0 +1,92 @@
+"use client";
+
+/**
+ * The `heatmap` renderer: dimension A × dimension B as a grid of cells —
+ * the marketplace's "supply vs demand" (zone × week), coloured by bookings
+ * per active supplier so the cells where demand outruns supply stand out.
+ *
+ * The aggregate (dataset rows or business events, grouped by the layout's
+ * x/y and measured) is computed by the API on resolve; `heatmapGrid` in the
+ * contract lays it out and scales the colour. A cell prints its value and,
+ * when the layout has one, the second value under it ("12 / 3"). Plain CSS
+ * grid, no chart library: it is a table with colours.
+ *
+ * Read-only. Must not break: an empty pair (no bookings in that zone that
+ * week) is drawn empty, not as 0, and every cell has a text label so the
+ * colour is never the only carrier of the number.
+ */
+import { useMemo } from "react";
+import { HeatmapLayoutSchema, heatmapGrid, type HeatmapViewPayload } from "@bcontext-dev/contract/views/business";
+import { formatNumber } from "@bcontext-dev/contract/views/fields";
+import { bucketLabel, heatColor, heatInk } from "@/lib/business/present";
+
+export function HeatmapRenderer({ payload, layout: rawLayout }: { payload: HeatmapViewPayload; layout: unknown }) {
+  const layout = useMemo(() => HeatmapLayoutSchema.safeParse(rawLayout), [rawLayout]);
+  const grid = useMemo(() => (layout.success && payload.result ? heatmapGrid(payload.result, layout.data) : null), [layout, payload.result]);
+
+  if (!layout.success) return <Message>This heatmap’s layout is not valid: {layout.error.issues[0]?.message}</Message>;
+  if (!payload.result) return <Message>{payload.error ?? "This heatmap could not be computed."}</Message>;
+  if (!grid || grid.rows.length === 0) return <Message>No data yet.</Message>;
+  const spec = layout.data;
+  const bucket = spec.aggregate.x.bucket ?? null;
+  const ratioLabel = spec.color_by === "ratio" ? `${spec.value_label ?? spec.value} per ${(spec.second_label ?? spec.second ?? "").replace(/s$/, "")}` : null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="scroll overflow-x-auto">
+        <table className="border-separate border-spacing-[3px] text-[11px]">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-[1] bg-[var(--paper)]" />
+              {grid.columns.map((column) => (
+                <th key={column} scope="col" className="whitespace-nowrap px-1 pb-1 text-center font-medium text-[var(--ink-3)]">
+                  {bucketLabel(column, bucket)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.rows.map((row, r) => (
+              <tr key={row}>
+                <th scope="row" className="sticky left-0 z-[1] whitespace-nowrap bg-[var(--paper)] pr-2 text-left font-medium text-[var(--ink-2)]">{row}</th>
+                {grid.cells[r]!.map((cell) => {
+                  const label = cell.value === null
+                    ? `${row}, ${bucketLabel(cell.x, bucket)}: no data`
+                    : `${row}, ${bucketLabel(cell.x, bucket)}: ${formatNumber(cell.value)} ${spec.value_label ?? spec.value}` +
+                      (cell.second !== null ? `, ${formatNumber(cell.second)} ${spec.second_label ?? spec.second}` : "") +
+                      (cell.ratio !== null && ratioLabel ? ` (${formatNumber(cell.ratio)} ${ratioLabel})` : "");
+                  return (
+                    <td
+                      key={cell.x}
+                      title={label}
+                      aria-label={label}
+                      className="h-10 min-w-[52px] rounded-[4px] text-center align-middle leading-tight tabular-nums"
+                      style={{ background: heatColor(cell.intensity, spec.high_is), color: heatInk(cell.intensity), border: cell.value === null ? "1px dashed var(--line)" : undefined }}
+                    >
+                      {cell.value === null ? null : (
+                        <>
+                          <span className="block font-semibold">{formatNumber(cell.value)}</span>
+                          {cell.second !== null ? <span className="block opacity-75">{formatNumber(cell.second)}</span> : null}
+                        </>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 text-[11px] text-[var(--ink-3)]">
+        Each cell: {spec.value_label ?? spec.value}
+        {spec.second ? ` over ${spec.second_label ?? spec.second}` : ""}. Colour: {ratioLabel ?? spec.value_label ?? spec.value}
+        {spec.high_is === "bad" ? " — darker is tighter." : " — darker is more."}
+        {payload.result.truncated ? " Only the most recent events were read." : ""}
+      </p>
+    </div>
+  );
+}
+
+function Message({ children }: { children: React.ReactNode }) {
+  return <p className="py-16 text-center text-[12px] text-[var(--ink-3)]">{children}</p>;
+}

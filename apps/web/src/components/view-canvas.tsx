@@ -8,12 +8,18 @@
  * the context (`activeViewResult`) except the board, which resolves its
  * own membership, and the graph, which reads the tag API for its Tags focus.
  *
+ * Views over record types, dataset-backed types and the `metrics` /
+ * `heatmap` renderers (`isBusinessView`) go to `business/business-view.tsx`,
+ * loaded with next/dynamic so the business renderers never weigh on the
+ * shell; every other view keeps the renderer it had.
+ *
  * While views are still loading, the skeleton is chosen from a per-view
  * renderer hint remembered in localStorage, so a cold navigation shows the
  * right shape from the first frame.
  */
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useWorkspace } from "./workspace-context";
 import { SavedBoardView } from "./saved-board-view";
 import { SavedRoadmapView } from "./saved-roadmap-view";
@@ -24,6 +30,11 @@ import { GraphView } from "./graph-view";
 import { ChangesView } from "./changes-view";
 import { BoardSkeleton, GraphSkeleton, RoadmapSkeleton, ViewSkeleton } from "./skeletons";
 import { rememberViewRenderer, useViewRendererHint } from "@/lib/view-renderer-hint";
+import { isBusinessView } from "@/lib/business/route-view";
+
+const BusinessView = dynamic(() => import("./business/business-view").then((m) => m.BusinessView), {
+  loading: () => <ViewSkeleton />,
+});
 
 export function ViewCanvas({ viewSlug }: { viewSlug: string }) {
   const {
@@ -56,6 +67,11 @@ export function ViewCanvas({ viewSlug }: { viewSlug: string }) {
     return <ViewSkeleton />;
   }
   if (!view) return <CenteredMessage>{viewsError ?? "This view is not available to your account."}</CenteredMessage>;
+  // Record types and business renderers resolve their own payload (records,
+  // dataset rows, metrics) — checked before the core renderers claim the view.
+  if (isBusinessView(view)) {
+    return <BusinessView key={view.id} workspace={address} view={view} />;
+  }
   if (view.presentation.renderer === "board") {
     return <SavedBoardView workspace={address} viewId={view.id} />;
   }
