@@ -83,22 +83,31 @@ function SeriesTooltip({
   );
 }
 
+/**
+ * MRR as a line, and — when the rows carry any — the month's movements as
+ * bars on their own right-hand axis. Rows without movements (a customer's
+ * 360 page, which has MRR history only, or a window where nothing moved)
+ * draw the line alone: an all-zero bar series made recharts invent a
+ * €0–€4 right axis and a legend of four empty series (v0.4.2).
+ */
 export function MrrChart({ data, currency, height = 260 }: { data: MrrMovementPoint[]; currency: string; height?: number }) {
+  const moves = data.some((p) => p.new_mrr !== 0 || p.expansion_mrr !== 0 || p.contraction_mrr !== 0 || p.churned_mrr !== 0);
+  const money = (v: number) => formatMoney(v, currency, { compact: true });
   return (
     <div className="bctx-chart w-full">
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={data as unknown as Record<string, unknown>[]} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} stackOffset="sign">
           <CartesianGrid vertical={false} />
           <XAxis dataKey="label" tickMargin={8} />
-          <YAxis yAxisId="mrr" width={56} tickFormatter={(v: number) => formatMoney(v, currency, { compact: true })} />
-          <YAxis yAxisId="moves" orientation="right" width={56} tickFormatter={(v: number) => formatMoney(v, currency, { compact: true })} />
-          <ReferenceLine yAxisId="moves" y={0} stroke="var(--line-strong, var(--line))" />
-          <Bar yAxisId="moves" dataKey="new_mrr" name="New" stackId="moves" fill={COLORS.new} radius={[2, 2, 0, 0]} />
-          <Bar yAxisId="moves" dataKey="expansion_mrr" name="Expansion" stackId="moves" fill={COLORS.expansion} />
-          <Bar yAxisId="moves" dataKey="contraction_mrr" name="Contraction" stackId="moves" fill={COLORS.contraction} />
-          <Bar yAxisId="moves" dataKey="churned_mrr" name="Churn" stackId="moves" fill={COLORS.churn} radius={[0, 0, 2, 2]} />
+          <YAxis yAxisId="mrr" width={56} tickFormatter={money} />
+          {moves ? <YAxis yAxisId="moves" orientation="right" width={56} tickFormatter={money} /> : null}
+          {moves ? <ReferenceLine yAxisId="moves" y={0} stroke="var(--line-strong, var(--line))" /> : null}
+          {moves ? <Bar yAxisId="moves" dataKey="new_mrr" name="New" stackId="moves" fill={COLORS.new} radius={[2, 2, 0, 0]} /> : null}
+          {moves ? <Bar yAxisId="moves" dataKey="expansion_mrr" name="Expansion" stackId="moves" fill={COLORS.expansion} /> : null}
+          {moves ? <Bar yAxisId="moves" dataKey="contraction_mrr" name="Contraction" stackId="moves" fill={COLORS.contraction} /> : null}
+          {moves ? <Bar yAxisId="moves" dataKey="churned_mrr" name="Churn" stackId="moves" fill={COLORS.churn} radius={[0, 0, 2, 2]} /> : null}
           <Line yAxisId="mrr" dataKey="mrr" name="MRR" type="monotone" stroke={COLORS.line} strokeWidth={2} dot={false} connectNulls={false} />
-          <Legend iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+          {moves ? <Legend iconSize={8} wrapperStyle={{ fontSize: 12 }} /> : null}
           <Tooltip content={<SeriesTooltip currency={currency} />} />
         </ComposedChart>
       </ResponsiveContainer>
