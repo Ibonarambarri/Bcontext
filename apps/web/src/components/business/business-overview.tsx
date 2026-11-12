@@ -38,6 +38,7 @@ import {
   underSuppliedZones,
   weightedPipeline,
   type RecordRole,
+  type SegmentCount,
 } from "@/lib/business/overview";
 import { formatKpiValue, formatMoney, periodLabel } from "@/lib/business/format";
 import { businessModelLabel } from "@/lib/business/models";
@@ -87,6 +88,8 @@ export async function BusinessOverview({
   const of = (role: RecordRole) => recordsByRole.get(role) ?? [];
   const typeOf = (role: RecordRole) => roleTypes.get(role) ?? null;
 
+  const titles = new Map(nodes.map((node) => [node.id, node.title]));
+  const titleOf = (id: string) => titles.get(id);
   const hasData = summaryHasData(summary);
   const kpis = kpiMap(summary);
 
@@ -118,9 +121,9 @@ export async function BusinessOverview({
         )}
 
         {model === "marketplace" ? (
-          <MarketplaceLists ws={ws} roles={{ of, typeOf }} />
+          <MarketplaceLists ws={ws} roles={{ of, typeOf }} titleOf={titleOf} />
         ) : (
-          <SaasLists ws={ws} model={model} roles={{ of, typeOf }} types={types} nodes={nodes} now={now} money={money} />
+          <SaasLists ws={ws} model={model} roles={{ of, typeOf }} types={types} nodes={nodes} now={now} money={money} titleOf={titleOf} />
         )}
 
         <KnowledgeActivityBlock ws={ws} nodes={nodes} now={now} />
@@ -246,6 +249,7 @@ function SaasLists({
   nodes,
   now,
   money,
+  titleOf,
 }: {
   ws: WorkspaceAddress;
   model: "b2b" | "b2c";
@@ -254,6 +258,7 @@ function SaasLists({
   nodes: readonly KnowledgeNode[];
   now: Date;
   money: (amount: number) => string;
+  titleOf: (id: string) => string | undefined;
 }) {
   const customers = roles.of("customer");
   const customerType = roles.typeOf("customer");
@@ -276,6 +281,7 @@ function SaasLists({
         rows={bugsAffectingCustomers(nodes.filter((n) => n.kind === "bug"), records, types, customerType?.key ?? null)}
         empty="No open bug is linked to a customer."
       />
+      <RequestsBySegment segments={requestsBySegment(roles.of("request"), roles.typeOf("request"), titleOf)} />
       {pipeline ? (
         <section aria-label="Weighted pipeline" className="min-w-0 lg:col-span-2">
           <div className="mb-2 flex items-baseline justify-between gap-3 px-0.5">
@@ -302,8 +308,7 @@ function SaasLists({
   );
 }
 
-function MarketplaceLists({ ws, roles }: { ws: WorkspaceAddress; roles: Roles }) {
-  const segments = requestsBySegment(roles.of("request"), roles.typeOf("request"));
+function MarketplaceLists({ ws, roles, titleOf }: { ws: WorkspaceAddress; roles: Roles; titleOf: (id: string) => string | undefined }) {
   return (
     <div className="mt-8 grid gap-5 lg:grid-cols-2">
       <ActionList
@@ -313,24 +318,30 @@ function MarketplaceLists({ ws, roles }: { ws: WorkspaceAddress; roles: Roles })
         empty="Every zone with demand has supply."
       />
       <ActionList ws={ws} title="Open incidents" rows={openIncidents(roles.of("incident"), roles.typeOf("incident"))} empty="No open incidents." />
-      {segments ? (
-        <section aria-label="Requests by segment" className="min-w-0">
-          <h2 className="mb-2 px-0.5 text-sm font-medium text-foreground">Requests by segment</h2>
-          {segments.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border px-4 py-5 text-center text-xs text-muted">No requests yet.</p>
-          ) : (
-            <ul className="divide-y divide-border rounded-2xl border border-border">
-              {segments.map((row) => (
-                <li key={row.segment} className="flex items-center justify-between px-4 py-2 text-[13px]">
-                  <span className="capitalize text-foreground">{row.segment.replace(/_/g, " ")}</span>
-                  <span className="tabular-nums text-muted">{row.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+      <RequestsBySegment segments={requestsBySegment(roles.of("request"), roles.typeOf("request"), titleOf)} />
     </div>
+  );
+}
+
+/** Requests counted per segment; not drawn when the request type has no segment. */
+function RequestsBySegment({ segments }: { segments: SegmentCount[] | null }) {
+  if (!segments) return null;
+  return (
+    <section aria-label="Requests by segment" className="min-w-0">
+      <h2 className="mb-2 px-0.5 text-sm font-medium text-foreground">Requests by segment</h2>
+      {segments.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-5 text-center text-xs text-muted">No requests yet.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-2xl border border-border">
+          {segments.map((row) => (
+            <li key={row.segment} className="flex items-center justify-between px-4 py-2 text-[13px]">
+              <span className="capitalize text-foreground">{row.segment.replace(/_/g, " ")}</span>
+              <span className="tabular-nums text-muted">{row.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

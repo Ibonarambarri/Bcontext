@@ -183,6 +183,7 @@ export interface ActionRow {
 }
 
 const RISK_VALUE = /risk|red|churn|critical|poor|bad|unhealthy/i;
+const HEALTH_KEY = /^(health|health_score|risk|status|churn_risk|sentiment)$/;
 const CLOSED_VALUE = /^(won|lost|closed|closed_won|closed_lost|done|resolved|canceled|cancelled|churned|archived)$/i;
 const WON_VALUE = /^(won|closed_won)$/i;
 
@@ -202,9 +203,11 @@ export function customerMrrField(type: Pick<RecordTypeDefinition, "fields"> | nu
 }
 
 /**
- * Customers at risk: a health-like select whose value reads as risk, or the
- * node's own status `at_risk`. Ordered by MRR, because the one to call first
- * is the one that costs most to lose.
+ * Customers at risk: any health-like field (`health`, `status`, `risk`…)
+ * whose value reads as risk, or the node's own status `at_risk`. Every such
+ * field counts — the b2b template has both `status` (`at_risk`) and `health`
+ * (`red`), and an account that is `active` but `red` is at risk. Ordered by
+ * MRR, because the one to call first is the one that costs most to lose.
  */
 export function accountsAtRisk(
   accounts: readonly RecordNodeLike[],
@@ -212,17 +215,21 @@ export function accountsAtRisk(
   format: (amount: number) => string,
 ): ActionRow[] | null {
   if (!type) return null;
-  const health = findField(type, /^(health|health_score|risk|status|churn_risk|sentiment)$/, ["select", "text"]);
+  const healthFields = type.fields.filter((field) => HEALTH_KEY.test(field.key) && (field.type === "select" || field.type === "text"));
   const mrrField = customerMrrField(type);
+  const riskOf = (account: RecordNodeLike): string | null => {
+    for (const field of healthFields) {
+      const value = selectValue(account, field);
+      if (value !== null && RISK_VALUE.test(value)) return value;
+    }
+    return account.status === "at_risk" ? "at risk" : null;
+  };
   return accounts
-    .filter((account) => {
-      if (account.status === "at_risk") return true;
-      const value = selectValue(account, health);
-      return value !== null && RISK_VALUE.test(value);
-    })
-    .map((account) => {
+    .map((account) => ({ account, risk: riskOf(account) }))
+    .filter((row): row is { account: RecordNodeLike; risk: string } => row.risk !== null)
+    .map(({ account, risk }) => {
       const mrr = moneyOf(account, mrrField);
-      return { id: account.id, kind: account.kind, title: account.title, chip: mrr !== null ? format(mrr) : selectValue(account, health) ?? "at risk", tone: "danger" as const, weight: mrr ?? 0 };
+      return { id: account.id, kind: account.kind, title: account.title, chip: mrr !== null ? format(mrr) : risk, tone: "danger" as const, weight: mrr ?? 0 };
     })
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
 }
@@ -470,17 +477,35 @@ export interface SegmentCount {
   count: number;
 }
 
-/** Open requests grouped by a segment-like select field. */
+const SEGMENT_KEY = /^(segment|audience|side|persona|customer_type|user_type)$/;
+const SEGMENT_TYPE = /^(segment|audience|persona|cohort)s?$/;
+
+/**
+ * Requests grouped by segment. A segment-like select (`segment` in b2b,
+ * `side` in a marketplace) wins; otherwise a relation to a segment-like
+ * record type (b2c requests point at segment nodes), where a request counts
+ * once under each segment it names and `titleOf` turns ids into names.
+ * Null when the request type has neither.
+ */
 export function requestsBySegment(
   requests: readonly RecordNodeLike[],
   type: Pick<RecordTypeDefinition, "fields" | "stage_field"> | null,
+  titleOf: (id: string) => string | undefined = () => undefined,
 ): SegmentCount[] | null {
-  const field = findField(type, /^(segment|audience|side|persona|customer_type|user_type)$/, ["select", "text"]);
-  if (!type || !field) return null;
+  if (!type) return null;
+  const select = findField(type, SEGMENT_KEY, ["select", "text"]);
+  const relation = select ? null : type.fields.find((field) => field.type === "relation" && SEGMENT_TYPE.test(field.target ?? "")) ?? null;
+  if (!select && !relation) return null;
   const counts = new Map<string, number>();
+  const add = (segment: string) => counts.set(segment, (counts.get(segment) ?? 0) + 1);
   for (const request of requests) {
-    const value = selectValue(request, field) ?? "Unspecified";
-    counts.set(value, (counts.get(value) ?? 0) + 1);
+    if (select) {
+      add(selectValue(request, select) ?? "Unspecified");
+      continue;
+    }
+    const ids = relationIds(fieldsOf(request)[relation!.key]);
+    if (ids.length === 0) add("Unspecified");
+    for (const id of new Set(ids)) add(titleOf(id) ?? "Unknown segment");
   }
   return [...counts.entries()].map(([segment, count]) => ({ segment, count })).sort((a, b) => b.count - a.count);
 }
