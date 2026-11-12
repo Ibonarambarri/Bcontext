@@ -137,7 +137,18 @@ export interface RecordFieldDef {
   multiple?: boolean;
   /** One line. It is what the agent reads to decide what goes here. */
   description?: string;
+  /**
+   * number / money: what a table footer shows for the column. `sum` for
+   * amounts and counts, `average` for ratings, scores and probabilities
+   * (a sum of ratings means nothing), `none` for numbers that are labels
+   * (a year, a rank). Absent, `fieldTotalOf` (`views/fields.ts`) infers
+   * it from the key.
+   */
+  total?: FieldTotalMode;
 }
+
+export const FIELD_TOTAL_MODES = ["sum", "average", "none"] as const;
+export type FieldTotalMode = (typeof FIELD_TOTAL_MODES)[number];
 
 /** What `record_types.definition` holds, plus the columns, as one object. */
 export interface RecordTypeDefinition {
@@ -151,6 +162,14 @@ export interface RecordTypeDefinition {
   fields: RecordFieldDef[];
   /** A `select` field whose options are the pipeline stages, in order. */
   stage_field?: string | null;
+  /**
+   * node types: the dataset-backed types whose rows this type is meant to
+   * be promoted from ("a lead instructor is a promoted supplier"). It is
+   * what makes "Convert to …" offer it when the two share only generic
+   * fields (name, email…); a type that lists some sources is offered for
+   * those only (`promoteTargetsFor`).
+   */
+  promotes_from?: string[] | null;
 }
 
 /** A stored record type, as the API returns it. */
@@ -171,6 +190,7 @@ const FieldDefSchema = z.object({
   target: z.string().min(1).max(40).optional(),
   multiple: z.boolean().optional(),
   description: z.string().trim().max(200).optional(),
+  total: z.enum(FIELD_TOTAL_MODES).optional(),
 }).strict().superRefine((field, ctx) => {
   const choice = field.type === "select" || field.type === "multi_select";
   if (choice && (!field.options || field.options.length === 0)) {
@@ -188,7 +208,12 @@ const FieldDefSchema = z.object({
   if (field.type !== "relation" && (field.target || field.multiple !== undefined)) {
     ctx.addIssue({ code: "custom", path: ["target"], message: `field \`${field.key}\`: only relation fields take target/multiple` });
   }
+  if (field.total && field.type !== "number" && field.type !== "money") {
+    ctx.addIssue({ code: "custom", path: ["total"], message: `field \`${field.key}\` is a ${field.type}; only number and money fields take total` });
+  }
 });
+
+const PromotesFromSchema = z.array(z.string().regex(RECORD_TYPE_KEY_PATTERN, "promotes_from lists record type keys")).max(RECORD_LIMITS.maxRecordTypes);
 
 /**
  * Creating a record type. Cross-checks that need the workspace (relation
@@ -204,6 +229,7 @@ export const RecordTypeInputSchema = z.object({
   dataset_node_id: z.string().min(1).nullable().optional(),
   fields: z.array(FieldDefSchema).max(RECORD_LIMITS.maxFields).default([]),
   stage_field: z.string().min(1).nullable().optional(),
+  promotes_from: PromotesFromSchema.nullable().optional(),
 }).strict().superRefine((def, ctx) => checkDefinition(def, ctx));
 
 /** Updating one: everything but `key` and `storage`, which are identity. */
@@ -213,6 +239,7 @@ export const RecordTypePatchSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   fields: z.array(FieldDefSchema).max(RECORD_LIMITS.maxFields).optional(),
   stage_field: z.string().min(1).nullable().optional(),
+  promotes_from: PromotesFromSchema.nullable().optional(),
   position: z.number().int().min(0).max(10_000).optional(),
 }).strict();
 
@@ -220,9 +247,15 @@ export type RecordTypeInput = z.input<typeof RecordTypeInputSchema>;
 export type RecordTypePatch = z.infer<typeof RecordTypePatchSchema>;
 
 function checkDefinition(
-  def: Pick<RecordTypeDefinition, "key" | "storage" | "dataset_node_id" | "fields" | "stage_field">,
+  def: Pick<RecordTypeDefinition, "key" | "storage" | "dataset_node_id" | "fields" | "stage_field" | "promotes_from">,
   ctx: z.RefinementCtx,
 ): void {
+  if (def.promotes_from?.length && def.storage === "dataset") {
+    ctx.addIssue({ code: "custom", path: ["promotes_from"], message: "promotes_from is for node types: a row is promoted into a node, never into another dataset" });
+  }
+  if (def.promotes_from?.includes(def.key)) {
+    ctx.addIssue({ code: "custom", path: ["promotes_from"], message: "a type cannot promote from itself" });
+  }
   if (isCoreKind(def.key)) {
     ctx.addIssue({
       code: "custom",
@@ -616,20 +649,53 @@ export function promoteFit(
 }
 
 /**
- * The node record types a row of `source` can become, best match first. A
- * type fits when it shares at least one compatible field and every field it
- * requires is filled by one; anything else would either carry nothing over
- * or be refused by validation on every row, so it is not offered at all.
+ * Fields nearly every kind of record has — who it is and where — so sharing
+ * them says nothing about two types being the same thing. A marketplace
+ * client and a lead instructor both have a name, an email and a zone; that
+ * is how "Convert to lead instructor" came to be offered on clients.
+ */
+export const GENERIC_FIELD_KEYS: ReadonlySet<string> = new Set([
+  "name", "full_name", "first_name", "last_name", "display_name", "title",
+  "email", "phone", "mobile", "website", "url", "avatar",
+  "address", "city", "zone", "region", "country", "postcode", "zip", "timezone", "locale", "language",
+  "notes", "description", "status",
+]);
+
+/** A field that identifies or locates a record rather than saying what it is. */
+export function isGenericField(field: Pick<RecordFieldDef, "key" | "type">): boolean {
+  return GENERIC_FIELD_KEYS.has(field.key) || field.type === "email" || field.type === "url";
+}
+
+/**
+ * The node record types a row of `source` can become, best match first.
+ *
+ * A type is offered when the two are meaningfully related — it lists the
+ * source in `promotes_from`, or it shares at least one compatible field
+ * that is not generic (`isGenericField`: a name or an email alone would
+ * make every person-shaped type a target) — and every field it requires is
+ * filled by a compatible column, since anything else is refused by
+ * validation on every row. A type that declares `promotes_from` is offered
+ * for the sources it lists and no others: the declaration is the team
+ * saying what it is for.
  */
 export function promoteTargetsFor(
   source: Pick<RecordTypeDefinition, "key" | "fields">,
-  types: ReadonlyArray<Pick<RecordTypeDefinition, "key" | "label" | "storage" | "fields"> & { position?: number }>,
+  types: ReadonlyArray<Pick<RecordTypeDefinition, "key" | "label" | "storage" | "fields" | "promotes_from"> & { position?: number }>,
 ): Array<{ key: string; label: string }> {
+  const generic = new Set(source.fields.filter(isGenericField).map((field) => field.key));
   return types
     .filter((candidate) => candidate.storage === "node" && candidate.key !== source.key)
-    .map((candidate) => ({ candidate, fit: promoteFit(source, candidate) }))
-    .filter(({ fit }) => Object.keys(fit.mapping).length > 0 && fit.missing_required.length === 0)
+    .map((candidate) => {
+      const fit = promoteFit(source, candidate);
+      const declared = candidate.promotes_from?.length ? candidate.promotes_from.includes(source.key) : null;
+      const specific = Object.keys(fit.mapping).filter((column) => !generic.has(column)).length;
+      return { candidate, fit, declared, specific };
+    })
+    .filter(({ fit, declared, specific }) =>
+      fit.missing_required.length === 0 && (declared === null ? specific > 0 : declared))
     .sort((a, b) =>
+      Number(Boolean(b.declared)) - Number(Boolean(a.declared)) ||
+      b.specific - a.specific ||
       Object.keys(b.fit.mapping).length - Object.keys(a.fit.mapping).length ||
       (a.candidate.position ?? 0) - (b.candidate.position ?? 0))
     .map(({ candidate }) => ({ key: candidate.key, label: candidate.label }));

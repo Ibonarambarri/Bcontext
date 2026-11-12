@@ -80,11 +80,38 @@ export interface KpiDefinition {
   /** Higher is better? Drives the colour of a delta, nothing else. */
   higher_is_better: boolean;
   definition: string;
+  /**
+   * Set on KPIs that add up over the month (revenue, expenses, GMV…): what
+   * the figure means while the month is still running. Their current value
+   * is month to date, and a "Net" that is a fortnight's revenue minus the
+   * whole month's bills reads like a loss unless it says so
+   * (`current_label`).
+   */
+  to_date?: string;
 }
 
+/** What a partial period's label adds: "Net" → "Net (month to date)". */
+export const TO_DATE_SUFFIX = " (month to date)";
+
+/**
+ * Is `period` (YYYY-MM) still running at `now`? Its KPIs are then month to
+ * date. A closed month is not, whatever its numbers.
+ */
+export function isPeriodOpen(period: string, now: Date): boolean {
+  return now.toISOString().slice(0, 7) <= period;
+}
+
+/** The label and definition a KPI's `current` value is shown with. */
+export function currentKpiWording(definition: Pick<KpiDefinition, "label" | "definition" | "to_date">, open: boolean): { label: string; definition: string; partial: boolean } {
+  if (!open || !definition.to_date) return { label: definition.label, definition: definition.definition, partial: false };
+  return { label: definition.label + TO_DATE_SUFFIX, definition: `${definition.definition} ${definition.to_date}`, partial: true };
+}
+
+const MONTH_TO_DATE = "This month is not over: the figure is month to date.";
+
 const COMMON_TAIL: KpiDefinition[] = [
-  { key: "expenses", label: "Expenses", unit: "money", higher_is_better: false, definition: "Sum of expense.recorded amounts in the month (reporting currency only)." },
-  { key: "net", label: "Net", unit: "money", higher_is_better: true, definition: "Revenue minus expenses for the month." },
+  { key: "expenses", label: "Expenses", unit: "money", higher_is_better: false, definition: "Sum of expense.recorded amounts in the month (reporting currency only).", to_date: `${MONTH_TO_DATE} Expenses booked so far.` },
+  { key: "net", label: "Net", unit: "money", higher_is_better: true, definition: "Revenue minus expenses for the month.", to_date: `${MONTH_TO_DATE} Revenue recognised up to today minus every expense booked so far, so it reads low until the month's revenue catches up with bills paid at its start.` },
 ];
 
 export const KPI_DEFINITIONS: Record<KpiSet, KpiDefinition[]> = {
@@ -103,14 +130,14 @@ export const KPI_DEFINITIONS: Record<KpiSet, KpiDefinition[]> = {
     { key: "nrr", label: "NRR", unit: "percent", higher_is_better: true, definition: "(start MRR + expansion − contraction − churned) ÷ start MRR, monthly; null when start MRR was 0." },
     { key: "arpa", label: "ARPA", unit: "money", higher_is_better: true, definition: "MRR ÷ active customers at the end of the month." },
     ...COMMON_TAIL,
-    { key: "burn", label: "Burn", unit: "money", higher_is_better: false, definition: "Expenses minus revenue when positive, else 0 (net burn)." },
+    { key: "burn", label: "Burn", unit: "money", higher_is_better: false, definition: "Expenses minus revenue when positive, else 0 (net burn).", to_date: `${MONTH_TO_DATE} Expenses booked so far minus revenue recognised up to today.` },
     { key: "runway_months", label: "Runway", unit: "months", higher_is_better: true, definition: "Latest cash balance ÷ the month's burn; null without a cash.balance or when burn is 0." },
   ],
   marketplace: [
-    { key: "gmv", label: "GMV", unit: "money", higher_is_better: true, definition: "Gross value of bookings created in the month that are not canceled." },
-    { key: "take", label: "Take", unit: "money", higher_is_better: true, definition: "Platform fees of the same bookings — the marketplace's revenue." },
+    { key: "gmv", label: "GMV", unit: "money", higher_is_better: true, definition: "Gross value of bookings created in the month that are not canceled.", to_date: `${MONTH_TO_DATE} Bookings created so far.` },
+    { key: "take", label: "Take", unit: "money", higher_is_better: true, definition: "Platform fees of the same bookings — the marketplace's revenue.", to_date: `${MONTH_TO_DATE} Fees of the bookings created so far.` },
     { key: "take_rate", label: "Take rate", unit: "percent", higher_is_better: true, definition: "Take ÷ GMV." },
-    { key: "bookings", label: "Bookings", unit: "count", higher_is_better: true, definition: "Bookings created in the month, canceled or not." },
+    { key: "bookings", label: "Bookings", unit: "count", higher_is_better: true, definition: "Bookings created in the month, canceled or not.", to_date: `${MONTH_TO_DATE} Bookings created so far.` },
     { key: "cancellation_rate", label: "Cancellation rate", unit: "percent", higher_is_better: false, definition: "Bookings created in the month that are now canceled ÷ bookings created in the month." },
     { key: "active_suppliers", label: "Active suppliers", unit: "count", higher_is_better: true, definition: "Distinct suppliers with a non-canceled booking created in the month." },
     { key: "active_buyers", label: "Active buyers", unit: "count", higher_is_better: true, definition: "Distinct buyers with a non-canceled booking created in the month." },
@@ -130,6 +157,16 @@ export interface KpiPoint {
 
 export interface KpiValue extends KpiDefinition {
   current: number | null;
+  /**
+   * What `current` is called and means: the label and definition, plus
+   * "(month to date)" and its explanation when the KPI adds up over a month
+   * that is still running (`to_date`). KPI cards show these; charts over
+   * the closed months keep `label`. Keys never change.
+   */
+  current_label: string;
+  current_definition: string;
+  /** True when `current` covers only part of its period. */
+  current_is_partial: boolean;
   previous: number | null;
   /** current − previous; null when either is. For percents, in points. */
   delta: number | null;
