@@ -368,9 +368,11 @@ There are no data-entry forms beyond light edits and settings.
     the month's new, expansion, contraction and churned MRR as bars; unit
     economics (NRR, ARPA, expenses by category); and lists to act on:
     accounts at risk, renewals this month, top requests by the MRR asking
-    for them, open bugs affecting customers, and the weighted pipeline by
-    stage.
-  - *B2C*: the same SaaS figures over customers, without the pipeline.
+    for them, open bugs affecting customers, requests by segment, and the
+    weighted pipeline by stage.
+  - *B2C*: the same SaaS figures over customers, without the pipeline. B2C
+    customers are dataset rows, so there are no per-customer lists; requests
+    are grouped by the segment records they point at.
   - *Marketplace*: GMV against the same month last season, take and take
     rate, bookings and cancellation rate, net. Then GMV and bookings over 12
     months, marketplace health (active suppliers and buyers, new buyers,
@@ -384,15 +386,16 @@ There are no data-entry forms beyond light edits and settings.
     customer type called `account`, `customer` or `client`; `deal` or
     `opportunity`; `request`; `incident` or `ticket`; `supplier`; `zone`. They
     read fields the same way (`mrr`, `health`, `renewal_date`, `amount`,
-    `probability`, `demand`, `segment`…). A list whose type does not exist is
-    not shown.
+    `probability`, `demand`, `active_suppliers`, `segment`/`side`…). A list
+    whose type does not exist, or is dataset-backed, is not shown.
 - **A record's page** shows its fields as a read-first header, with the stage
   first. Click a value to edit that one field; relation, person and
   multi-select fields are read-only there. A type that other types point at
   (an account, a supplier, a zone) gets a **360** layout: MRR history rebuilt
   from its subscription events, its related records grouped by kind
   (contacts, deals, requests, tickets, bugs, decisions, through relation
-  fields and links), and its event timeline.
+  fields and links), and its event timeline (for a supplier, the bookings
+  that name it).
 - **The sidebar** of a business workspace lists the template's views (for
   example Pipeline, Accounts, Renewals, Metrics, or Supply vs demand,
   Suppliers, Incidents) under **Business**, above Knowledge. These are the

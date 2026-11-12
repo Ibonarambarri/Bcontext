@@ -224,6 +224,11 @@ describe("MCP tool surface budget", () => {
     // an opaque query validated on the call — would save more, but it would
     // take the shape of a view query out of the schema of the tool that
     // writes views, which is where an agent learns it.
+    //
+    // Held at 40.300 for v0.4.0 (measured 40.286 on the release branch): the
+    // business web app and the read-first UI added REST routes only
+    // (`/records/:type`, `/events?subject_…`, `/api/ask`); `ask_rag` kept its
+    // schema when its synthesis moved to `lib/rag/ask.ts`.
     const BUDGET = 40_300;
     expect(
       bytes,
