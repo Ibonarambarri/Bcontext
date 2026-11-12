@@ -327,7 +327,15 @@ export function moneyAmount(value: unknown): number | null {
   return typeof amount === "number" && Number.isFinite(amount) ? amount : null;
 }
 
-export function formatMoney(amount: number, currency: string, locale?: string): string {
+/**
+ * The locale record values are written in when the caller names none: the
+ * web's own (`apps/web/src/lib/business/format.ts`), so a board, a table
+ * and the dashboard print €1,990 the same way whatever the browser's
+ * language, and a server render agrees with the client.
+ */
+export const DISPLAY_LOCALE = "en-US";
+
+export function formatMoney(amount: number, currency: string, locale: string = DISPLAY_LOCALE): string {
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
@@ -340,12 +348,12 @@ export function formatMoney(amount: number, currency: string, locale?: string): 
   }
 }
 
-export function formatNumber(value: number, locale?: string): string {
+export function formatNumber(value: number, locale: string = DISPLAY_LOCALE): string {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
 }
 
 /** `2026-03-04` → "4 Mar 2026"; a timestamp drops its time. UTC, so a date never shifts a day. */
-export function formatDateValue(value: string, locale?: string): string {
+export function formatDateValue(value: string, locale: string = DISPLAY_LOCALE): string {
   const parsed = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value);
   if (Number.isNaN(parsed)) return value;
   return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(parsed);

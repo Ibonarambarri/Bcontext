@@ -11,11 +11,11 @@
  * and percents are fractions (`PERCENT_IS_FRACTION`).
  */
 import type { KpiUnit } from "@bcontext-dev/contract/business/metrics";
-import { formatMoney } from "@bcontext-dev/contract/views/fields";
+import { DISPLAY_LOCALE, formatMoney } from "@bcontext-dev/contract/views/fields";
 
 export const EMPTY_VALUE = "—";
 
-export function formatKpi(value: number | null, unit: KpiUnit | "money" | "count", currency: string, locale?: string): string {
+export function formatKpi(value: number | null, unit: KpiUnit | "money" | "count", currency: string, locale: string = DISPLAY_LOCALE): string {
   if (value === null || !Number.isFinite(value)) return EMPTY_VALUE;
   switch (unit) {
     case "money":
@@ -47,7 +47,7 @@ export function heatInk(intensity: number | null): string {
 }
 
 /** "2026-02-09" → "9 Feb" (week/day buckets) or "Feb 26" (months); other x values pass through. */
-export function bucketLabel(period: string, bucket: "day" | "week" | "month" | null | undefined, locale?: string): string {
+export function bucketLabel(period: string, bucket: "day" | "week" | "month" | null | undefined, locale: string = DISPLAY_LOCALE): string {
   if (!bucket || !/^\d{4}-\d{2}-\d{2}$/.test(period)) return period;
   const date = Date.parse(`${period}T00:00:00Z`);
   return new Intl.DateTimeFormat(locale, bucket === "month"
