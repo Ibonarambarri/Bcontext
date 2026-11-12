@@ -191,10 +191,13 @@ export interface IngestBatch {
 
 /**
  * Split ingest changes out of the feed and fold them into one batch per
- * sync. A batch is one request when the rows carry its correlation id (every
- * change one ingest call writes shares it); rows without one fall back to
- * "same source, no gap over `INGEST_BATCH_GAP_MS`". Newest batch first;
- * `rest` is everything else, untouched, for `groupByActor`.
+ * sync. A sync is a run of changes from the same source (record type and
+ * actor) with no gap over `INGEST_BATCH_GAP_MS`, however many requests made
+ * it: an app that sends `PUT …/records/<type>/<id>` once per record writes one
+ * request per record, and that is still one sync to the person reading. A
+ * request's own changes (one correlation id) always stay in one batch, even
+ * when the request outlasts the gap. Newest batch first; `rest` is everything
+ * else, untouched, for `groupByActor`.
  */
 export function groupIngestBatches(entries: ActivityEntry[]): { batches: IngestBatch[]; rest: ActivityEntry[] } {
   const rest: ActivityEntry[] = [];
@@ -202,17 +205,17 @@ export function groupIngestBatches(entries: ActivityEntry[]): { batches: IngestB
   for (const entry of entries) (isIngestChange(entry) ? ingest : rest).push(entry);
   const batches = new Map<string, IngestBatch>();
   const open = new Map<string, { key: string; last: number }>();
+  const byRequest = new Map<string, string>();
   for (const entry of [...ingest].sort((a, b) => a.ts.localeCompare(b.ts))) {
     const source = entry.source ?? "ingest";
-    let key: string;
-    if (entry.correlation_id) {
-      key = `cid:${entry.correlation_id}`;
-    } else {
-      const at = Date.parse(entry.ts);
-      const current = open.get(source);
-      key = current && at - current.last <= INGEST_BATCH_GAP_MS ? current.key : `src:${source}:${entry.ts}`;
-      open.set(source, { key, last: at });
-    }
+    const stream = `${source}\u0000${entry.actor_id ?? ""}`;
+    const at = Date.parse(entry.ts);
+    const current = open.get(stream);
+    const key =
+      (entry.correlation_id ? byRequest.get(entry.correlation_id) : undefined) ??
+      (current && at - current.last <= INGEST_BATCH_GAP_MS ? current.key : `sync:${stream}:${entry.ts}`);
+    if (entry.correlation_id) byRequest.set(entry.correlation_id, key);
+    open.set(stream, { key, last: at });
     let batch = batches.get(key);
     if (!batch) {
       batch = {

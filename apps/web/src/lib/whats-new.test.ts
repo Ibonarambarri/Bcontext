@@ -149,14 +149,28 @@ describe("ingest syncs", () => {
     expect(ingestBatchTitle({ created: 0, updated: 95, other: 0 })).toBe("Ingest: 95 records updated");
   });
 
-  it("tells two syncs apart by request, or by a gap when the rows carry no request id", () => {
-    expect(groupIngestBatches([ingest(1, { correlation_id: "a" }), ingest(2, { correlation_id: "b" })]).batches).toHaveLength(2);
-    const at = (iso: string, n: number) => ingest(n, { ts: iso });
+  it("tells two syncs apart by a gap, not by request", () => {
+    const at = (iso: string, n: number, over: Partial<ActivityEntry> = {}) => ingest(n, { ts: iso, ...over });
+    // One PUT per record is one request per record, and still one sync.
+    const puts = groupIngestBatches([
+      at("2026-11-10T10:00:00.000Z", 1, { correlation_id: "a" }),
+      at("2026-11-10T10:00:01.000Z", 2, { correlation_id: "b" }),
+      at("2026-11-10T10:00:02.000Z", 3, { correlation_id: "c" }),
+    ]);
+    expect(puts.batches).toHaveLength(1);
+    expect(ingestBatchTitle(puts.batches[0]!)).toBe("Ingest: 3 records updated");
     const { batches } = groupIngestBatches([
       at("2026-11-10T10:00:00.000Z", 1),
       at("2026-11-10T10:01:00.000Z", 2),
       at("2026-11-10T12:00:00.000Z", 3),
     ]);
     expect(batches.map((batch) => batch.entries.length)).toEqual([1, 2]);
+    // A long request stays whole past the gap; another record type is its own sync.
+    const long = groupIngestBatches([
+      at("2026-11-10T10:00:00.000Z", 1, { correlation_id: "big" }),
+      at("2026-11-10T10:09:00.000Z", 2, { correlation_id: "big" }),
+      at("2026-11-10T10:09:30.000Z", 3, { source: "ingest:deal" }),
+    ]);
+    expect(long.batches.map((batch) => [batch.record_type, batch.entries.length])).toEqual([["deal", 1], ["account", 2]]);
   });
 });
