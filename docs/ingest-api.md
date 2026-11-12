@@ -16,6 +16,13 @@ Everything here is under `/api/workspaces/<slug>/…` on your instance (the
 same origin as the web app). For the full self-hosting setup see
 [self-hosting.md](self-hosting.md).
 
+Saved views over these records (pipeline boards with stage totals, tables,
+KPI dashboards with year-on-year charts, heatmaps), the templates each
+business model starts with, `POST …/business/apply-template` and
+`admin_write(op=apply_business_template)` are in
+[business-views.md](business-views.md). Field filters there and in
+`nodes(op=list)` also take `empty` (`true`: no value, `false`: has one).
+
 ## 1. Set the business model
 
 `product` (the default) is a software team with no business metrics. Set
@@ -302,8 +309,8 @@ There are no new tools. Record types are ordinary kinds:
 - `nodes_write({ op: "create", kind: "account", title, fields })` creates a
   record. `patch.fields` on update merges into the existing fields.
 - `nodes({ op: "list", kind: "account", fields: [{ field: "stage", op: "eq", value: "customer" }] })`
-  filters on fields. The operators are `eq`, `in`, `gt`, `lt` and `empty`
-  (`true`: no value, `false`: has one), and each result carries its `fields`.
+  filters on fields. The operators are `eq`, `in`, `gt` and `lt`, and each
+  result carries its `fields`.
 - `data_write({ op: "upsert_rows", key_column })` upserts dataset rows by
   key, and `data_write({ op: "promote_row", node_id, key, record_type, mapping? })`
   turns a row into a node record.
@@ -313,9 +320,5 @@ There are no new tools. Record types are ordinary kinds:
   compact: `fields: "mrr:money*,stage:select,champion:relation→contact"`,
   plus `stages`.
 - With the admin verb: `admin({ op: "business" })` lists the full
-  definitions, and `admin_write` takes `op` = `set_business`, `record_type`,
-  `delete_record_type` or `apply_business_template`.
-
-Boards, tables, KPI dashboards and heatmaps over these records, the default
-templates per business model and a subject's event timeline are in
-[business-views.md](business-views.md).
+  definitions, and `admin_write` takes `op` = `set_business`, `record_type`
+  or `delete_record_type`.
