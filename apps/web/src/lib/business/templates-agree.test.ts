@@ -28,9 +28,9 @@ describe("templates and the business overview agree on names", () => {
     const account = role("b2b", "customer");
     expect(account.key).toBe("account");
     expect(customerMrrField(account)?.key).toBe("mrr");
-    // Both `status: at_risk` and `health: red` flag an account.
+    // Both `status: at_risk` and `health: red` flag an account; a churned one is gone, not at risk.
     const at = (id: string, fields: Record<string, unknown>) => ({ id, kind: "account", title: id, data: { fields } });
-    const flagged = accountsAtRisk([at("a", { status: "active", health: "red" }), at("b", { status: "at_risk", health: "green" }), at("c", { status: "active", health: "green" })], account, String);
+    const flagged = accountsAtRisk([at("a", { status: "active", health: "red" }), at("b", { status: "at_risk", health: "green" }), at("c", { status: "active", health: "green" }), at("d", { status: "churned", health: "red" })], account, String);
     expect(flagged?.map((row) => row.id).sort()).toEqual(["a", "b"]);
     expect(findField(account, /renew/, ["date"])?.key).toBe("renewal_date");
 

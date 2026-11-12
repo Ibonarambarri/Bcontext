@@ -184,6 +184,7 @@ export interface ActionRow {
 
 const RISK_VALUE = /risk|red|churn|critical|poor|bad|unhealthy/i;
 const HEALTH_KEY = /^(health|health_score|risk|status|churn_risk|sentiment)$/;
+const GONE_VALUE = /^(churned|canceled|cancelled|lost|closed|archived)$/i;
 const CLOSED_VALUE = /^(won|lost|closed|closed_won|closed_lost|done|resolved|canceled|cancelled|churned|archived)$/i;
 const WON_VALUE = /^(won|closed_won)$/i;
 
@@ -218,6 +219,9 @@ export function accountsAtRisk(
   const healthFields = type.fields.filter((field) => HEALTH_KEY.test(field.key) && (field.type === "select" || field.type === "text"));
   const mrrField = customerMrrField(type);
   const riskOf = (account: RecordNodeLike): string | null => {
+    // A churned account is gone, not at risk: `/churn/` is for values like
+    // `churn_risk`, never for the terminal state.
+    if (healthFields.some((field) => GONE_VALUE.test(selectValue(account, field) ?? ""))) return null;
     for (const field of healthFields) {
       const value = selectValue(account, field);
       if (value !== null && RISK_VALUE.test(value)) return value;
