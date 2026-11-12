@@ -15,7 +15,10 @@ import { expireAbandonedOAuthAttempts } from "@/lib/capabilities/oauth-expiry";
 import { purgeErrorTelemetry } from "@/lib/errors/retention";
 import { archiveStaleDoneTasks } from "@/lib/tasks/auto-archive";
 import { runScheduledSkill, scheduleDueSkills } from "@/lib/skills/schedules";
+import { enqueueAllRollups, runBusinessRollup } from "@/lib/business/rollup-job";
 import {
+  QUEUE_BUSINESS_ROLLUP,
+  QUEUE_BUSINESS_ROLLUP_ALL,
   QUEUE_CAPABILITY_HEALTH,
   QUEUE_CAPABILITY_OAUTH_EXPIRE,
   QUEUE_ERRORS_RETENTION,
@@ -56,6 +59,12 @@ export const HANDLERS: Record<string, JobHandler> = {
   [QUEUE_SKILLS_SCHEDULE]: async () => ({
     ...(await scheduleDueSkills(getSupabaseAdmin())),
   }),
+  // Business metrics: one workspace on demand, every workspace nightly.
+  [QUEUE_BUSINESS_ROLLUP]: async (data) => {
+    const workspaceId = str(data, "workspace_id");
+    return workspaceId ? runBusinessRollup(workspaceId) : { skipped: "no workspace_id" };
+  },
+  [QUEUE_BUSINESS_ROLLUP_ALL]: async () => enqueueAllRollups(),
   [QUEUE_SKILLS_RUN_SCHEDULED]: async (data) => ({
     ...(await runScheduledSkill(getSupabaseAdmin(), {
       schedule_id: str(data, "schedule_id") ?? "",

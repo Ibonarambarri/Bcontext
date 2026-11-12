@@ -18,6 +18,9 @@ import { scopedStorage } from "@/lib/storage/scoped";
 import { getStorage, getStorageById, type Storage } from "@/lib/storage";
 import { systemGrant } from "./grants";
 import { hasScope, type Scope } from "@bcontext-dev/contract/auth/scopes";
+import { TokenLookupUnavailableError } from "./tokens";
+import { rateLimit } from "@/lib/rate-limit";
+import { log } from "@bcontext-dev/contract/log";
 
 export interface WorkspaceContext {
   /** Narrowed to the grant. Reads and writes past the reach are not possible. */
@@ -189,4 +192,71 @@ async function authorise(
  */
 function notFound(): Response {
   return Response.json({ error: "workspace not found" }, { status: 404 });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The ingest door                                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface IngestContext {
+  /** Scoped to the ingest grant: the whole workspace, written by the system. */
+  storage: Storage;
+  grant: Grant;
+  keyId: string;
+}
+
+/**
+ * `openWorkspace` for the ingest API, and the only place an ingest key
+ * (`bctx_ingest_…`, `business/ingest-keys.ts`) is accepted.
+ *
+ * The key is write-only by construction, not by a check here: every other
+ * route parses bearers with `parseAuthHeader`, which only knows
+ * `bctx_live_…`, so this key is an invalid token everywhere else — REST,
+ * MCP, the views. Inside, the grant is read/write/delete over the whole
+ * workspace because an upsert has to find the record it updates; the routes
+ * that call this return only what they wrote.
+ *
+ * Same shape of answers as `openWorkspace`: no key 401, a backend that
+ * cannot answer 503, a key for another workspace 404 (never a hint that the
+ * workspace exists), over budget 429.
+ */
+export async function openIngestWorkspace(
+  req: Request,
+  workspaceSlug: string,
+): Promise<IngestContext | Response> {
+  const { verifyIngestKey } = await import("@/lib/business/ingest-keys");
+  let key: Awaited<ReturnType<typeof verifyIngestKey>>;
+  try {
+    key = await verifyIngestKey(req.headers.get("authorization"));
+  } catch (err) {
+    if (!(err instanceof TokenLookupUnavailableError)) throw err;
+    log.error("auth.ingest_key_lookup_failed", { code: err.code, message: err.message });
+    return Response.json(
+      { error: "upstream_unavailable", message: "could not verify the key right now; retry shortly" },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
+  }
+  if (!key) {
+    return Response.json(
+      { error: "invalid_token", message: "an ingest key (Bearer bctx_ingest_…) is required" },
+      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="bcontext-ingest"' } },
+    );
+  }
+  const inner = await getStorage(workspaceSlug);
+  if (!inner || inner.workspace.id !== key.workspaceId) return notFound();
+
+  const rl = rateLimit(`ingest:${key.id}`, "ingest");
+  if (!rl.ok) {
+    return Response.json(
+      { error: "rate_limited", retry_after_sec: rl.retryAfterSec },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+  const grant: Grant = {
+    workspaceId: inner.workspace.id,
+    principal: { kind: "ingest_key", id: key.id },
+    verbs: ["read", "write", "delete"],
+    reach: { type: "all" },
+  };
+  return { storage: scopedStorage(inner, grant, { maskCredentials: true }), grant, keyId: key.id };
 }
