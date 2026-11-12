@@ -10,18 +10,10 @@
 import type { Queue, QueueOptions } from "pg-boss";
 
 export const QUEUE_WEBHOOK_DRAIN = "webhook.drain";
-export const QUEUE_CONNECTOR_DRAIN = "connector.drain";
-export const QUEUE_CAPABILITY_HEALTH = "capability.health-check";
-export const QUEUE_CAPABILITY_OAUTH_EXPIRE = "capability.oauth-expire";
 export const QUEUE_ERRORS_RETENTION = "errors.retention";
-export const QUEUE_CONNECTOR_SCHEDULE = "connector.schedule";
 export const QUEUE_TASKS_AUTO_ARCHIVE = "tasks.auto-archive";
-export const QUEUE_NEXO_CONTRADICTIONS = "nexo.contradictions";
 export const QUEUE_SKILLS_SCHEDULE = "skills.schedule";
 export const QUEUE_SKILLS_RUN_SCHEDULED = "skills.run-scheduled";
-export const QUEUE_NEXOS_HEARTBEAT = "nexos.heartbeat";
-export const QUEUE_NEXOS_RUN = "nexos.run";
-export const QUEUE_NEXOS_FLUSH_WINDOWS = "nexos.flush-windows";
 
 export interface QueueDefinition {
   name: string;
@@ -56,37 +48,6 @@ export const QUEUES: readonly QueueDefinition[] = [
     cron: "* * * * *",
     description:
       "Drains due webhook_deliveries rows (src/lib/webhooks/worker.ts).",
-  },
-  {
-    name: QUEUE_CONNECTOR_DRAIN,
-    options: DRAIN_OPTIONS,
-    cron: "* * * * *",
-    description:
-      "Drains due connector_jobs rows (src/lib/connectors/worker.ts).",
-  },
-  {
-    name: QUEUE_CONNECTOR_SCHEDULE,
-    options: DRAIN_OPTIONS,
-    cron: "* * * * *",
-    description:
-      "Enqueues a full_sync for every active install whose cadence is due (src/lib/connectors/scheduler.ts).",
-  },
-  {
-    name: QUEUE_CAPABILITY_HEALTH,
-    options: { ...DRAIN_OPTIONS, expireInSeconds: 900 },
-    cron: "* * * * *",
-    description:
-      "Pings approved executable capabilities (src/lib/capabilities/health-check.ts).",
-  },
-  {
-    name: QUEUE_CAPABILITY_OAUTH_EXPIRE,
-    // Was a pg_cron job (migration 0034, removed by 0097) on the same
-    // five-minute clock. Idempotent and row-locked in SQL, so a duplicate
-    // tick from a second replica is harmless.
-    options: DRAIN_OPTIONS,
-    cron: "*/5 * * * *",
-    description:
-      "Expires abandoned capability OAuth attempts and deletes their Vault material (src/lib/capabilities/oauth-expiry.ts).",
   },
   {
     name: QUEUE_ERRORS_RETENTION,
@@ -126,26 +87,6 @@ export const QUEUES: readonly QueueDefinition[] = [
       "Archives tasks and bugs that have been done and untouched for TASKS_AUTO_ARCHIVE_DAYS (30) days (src/lib/tasks/auto-archive.ts).",
   },
   {
-    name: QUEUE_NEXO_CONTRADICTIONS,
-    // Daily sweep of the docs/decisions/ADRs edited in the last day, and
-    // on-demand per node after a write (singleton per node, short delay).
-    // Model calls cost money: one retry, and the per-workspace daily cap
-    // (NEXO_CONTRADICTIONS_MAX_PAIRS) is what bounds the bill, not this.
-    options: {
-      expireInSeconds: 900,
-      retryLimit: 1,
-      retryDelay: 300,
-      retryBackoff: true,
-      retentionSeconds: 86_400,
-      deleteAfterSeconds: 604_800,
-    },
-    // 05:00 UTC, after the housekeeping jobs; a node's on-change scans run
-    // whenever they are due.
-    cron: "0 5 * * *",
-    description:
-      "Compares recently edited docs/decisions/ADRs with their closest blocks elsewhere and opens a contradiction conflict with citations to both (src/lib/nexo/contradictions.ts).",
-  },
-  {
     name: QUEUE_SKILLS_SCHEDULE,
     options: DRAIN_OPTIONS,
     // Five minutes is the resolution of a skill schedule: a digest due at
@@ -162,45 +103,6 @@ export const QUEUES: readonly QueueDefinition[] = [
     cron: null,
     description:
       "Runs one scheduled skill: the built-in weekly digest (src/lib/skills/digest.ts) or a skill node, then stamps last_run_at (src/lib/skills/schedules.ts).",
-  },
-  {
-    name: QUEUE_NEXOS_HEARTBEAT,
-    // The clock only: it reads due rows and enqueues runs, advancing each
-    // Nexo's next_heartbeat_at under a CAS, so a duplicate tick is harmless.
-    options: DRAIN_OPTIONS,
-    cron: "* * * * *",
-    description:
-      "Enqueues a nexos.run (trigger heartbeat) for every active Nexo whose heartbeat is due inside its active hours, and schedules the next beat (src/lib/nexos/triggers/heartbeat.ts).",
-  },
-  {
-    name: QUEUE_NEXOS_RUN,
-    // One Nexo turn per job (model + tools). `stately` with a singletonKey per
-    // Nexo and source keeps at most one queued and one active job per key: a
-    // burst of mentions collapses into one queued turn, and a message that
-    // lands while a turn is running still gets the next one. One retry: a
-    // turn costs money and a failed one is recorded as a failed run.
-    options: {
-      policy: "stately",
-      expireInSeconds: 600,
-      retryLimit: 1,
-      retryDelay: 60,
-      retryBackoff: true,
-      retentionSeconds: 3600,
-      deleteAfterSeconds: 604_800,
-    },
-    cron: null,
-    description:
-      "Runs one Nexo turn (heartbeat, event, batch or manual) through the headless runner (src/lib/nexos/triggers/run-job.ts → src/lib/nexos/runtime/runner.ts).",
-  },
-  {
-    name: QUEUE_NEXOS_FLUSH_WINDOWS,
-    // Claims due message windows (atomic RPC) and flushes each: one batch
-    // extraction pass, then one Nexo turn over the block. A crashed flush is
-    // reclaimed after WINDOW_DEFAULTS.staleSeconds, so a retry is safe.
-    options: { ...DRAIN_OPTIONS, expireInSeconds: 900 },
-    cron: "* * * * *",
-    description:
-      "Flushes due Nexo message windows: batch extraction → ingest candidates → triage attributed to the Nexo, then a batch turn to reply or escalate (src/lib/nexos/triggers/flush.ts).",
   },
 ] as const;
 

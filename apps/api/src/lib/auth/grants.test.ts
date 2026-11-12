@@ -312,7 +312,7 @@ describe("scopes that are not nodes:* still grant read", () => {
     async (scope) => {
       // Each is mintable on its own and documented as such. Resolving it to zero
       // verbs would let it pass gate() and then 403 on the very routes it exists
-      // for — /api/nexo, /api/agents/context, /api/skills/:id/run.
+      // for — autofix, /api/agents/context, /api/skills/:id/run.
       tableData.agent_workspace_access = { role: "operator", scopes: [scope] };
       const grant = asGrant(await resolveGrant(agent(WS, [scope]), WS));
       expect(grant.verbs).toContain("read");

@@ -1,10 +1,9 @@
 /**
- * Retrieval entry point for `ask_rag`, `ask_nexo`, Nexo chat and the agent
- * context route. If Supabase + embeddings are configured we search pgvector
+ * Retrieval entry point for `ask_rag` and the agent context route. If Supabase + embeddings are configured we search pgvector
  * through the `hybrid_search` RPC (vector + BM25 with RRF; `match_nodes` as
  * the plain-vector fallback), then apply per-lane scoring, optional rerank,
  * graph expansion and staleness labels. Otherwise we fall back to a
- * keyword scorer over the in-memory demo store so the chat still works
+ * keyword scorer over the in-memory demo store so retrieval still works
  * locally and in tests.
  *
  * The permission boundary lives here: the caller's reach is intersected into

@@ -1,8 +1,8 @@
 /**
  * GET /api/ingest/candidates?workspace_id=<uuid>&status=<pending|accepted|dismissed>
  *
- * List the workspace's ingest inbox — node candidates proposed by connector
- * signals, awaiting accept/dismiss. `status` is optional; omit for all.
+ * List the workspace's ingest inbox — node candidates proposed from ingested
+ * sources (meeting transcripts), awaiting accept/dismiss. `status` is optional; omit for all.
  */
 import { z } from "zod";
 import { openWorkspaceById } from "@/lib/auth/workspace";

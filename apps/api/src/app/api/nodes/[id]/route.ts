@@ -11,9 +11,7 @@
  * silent overwrite. A successful write fans out the same way MCP does —
  * activity feed, audit row, webhook event, realtime broadcast to open
  * clients (the most specific event: rename, move or update, plus backlink
- * invalidation for nodes whose mention set changed) — and, fire-and-forget,
- * pushes to the connectors that mirror this node (Linear-linked tasks,
- * GitHub-exported skills).
+ * invalidation for nodes whose mention set changed).
  */
 import { z } from "zod";
 import { NODE_STATUSES } from "@bcontext-dev/contract/types";
@@ -30,8 +28,6 @@ import { withRoute } from "@/lib/route";
 import { emitEvent } from "@/lib/webhooks/dispatch";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { WebhookEventType } from "@bcontext-dev/contract/webhooks/events";
-import { syncTaskToLinearIfLinked } from "@/lib/connectors/linear/push";
-import { pushSkillExports } from "@/lib/skills/push-to-github";
 import { withSkillVersionBump } from "@/lib/skills/version";
 import { wsBroadcast } from "@/lib/collab/server-broadcast";
 import { appendAudit, type ActorType } from "@/lib/audit";
@@ -286,24 +282,6 @@ export const PATCH = withRoute(async (
         void wsBroadcast.backlinkChanged(wsId, targetId, node.id, from);
       }
     }
-  }
-
-  // Linear push-side: fire-and-forget status sync for a task linked to an issue.
-  if (storage.backend === "supabase") {
-    void syncTaskToLinearIfLinked({
-      workspaceId: storage.workspace.id,
-      before,
-      after: node,
-    }).catch(() => {});
-  }
-
-  // GitHub push-side: re-sync AGENTS.md when a skill changes.
-  if (storage.backend === "supabase" && node.kind === "skill") {
-    void pushSkillExports({
-      workspaceId: storage.workspace.id,
-      workspaceName: storage.workspace.name,
-      storage: storage,
-    }).catch(() => {});
   }
 
   return Response.json({ node });

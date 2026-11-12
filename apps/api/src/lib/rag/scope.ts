@@ -1,6 +1,6 @@
 /**
  * Retrieval scope: which nodes a RAG/Nexo query may draw from. The schema is
- * the `scope` argument agents pass to `ask_rag`/`ask_nexo` and the REST
+ * the `scope` argument agents pass to `ask_rag` and the REST
  * equivalents; `resolveRetrievalScope` turns it into concrete "lanes" of node
  * ids (workspace, saved view, tags, explicit selection, graph neighborhood)
  * that `rag.ts` searches and scores separately before merging.

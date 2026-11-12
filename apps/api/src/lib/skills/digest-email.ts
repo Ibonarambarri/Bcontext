@@ -112,7 +112,7 @@ function renderHtml(input: { title: string; workspaceName: string; url: string; 
                 </table>
                 <hr style="border:0;border-top:1px solid ${LINE};margin:26px 0 18px;" />
                 <p style="margin:0;font-size:12.5px;color:${INK_3};">
-                  Lo escribe NEXO cada semana a partir de los cambios del workspace. Se desactiva desde los ajustes del workspace.
+                  Lo escribe Bcontext cada semana a partir de los cambios del workspace. Se desactiva desde los ajustes del workspace.
                 </p>
               </td>
             </tr>

@@ -120,7 +120,7 @@ describe("node inspector relations, permissions, realtime and responsive", () =>
     expect(nodeFreshness(node("a"), now)).toMatchObject({ state: "stale", age_days: 104 });
   });
 
-  it("demotes staleness by one tier when the node was read recently (NEXO-05)", () => {
+  it("demotes staleness by one tier when the node was read recently", () => {
     const now = new Date("2026-04-15T00:00:00.000Z").getTime();
     const recentRead = new Date(now - 5 * 86_400_000).toISOString();
     expect(

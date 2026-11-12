@@ -1,13 +1,13 @@
 /**
  * One agent's connection to a workspace, edited from the Agents page.
  *
- *   PATCH  /api/agents/connections/:id            role, scopes, grants, identity
+ *   PATCH  /api/agents/connections/:id            role, scopes, identity
  *   DELETE /api/agents/connections/:id?workspace=  disconnect from this workspace
  *
  * Session-cookie owner|admin of the workspace (`adminContext`). Identity
  * fields (name, provider, description) only stick when the caller also owns
- * the agent. The policy write is one RPC so role, scopes and the full grant
- * set land in a single transaction; tokens are re-scoped to the intersection
+ * the agent. The policy write is one RPC so role and scopes land in a single
+ * transaction with the token re-scope; tokens are re-scoped to the intersection
  * of every workspace policy the agent still holds, and disconnecting from the
  * last workspace revokes the agent everywhere.
  */
@@ -31,8 +31,6 @@ const UpdateSchema = z.object({
   description: z.string().trim().max(240).optional(),
   role: z.enum(AGENT_ROLES),
   scopes: z.array(z.enum(SCOPES)).min(1).max(SCOPES.length),
-  capability_ids: z.array(z.string().uuid()).max(100).default([]),
-  bundle_ids: z.array(z.string().uuid()).max(100).default([]),
 });
 
 type AdminContext =
@@ -80,23 +78,10 @@ export const PATCH = withRoute(async (
 
   const { data: agent } = await admin
     .from("agents")
-    .select("owner_user_id,name")
+    .select("owner_user_id")
     .eq("id", params.data.id)
     .maybeSingle();
   if (!agent) return Response.json({ error: "agent_not_found" }, { status: 404 });
-
-  // Fast validation gives an immediate 400. The policy RPC repeats it while
-  // holding row locks and applies role/scopes plus the complete grant set in
-  // one transaction, closing provider-rotation races.
-  const { data: validCapabilities } = input.data.capability_ids.length > 0
-    ? await admin.from("capabilities").select("id").eq("workspace_id", workspaceId).eq("status", "approved").is("deleted_at", null).in("id", input.data.capability_ids)
-    : { data: [] as Array<{ id: string }> };
-  const { data: validBundles } = input.data.bundle_ids.length > 0
-    ? await admin.from("capability_bundles").select("id").eq("workspace_id", workspaceId).eq("status", "approved").in("id", input.data.bundle_ids)
-    : { data: [] as Array<{ id: string }> };
-  if ((validCapabilities ?? []).length !== input.data.capability_ids.length || (validBundles ?? []).length !== input.data.bundle_ids.length) {
-    return Response.json({ error: "invalid_capability_grant" }, { status: 400 });
-  }
 
   const identityPatch = agent.owner_user_id === userId ? {
     ...(input.data.name ? { name: input.data.name } : {}),
@@ -104,24 +89,21 @@ export const PATCH = withRoute(async (
     ...(input.data.provider_label !== undefined ? { provider_label: input.data.provider_label } : {}),
     ...(input.data.description !== undefined ? { description: input.data.description } : {}),
   } : {};
-  const displayName = input.data.name ?? (agent.name as string);
+  // Role, scopes and the token re-scope in one transaction (0099), so a
+  // concurrent edit of the same agent cannot interleave between them.
   const { data: policy, error: policyError } = await admin.rpc("update_agent_connection_policy", {
     p_workspace_id: workspaceId,
     p_user_id: userId,
     p_agent_id: params.data.id,
-    p_display_name: displayName,
     p_role: input.data.role,
     p_scopes: input.data.scopes,
-    p_capability_ids: input.data.capability_ids,
-    p_bundle_ids: input.data.bundle_ids,
   }).single();
   if (policyError) {
-    const staleTarget = policyError.message.includes("capability_grant_target_unavailable");
     const missingAgent = policyError.message.includes("agent_connection_not_found");
     return Response.json({
-      error: staleTarget ? "invalid_capability_grant" : missingAgent ? "agent_not_found" : "connection_policy_update_failed",
-      message: staleTarget ? "A selected provider changed. Reload Agents and review the grants." : policyError.message,
-    }, { status: staleTarget ? 409 : missingAgent ? 404 : 500 });
+      error: missingAgent ? "agent_not_found" : "connection_policy_update_failed",
+      message: policyError.message,
+    }, { status: missingAgent ? 404 : 500 });
   }
   if (Object.keys(identityPatch).length > 0) {
     const { error: identityError } = await admin.from("agents").update(identityPatch).eq("id", params.data.id);
@@ -142,7 +124,7 @@ export const PATCH = withRoute(async (
     action: "agent.connection.update",
     targetType: "agent",
     targetId: params.data.id,
-    input: { role: input.data.role, scopes: input.data.scopes, capability_ids: input.data.capability_ids, bundle_ids: input.data.bundle_ids },
+    input: { role: input.data.role, scopes: input.data.scopes },
   });
   return Response.json({ ok: true, effective_scopes: effectiveScopes });
 });
@@ -160,7 +142,6 @@ export const DELETE = withRoute(async (
   const { admin, userId, workspaceId } = context;
   const now = new Date().toISOString();
   await admin.from("agent_workspace_access").update({ revoked_at: now }).eq("agent_id", params.data.id).eq("workspace_id", workspaceId);
-  await admin.from("capability_principals").update({ disabled_at: now }).eq("workspace_id", workspaceId).eq("source_type", "agent").eq("source_id", params.data.id);
   // Grants are authoritative, so disconnecting from one workspace has to
   // revoke the grant for that workspace too. Without this the agent kept read
   // and write here after being disconnected: nothing else denies it any more,

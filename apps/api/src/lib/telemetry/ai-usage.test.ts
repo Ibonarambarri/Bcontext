@@ -174,11 +174,11 @@ describe("recordAiUsageEvent", () => {
 
   it("prices the cached part of the prompt once, at the cache rate", async () => {
     // The SDK's `inputTokens` is the whole prompt, cache reads included. A
-    // Nexo turn with a 900k-token cache hit costs 100k at $2 + 900k at $0.2,
+    // skill run with a 900k-token cache hit costs 100k at $2 + 900k at $0.2,
     // not 1M at $2 plus 900k at $0.2 on top.
     await recordAiUsageEvent({
       workspaceId: "ws-1",
-      surface: "nexo",
+      surface: "skill_run",
       model: "anthropic/claude-sonnet-5",
       tokens: { input: 1_000_000, output: 0, cached: 900_000 },
     });
@@ -188,7 +188,7 @@ describe("recordAiUsageEvent", () => {
   it("prices cache writes at Anthropic's 1.25x rate and never below zero uncached", async () => {
     await recordAiUsageEvent({
       workspaceId: "ws-1",
-      surface: "nexo",
+      surface: "skill_run",
       model: "anthropic/claude-sonnet-5",
       tokens: { input: 1_000_000, output: 0, cached: 200_000, cacheWrite: 800_000 },
     });

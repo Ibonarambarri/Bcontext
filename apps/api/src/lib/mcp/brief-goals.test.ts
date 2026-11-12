@@ -2,7 +2,7 @@
  * The brief once objectives exist: what the workspace is aiming at, whether
  * the queue knows about it, and what happens when nobody reviews a goal.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createWorkspace } from "@/lib/demo-store";
@@ -11,10 +11,6 @@ import { resetDemoViewsForTests } from "@/lib/views/store";
 import type { Storage } from "@/lib/storage";
 import { goalCreateInput } from "@/lib/goals";
 import { resetDemoBriefsForTests, type Brief, type BriefNode } from "./brief";
-
-const mocks = vi.hoisted(() => ({ listAuthorizedCapabilityTools: vi.fn() }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: mocks.listAuthorizedCapabilityTools }));
-vi.mock("@/lib/capabilities/gateway", () => ({ CapabilityGatewayError: class extends Error {}, invokeAuthorizedCapability: vi.fn() }));
 
 import { buildMcpServer } from "./server";
 
@@ -70,7 +66,6 @@ describe("goals in the brief", () => {
   beforeEach(async () => {
     resetDemoViewsForTests();
     resetDemoBriefsForTests();
-    mocks.listAuthorizedCapabilityTools.mockReset().mockResolvedValue([]);
     const slug = `brief-goals-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const workspace = createWorkspace({ name: "Goals", slug });
     storage = resolveDemoStorage(slug)!;

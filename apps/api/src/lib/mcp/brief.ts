@@ -52,8 +52,6 @@ export interface BriefContext {
   /** Ids a node's `assignee_id` may carry for this caller: agent, user, token creator. */
   principalIds: string[];
   viewPrincipal: ViewPrincipal;
-  /** How many external tools this caller may call through capability_call (the catalog, re-read). */
-  countExternalTools: () => Promise<number>;
 }
 
 export interface BriefOptions {
@@ -158,11 +156,10 @@ export interface Brief {
   };
   views: Array<{ id: string; name: string; renderer: string; system_key: string | null }>;
   /**
-   * What `capability_search` would find: the external tools this caller has
-   * been granted and the workspace's skills. Neither is in tools/list, so an
-   * agent that is never told they exist never looks for them.
+   * How many skill nodes the workspace holds. They are not in tools/list, so
+   * an agent that is never told they exist never calls `skills(op=list)`.
    */
-  capabilities: { external_tools: number; skills: number };
+  skills: number;
 }
 
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, med: 2, low: 3 };
@@ -265,7 +262,7 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
   const generatedAt = new Date().toISOString();
   const top = Math.max(1, options.top);
   const today = generatedAt.slice(0, 10);
-  const [nodes, edges, views, changes, goalNodes, goalChanges, externalTools] = await Promise.all([
+  const [nodes, edges, views, changes, goalNodes, goalChanges] = await Promise.all([
     ctx.storage.listNodeSummaries({ limit: SCAN_CEILING }),
     ctx.storage.listEdges(),
     listViews(ctx.storage, ctx.viewPrincipal),
@@ -281,14 +278,6 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
       since: options.since ?? undefined,
       nodeKinds: ["goal"],
       limit: STRATEGIC_CHANGES_LIMIT,
-    }),
-    // A catalog outage costs the brief its counter, never the brief; the
-    // agent will find out on capability_search, which does not swallow it.
-    ctx.countExternalTools().catch((error: unknown) => {
-      log.warn("mcp.brief.capabilities.count_failed", {
-        error: error instanceof Error ? error.message : "unknown error",
-      });
-      return 0;
     }),
   ]);
 
@@ -375,10 +364,7 @@ export async function buildBrief(ctx: BriefContext, options: BriefOptions): Prom
       renderer: view.presentation.renderer,
       system_key: view.system_key,
     })),
-    capabilities: {
-      external_tools: externalTools,
-      skills: live.filter((node) => node.kind === "skill").length,
-    },
+    skills: live.filter((node) => node.kind === "skill").length,
   };
 }
 

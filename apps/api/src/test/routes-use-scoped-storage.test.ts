@@ -36,7 +36,7 @@ const LIB_DIR = join(process.cwd(), "src/lib");
 const LIB_HELPERS_EXEMPT: Record<string, string> = {
   "auth/workspace.ts": "this is the door itself",
   "rag.ts": "falls back to an unscoped storage only when no caller supplied one",
-  "ingest/candidates.ts": "connector auto-accept builds an explicit systemGrant",
+  "ingest/candidates.ts": "auto-accept builds an explicit systemGrant",
   "mcp/http.ts":
     "the MCP transport, shared by /mcp and /mcp/<org>/<workspace>: resolves the " +
     "workspace itself (the path or the token, never a member check alone) and " +
@@ -49,18 +49,9 @@ const LIB_HELPERS_EXEMPT: Record<string, string> = {
  * reach to apply.
  */
 const SYSTEM_ROUTES: Record<string, string> = {
-  "connectors/meeting-bot/webhook/route.ts": "provider HMAC; no principal",
-  "connectors/meeting-bot/schedule/route.ts": "compares node workspace explicitly",
-  "webhooks/github/route.ts": "GitHub webhook signature; system ingestion",
-  "webhooks/linear/route.ts": "Linear webhook signature; system ingestion",
-  "webhooks/slack/route.ts":
-    "Slack install HMAC; no request principal to open a workspace with. " +
-    "Retrieval is scoped to the install's own grant (lib/auth/install-principal.ts), " +
-    "falling back to an explicit systemGrant only for installs with no principal yet.",
   "onboarding/create/route.ts": "creates the workspace it writes to",
   "meetings/attach-transcript/[nodeId]/route.ts": "workspace token only, no user session",
   "meetings/refine/[nodeId]/route.ts": "workspace token only, no user session",
-  "meetings/[nodeId]/recording-status/route.ts": "tenancy proved against the node itself",
 };
 
 function walk(dir: string): string[] {

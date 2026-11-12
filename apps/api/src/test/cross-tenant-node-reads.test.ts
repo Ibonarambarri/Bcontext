@@ -26,8 +26,6 @@ const API_DIR = join(process.cwd(), "src/app/api");
  * claim that the route cannot leak across tenants.
  */
 const REVIEWED: Record<string, string> = {
-  // Signed by the provider's HMAC; the bot row itself carries the workspace.
-  "connectors/meeting-bot/webhook/route.ts": "system, HMAC-authenticated",
   // Creates the workspace; there is no membership to check yet.
   "onboarding/create/route.ts": "creates the workspace it writes to",
 };
@@ -62,8 +60,7 @@ describe("routes reading nodes by caller-supplied id", () => {
       // body-supplied slug, call requireWorkspaceMember on that, and then read
       // an unrelated caller-supplied node id — proving membership somewhere
       // while never tying the node to it. What actually closes the hole is
-      // comparing the node's own workspace against the authorised one, which is
-      // what makes connectors/meeting-bot/schedule safe.
+      // comparing the node's own workspace against the authorised one.
       const constrained = /\.eq\(\s*["']workspace_id["']/.test(src);
       const comparesNodeWorkspace = /workspace_id\s*!==/.test(src);
       const storageFromNode =

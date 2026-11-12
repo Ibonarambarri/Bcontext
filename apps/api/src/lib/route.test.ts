@@ -38,7 +38,7 @@ describe("routePattern", () => {
     expect(routePattern("/api/webhooks/deliveries")).toBe(
       "/api/webhooks/deliveries",
     );
-    expect(routePattern("/api/integrations")).toBe("/api/integrations");
+    expect(routePattern("/api/tags")).toBe("/api/tags");
     expect(routePattern("/api/nodes")).toBe("/api/nodes");
   });
 

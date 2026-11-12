@@ -22,8 +22,6 @@
  *   4. DELETE nodes where id = N as user B → no rows deleted.
  *   5. Bearer-token route hit (when REST routes are exposed): token
  *      scoped to Wa hitting `/api/nodes?workspace=Wb` → 403.
- *
- * The connector entrypoints are exercised in their own tests.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

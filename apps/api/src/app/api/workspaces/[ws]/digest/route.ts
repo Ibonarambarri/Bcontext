@@ -1,5 +1,5 @@
 /**
- * The workspace's weekly digest — NEXO's first scheduled skill.
+ * The workspace's weekly digest — the first built-in scheduled skill.
  *
  *   GET  /api/workspaces/:ws/digest   → current settings (disabled by default)
  *   PUT  /api/workspaces/:ws/digest   → enable/disable, cron, timezone, delivery
