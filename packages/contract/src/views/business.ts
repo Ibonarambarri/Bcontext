@@ -358,10 +358,29 @@ export interface HeatmapGrid {
   domain: { min: number; max: number } | null;
 }
 
+/**
+ * The columns of a heatmap over a bucketed date: every bucket from the first
+ * to the last one with data, so a week nobody booked is an empty column and
+ * not a week the axis silently skips (the same rule as `aggregateSeries`).
+ * Without a bucket the x values are categories and stay as they are.
+ */
+function heatmapColumns(xs: readonly string[], bucket: AggregateBucket | null | undefined): string[] {
+  if (!bucket || xs.length === 0) return [...xs];
+  const first = xs[0]!;
+  const last = xs[xs.length - 1]!;
+  const columns: string[] = [];
+  for (let period = first; period <= last && columns.length < 2_000; period = nextBucket(period, bucket)) columns.push(period);
+  return columns;
+}
+
 /** The grid a heatmap draws: every y × x pair, empty pairs as nulls, coloured on one scale. */
-export function heatmapGrid(result: AggregateResult, layout: Pick<HeatmapLayout, "value" | "second" | "color_by">): HeatmapGrid {
+export function heatmapGrid(
+  result: AggregateResult,
+  layout: Pick<HeatmapLayout, "value" | "second" | "color_by"> & { aggregate?: { x: { bucket?: AggregateBucket } } },
+): HeatmapGrid {
   const index = new Map(result.cells.map((cell) => [`${cell.x}\u0000${cell.y ?? ""}`, cell]));
-  const cells = result.y.map((y) => result.x.map((x): HeatmapCell => {
+  const columns = heatmapColumns(result.x, layout.aggregate?.x.bucket);
+  const cells = result.y.map((y) => columns.map((x): HeatmapCell => {
     const cell = index.get(`${x}\u0000${y}`);
     const value = cell ? cell.values[layout.value] ?? 0 : null;
     const second = cell && layout.second ? cell.values[layout.second] ?? 0 : null;
@@ -378,7 +397,7 @@ export function heatmapGrid(result: AggregateResult, layout: Pick<HeatmapLayout,
       cell.intensity = n === null ? null : max === min ? 1 : (n - min) / (max - min);
     }
   }
-  return { columns: result.x, rows: result.y, cells, domain: numbers.length ? { min, max } : null };
+  return { columns, rows: result.y, cells, domain: numbers.length ? { min, max } : null };
 }
 
 /** A record as `heatmapRowLabels` reads it: a node record or a dataset row. */

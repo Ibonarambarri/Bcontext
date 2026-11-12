@@ -126,6 +126,19 @@ describe("heatmap", () => {
     expect(grid.domain).toEqual({ min: 1, max: 2 });
   });
 
+  it("keeps the weeks nobody booked as empty columns", () => {
+    const result = aggregateRows([
+      event("2026-02-09T09:00:00Z", "alps", "s1"),
+      event("2026-03-02T09:00:00Z", "alps", "s1"),
+    ], bookingsByZoneWeek, { read: readEventKey });
+    expect(result.x).toEqual(["2026-02-09", "2026-03-02"]);
+    const grid = heatmapGrid(result, { value: "bookings", second: "suppliers", color_by: "ratio", aggregate: bookingsByZoneWeek });
+    expect(grid.columns).toEqual(["2026-02-09", "2026-02-16", "2026-02-23", "2026-03-02"]);
+    expect(grid.cells[0]!.map((cell) => cell.value)).toEqual([1, null, null, 1]);
+    // Without the bucket (categories on x) nothing is invented.
+    expect(heatmapGrid(result, { value: "bookings", second: "suppliers", color_by: "ratio" }).columns).toEqual(["2026-02-09", "2026-03-02"]);
+  });
+
   it("names heatmap rows after the records they are keys of", () => {
     const labels = heatmapRowLabels(["baqueira", "formigal", "unknown"], [
       { id: "n1", title: "Baqueira-Beret", fields: { zone_code: "baqueira" } },
