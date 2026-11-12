@@ -36,6 +36,8 @@ import {
   type UpdateTagInput,
 } from "./index";
 
+const NODE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 class SupabaseStorage implements Storage {
   readonly backend = "supabase" as const;
   constructor(
@@ -125,6 +127,9 @@ class SupabaseStorage implements Storage {
   }
 
   async getNode(id: string): Promise<KnowledgeNode | null> {
+    // Not a uuid, not a node: without this Postgres refuses the cast and a
+    // mistyped /n/<id> link is a 500 instead of a 404.
+    if (!NODE_ID.test(id)) return null;
     const { data, error } = await this.client
       .from("nodes")
       .select("*")
