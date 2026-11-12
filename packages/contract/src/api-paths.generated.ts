@@ -23,6 +23,7 @@ export const ROUTE_PATHS: readonly string[] = [
   "/api/agents/connections/:id",
   "/api/agents/context",
   "/api/agents/write",
+  "/api/ask",
   "/api/audit/verify",
   "/api/capabilities",
   "/api/capabilities/discover",
