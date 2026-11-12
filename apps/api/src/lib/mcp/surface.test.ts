@@ -201,7 +201,20 @@ describe("MCP tool surface budget", () => {
     // `capabilities_write`, nodes_write's `provenance` and brief's
     // `capabilities` section, measured 38.014. The ratchet keeps `ask_nexo`'s
     // saving instead of handing it back as headroom.
-    const BUDGET = 38_100;
+    //
+    // 38.100 → 39.500 for the business layer, with no new tool. Measured
+    // 39.485 (from 38.014). The kind enums became plain strings (record types
+    // are per workspace now; only nodes_write's create describes the core
+    // list), which by itself SAVED ~300 bytes across views, nodes and
+    // list_changes. On top of that: `fields` on nodes_write create/update and
+    // on nodes(op=list) as filters (~350), data(op=metrics) (~100),
+    // data_write upsert_rows/promote_row (~300) and the admin ops for the
+    // business model and record types (~1.000, admins only — the record type
+    // definition travels as an opaque object validated on the call, as
+    // nodes(op=list) does with the view query, instead of a 1.5 KB inline
+    // schema). Against the previous surface a read-only principal pays +96
+    // bytes for all of it, a writer +631, an admin the rest.
+    const BUDGET = 39_500;
     expect(
       bytes,
       `The tool schema is ${bytes} bytes (~${Math.round(bytes / 4)} tokens), over ` +
