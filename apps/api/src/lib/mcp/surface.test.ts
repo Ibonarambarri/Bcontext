@@ -229,6 +229,14 @@ describe("MCP tool surface budget", () => {
     // business web app and the read-first UI added REST routes only
     // (`/records/:type`, `/events?subject_…`, `/api/ask`); `ask_rag` kept its
     // schema when its synthesis moved to `lib/rag/ask.ts`.
+    //
+    // Held at 40.300 for v0.4.3, with headroom given back: v0.4.2 left the
+    // surface at 40.296, so the next clause anywhere would have tripped it.
+    // Descriptions were reworded, not emptied — every op, field, limit and
+    // rule an agent acts on is still said, in fewer words ("op=get: …"
+    // instead of "op=get fetches …", one parenthesis instead of a sentence).
+    // admin_write gained `unit:"money"?` in the field list and `data`
+    // "like-for-like mid-month" for op=metrics. Measured 39.261.
     const BUDGET = 40_300;
     expect(
       bytes,

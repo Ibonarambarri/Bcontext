@@ -326,15 +326,24 @@ parentheses, the stage field's options in `stages`).
   a 12-month series. Quote these instead of computing your own from rows.
   Labels use the workspace's own words for its sides (a renamed `supplier`
   reads "Active instructors"); refer to a KPI by its `key`, which never
-  changes. For the running month, flows (expenses, net, burn, GMV, take,
-  bookings) are month to date — say so (`current_label` reads "Net (month
-  to date)") rather than calling a mid-month net a loss.
+  changes. For the running month, flows (expenses, net, burn, new
+  customers and MRR movements, churn rates, GMV, take, bookings…) are month
+  to date — say so (`current_label` reads "Net (month to date)") rather
+  than calling a mid-month net a loss. Their `previous` and `year_ago` are
+  the same days of those months (`comparison.basis: "same_days"`, through
+  `through_day`), so the delta is like for like; stocks (MRR, customers,
+  ARPA, runway) compare end of month. `comparison_note` says it in one
+  sentence: quote it with a delta. Runway uses the average burn of the last
+  three closed months, never the running one.
 - Defining types and setting the model is an admin's: `admin_write({ op:
   "record_type", key, definition })`, `admin_write({ op: "set_business",
   business_model })`; `admin({ op: "business" })` returns the full
-  definitions. Two optional settings: a number/money field's `total`
+  definitions. Optional settings: a number/money field's `total`
   (`sum` · `average` · `none` — ratings average, years show nothing; the
-  table footer uses it), and a node type's `promotes_from` (the
+  table footer uses it), a number field's `unit: "money"` (shown and
+  totalled in the reporting currency while the value stays a number — how
+  a dataset-backed type, which has no money fields, carries an MRR), and a
+  node type's `promotes_from` (the
   dataset-backed types it is made from, e.g. `lead_instructor` with
   `["supplier"]`). "Convert to …" offers a node type for a row only when it
   lists the row's type there, or shares a field beyond name, email, zone and

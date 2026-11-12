@@ -21,7 +21,7 @@ import type { NodeInspectorPayload } from "@bcontext-dev/contract/node-inspector
 import type { RecordType } from "@bcontext-dev/contract/business/record-types";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import { DashboardListRow } from "@/components/dashboard-list-row";
-import { formatMoney } from "@/lib/business/format";
+import { formatMoney, periodLabel } from "@/lib/business/format";
 import {
   externalIdOf,
   mrrHistory,
@@ -110,12 +110,14 @@ export async function Record360({
             </div>
           </Card.Header>
           <Card.Content>
+            {/* MRR history only: no movement bars, so the chart draws no
+                right axis (the zeros below are what tells it so). */}
             <MrrChart
               height={180}
               currency={currency}
               data={history.map((point) => ({
                 period: point.period,
-                label: point.period.slice(5),
+                label: periodLabel(point.period),
                 mrr: point.mrr,
                 new_mrr: 0,
                 expansion_mrr: 0,

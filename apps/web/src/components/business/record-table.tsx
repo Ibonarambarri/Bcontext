@@ -34,6 +34,7 @@ import { useToast, useWorkspace } from "@/components/workspace-context";
 import { labelInSentence, promoteUnavailableNote } from "@/lib/business/records";
 import { promoteRow } from "@/lib/business/requests";
 import type { WorkspaceAddress } from "@/web/workspace-url";
+import { useBusiness } from "./business-context";
 import { FieldValue } from "./field-value";
 import { OpenBusinessSettings } from "./open-business-settings";
 
@@ -52,7 +53,8 @@ export function RecordTable({ workspace, source, presentation }: { workspace: Wo
   }, [types, presentation, source.kind]);
   const rows = useMemo(() => sortRecordRows(source.payload.rows, presentation.sort_by, types), [source.payload.rows, presentation.sort_by, types]);
   const fieldDefs = columns.flatMap((column) => ("field" in column ? [column.field] : []));
-  const totals = useMemo(() => totalsFor(fieldDefs, rows), [fieldDefs, rows]);
+  const { currency } = useBusiness();
+  const totals = useMemo(() => totalsFor(fieldDefs, rows, { currency }), [fieldDefs, rows, currency]);
   const [promoteHidden, setPromoteHidden] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const promoteTarget = source.kind === "dataset" ? source.payload.promote_targets[0] ?? null : null;

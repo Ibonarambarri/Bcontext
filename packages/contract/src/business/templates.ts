@@ -312,7 +312,7 @@ const B2C: BusinessTemplate = {
         { key: "email", label: "Email", type: "email" },
         { key: "plan", label: "Plan", type: "text" },
         { key: "status", label: "Status", type: "select", options: ["trialing", "active", "past_due", "churned"] },
-        { key: "mrr", label: "MRR", type: "number", description: "Monthly amount in the reporting currency." },
+        { key: "mrr", label: "MRR", type: "number", unit: "money", description: "Monthly amount in the reporting currency." },
         { key: "signup_date", label: "Signed up", type: "date" },
         { key: "country", label: "Country", type: "text" },
       ],

@@ -327,20 +327,31 @@ export async function replaceRollups(storage: Scoped, rows: readonly MetricRollu
   });
 }
 
+/**
+ * One grain of a workspace's rollups, oldest first. `ranges` (inclusive
+ * YYYY-MM-DD bounds) keeps a day read to the days it needs: the summary's
+ * like-for-like comparison wants three months of days, not years of them.
+ */
 export async function readRollups(
   storage: Scoped,
   grain: MetricGrain,
+  ranges?: ReadonlyArray<{ from: string; to: string }>,
 ): Promise<{ rows: MetricRollupRow[]; computed_at: string | null }> {
+  if (ranges && ranges.length === 0) return { rows: [], computed_at: null };
   if (storage.backend !== "supabase") {
     const stored = demoRollups.get(storage.workspace.id);
-    return { rows: (stored?.rows ?? []).filter((row) => row.grain === grain), computed_at: stored?.computed_at ?? null };
+    const inRange = (day: string) => !ranges || ranges.some((range) => day >= range.from && day <= range.to);
+    return { rows: (stored?.rows ?? []).filter((row) => row.grain === grain && inRange(row.period_start)), computed_at: stored?.computed_at ?? null };
   }
   const result = await pool().query(
     `select grain, to_char(period_start, 'YYYY-MM-DD') as period_start, metric, dimension, value, computed_at
        from public.business_metric_rollups
       where workspace_id = $1::uuid and grain = $2
+        and ($3::jsonb is null or exists (
+              select 1 from jsonb_to_recordset($3::jsonb) as r("from" date, "to" date)
+               where period_start between r."from" and r."to"))
       order by period_start asc`,
-    [storage.workspace.id, grain],
+    [storage.workspace.id, grain, ranges ? JSON.stringify(ranges) : null],
   );
   let computedAt: string | null = null;
   const rows = (result.rows as Array<Record<string, unknown>>).map((row) => {

@@ -145,10 +145,21 @@ export interface RecordFieldDef {
    * it from the key.
    */
   total?: FieldTotalMode;
+  /**
+   * number: what the number is, for display only. `money` prints it as an
+   * amount in the workspace's reporting currency (cells, footers, board
+   * totals) while the value stays a plain number — a dataset cell cannot
+   * hold `{ amount, currency }`, so a B2C customer's MRR is `9.99` stored
+   * and "€9.99" shown. Validation and storage ignore it.
+   */
+  unit?: FieldUnit;
 }
 
 export const FIELD_TOTAL_MODES = ["sum", "average", "none"] as const;
 export type FieldTotalMode = (typeof FIELD_TOTAL_MODES)[number];
+
+export const FIELD_UNITS = ["money"] as const;
+export type FieldUnit = (typeof FIELD_UNITS)[number];
 
 /** What `record_types.definition` holds, plus the columns, as one object. */
 export interface RecordTypeDefinition {
@@ -191,6 +202,7 @@ const FieldDefSchema = z.object({
   multiple: z.boolean().optional(),
   description: z.string().trim().max(200).optional(),
   total: z.enum(FIELD_TOTAL_MODES).optional(),
+  unit: z.enum(FIELD_UNITS).optional(),
 }).strict().superRefine((field, ctx) => {
   const choice = field.type === "select" || field.type === "multi_select";
   if (choice && (!field.options || field.options.length === 0)) {
@@ -210,6 +222,9 @@ const FieldDefSchema = z.object({
   }
   if (field.total && field.type !== "number" && field.type !== "money") {
     ctx.addIssue({ code: "custom", path: ["total"], message: `field \`${field.key}\` is a ${field.type}; only number and money fields take total` });
+  }
+  if (field.unit && field.type !== "number") {
+    ctx.addIssue({ code: "custom", path: ["unit"], message: `field \`${field.key}\` is a ${field.type}; only number fields take unit (a money field already has a currency)` });
   }
 });
 

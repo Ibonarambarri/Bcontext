@@ -39,6 +39,9 @@ describe("record fields", () => {
     expect(formatFieldValue({ type: "boolean" }, false)).toBe("No");
     expect(formatFieldValue({ type: "date" }, "2026-11-20")).toBe("Nov 20, 2026");
     expect(formatFieldValue({ type: "number" }, null)).toBe("—");
+    // A dataset MRR is a number in the reporting currency.
+    expect(formatFieldValue({ type: "number", unit: "money" }, 9.99, { currency: "EUR" })).toBe("€9.99");
+    expect(formatFieldValue({ type: "number" }, 9.99, { currency: "EUR" })).toBe("9.99");
     expect(formatFieldValue({ type: "relation" }, ["n1", "abcdef123456"], { titles: new Map([["n1", "Acme"]]) })).toBe("Acme, #abcdef12");
   });
 

@@ -48,6 +48,7 @@ export function RecordFieldsHeader({
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<{ field: string; message: string } | null>(null);
   const titleMap = new Map(Object.entries(titles));
+  const { currency } = useBusiness();
   const fields = headerFields(type, fieldsOf(current));
 
   async function save(def: RecordFieldDef, value: RecordFieldValue) {
@@ -72,7 +73,7 @@ export function RecordFieldsHeader({
     <dl className="mt-1 grid grid-cols-1 gap-x-8 gap-y-2.5 rounded-xl border border-[var(--line)] bg-[var(--paper-2)] px-4 py-3 sm:grid-cols-2 lg:grid-cols-3" aria-label={`${type.label} fields`}>
       {fields.map(({ def, value, isStage }) => {
         const editable = canWrite && EDITABLE.has(def.type);
-        const text = formatFieldValue(def, value, { titles: titleMap });
+        const text = formatFieldValue(def, value, { titles: titleMap, currency });
         return (
           <div key={def.key} className={`min-w-0 ${def.type === "text" && text.length > 80 ? "sm:col-span-2 lg:col-span-3" : ""}`} title={def.description}>
             <dt className="text-[11.5px] text-muted">
