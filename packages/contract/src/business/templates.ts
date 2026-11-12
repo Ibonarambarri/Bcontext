@@ -535,7 +535,12 @@ export interface BusinessTemplatePlan {
   model: BusinessModel;
   create_record_types: TemplateRecordType[];
   create_views: TemplateView[];
-  skipped: Array<{ what: "record_type" | "view"; key: string; reason: string }>;
+  /**
+   * What was not created and why. `failed` marks an attempt that went wrong
+   * (a write refused, a type it needed missing), as opposed to something the
+   * workspace already has — the screen reports the first, not the second.
+   */
+  skipped: Array<{ what: "record_type" | "view"; key: string; reason: string; failed?: true }>;
 }
 
 /** The slug the views store gives a name (`views/store.ts`, `uniqueSlug` before its suffix). */

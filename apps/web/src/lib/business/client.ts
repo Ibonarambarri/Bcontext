@@ -9,6 +9,7 @@
  * `{ error }`), because the API's refusals are written for the person.
  */
 import type { CreateIngestKeyResult, IngestKey } from "@bcontext-dev/contract/business/ingest";
+import type { BusinessTemplateResult } from "@bcontext-dev/contract/business/templates";
 import type {
   BusinessModel,
   BusinessSettings,
@@ -53,8 +54,25 @@ export async function patchBusinessSettings(ws: Ws, patch: BusinessSettingsPatch
 }
 
 /** Additive: types, fields and views the workspace already has are kept. */
-export async function applyBusinessTemplate(ws: Ws, model: BusinessModel): Promise<unknown> {
-  return call<unknown>(businessPaths.applyTemplate(ws), { method: "POST", json: { business_model: model } }, "Couldn't apply the template");
+export async function applyBusinessTemplate(ws: Ws, model: BusinessModel): Promise<BusinessTemplateResult> {
+  return call<BusinessTemplateResult>(businessPaths.applyTemplate(ws), { method: "POST", json: { business_model: model } }, "Couldn't apply the template");
+}
+
+/**
+ * One sentence for what applying a template did: what it added, and what it
+ * tried to add and could not (with the API's reason). Things the workspace
+ * already had are not news. `ok` is false when anything failed.
+ */
+export function describeTemplateResult(label: string, result: BusinessTemplateResult): { ok: boolean; text: string } {
+  const types = result.created.record_types.length;
+  const views = result.created.views.length;
+  const failed = (result.skipped ?? []).filter((item) => item.failed);
+  const added = types + views === 0
+    ? `The ${label} template was already applied; nothing new to add.`
+    : `Applied the ${label} template: ${types} record type${types === 1 ? "" : "s"} and ${views} view${views === 1 ? "" : "s"} added. Nothing that was already here changed.`;
+  if (failed.length === 0) return { ok: true, text: added };
+  const list = failed.map((item) => `${item.what === "view" ? "view" : "type"} ${item.key} (${item.reason})`).join("; ");
+  return { ok: false, text: `${added} ${failed.length} could not be added: ${list}.` };
 }
 
 export async function fetchRecordTypes(ws: Ws): Promise<RecordType[]> {

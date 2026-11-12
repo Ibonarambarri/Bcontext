@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Description, Input, Label, Skeleton, TextField } from "@heroui/react";
 import type { BusinessModel, BusinessSettings } from "@bcontext-dev/contract/business/record-types";
 import { BusinessModelPicker } from "@/components/business/business-model-picker";
-import { applyBusinessTemplate, fetchBusinessSettings, patchBusinessSettings } from "@/lib/business/client";
+import { applyBusinessTemplate, describeTemplateResult, fetchBusinessSettings, patchBusinessSettings } from "@/lib/business/client";
 import { businessModelLabel } from "@/lib/business/models";
 import { Block, SectionHead, type PanelSection } from "./panel-ui";
 
@@ -91,8 +91,9 @@ export function BusinessSection({
     setError(null);
     setNote(null);
     try {
-      await applyBusinessTemplate(slug, saved.business_model);
-      setNote(`The ${businessModelLabel(saved.business_model)} template is applied. Nothing that was already here changed.`);
+      const outcome = describeTemplateResult(businessModelLabel(saved.business_model), await applyBusinessTemplate(slug, saved.business_model));
+      if (outcome.ok) setNote(outcome.text);
+      else setError(outcome.text);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't apply the template.");
     } finally {

@@ -102,7 +102,7 @@ export async function applyBusinessTemplate(
       result.created.record_types.push(type.key);
     } catch (err) {
       failedTypes.add(type.key);
-      result.skipped.push({ what: "record_type", key: type.key, reason: failure(err) });
+      result.skipped.push({ what: "record_type", key: type.key, reason: failure(err), failed: true });
     }
   }
 
@@ -110,7 +110,7 @@ export async function applyBusinessTemplate(
     const needs = [...view.query.kinds ?? [], ...(view.query.dataset_type ? [view.query.dataset_type] : [])];
     const missing = needs.find((key) => failedTypes.has(key));
     if (missing) {
-      result.skipped.push({ what: "view", key: view.key, reason: `record type \`${missing}\` was not created` });
+      result.skipped.push({ what: "view", key: view.key, reason: `record type \`${missing}\` was not created`, failed: true });
       continue;
     }
     try {
@@ -125,7 +125,7 @@ export async function applyBusinessTemplate(
     } catch (err) {
       // A record type kept from before may lack a field this view names
       // (the person changed it): the view is skipped, the type is not touched.
-      result.skipped.push({ what: "view", key: view.key, reason: failure(err) });
+      result.skipped.push({ what: "view", key: view.key, reason: failure(err), failed: true });
     }
   }
   return result;

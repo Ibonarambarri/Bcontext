@@ -14,6 +14,8 @@ import { draftFromType, emptyField, emptyType, inputFromDraft, labelFromKey, pat
 import { ingestExamples } from "./ingest-examples";
 import { businessNavViews, isBusinessView } from "./nav";
 import { businessPaths, readBusinessSettings, readRecordTypes } from "./endpoints";
+import { describeTemplateResult } from "./client";
+import type { BusinessTemplateResult } from "@bcontext-dev/contract/business/templates";
 
 describe("business models", () => {
   it("offers every model the contract knows, product by default", () => {
@@ -143,5 +145,31 @@ describe("business views in the sidebar", () => {
     const views = [view("pipeline", ["deal"]), view("tasks", ["task"])];
     expect(businessNavViews(views, "product")).toEqual([]);
     expect(businessNavViews(views, "b2b").map((v) => v.id)).toEqual(["pipeline"]);
+  });
+});
+
+describe("describeTemplateResult", () => {
+  const result = (over: Partial<BusinessTemplateResult>): BusinessTemplateResult => ({
+    model: "b2b",
+    created: { record_types: [], datasets: [], views: [] },
+    skipped: [],
+    ...over,
+  });
+
+  it("says what was added and ignores what already existed", () => {
+    const out = describeTemplateResult("B2B", result({
+      created: { record_types: ["account", "deal"], datasets: [], views: [{ key: "pipeline", id: "v1", name: "Pipeline" }] },
+      skipped: [{ what: "record_type", key: "contact", reason: "a record type with this key exists" }],
+    }));
+    expect(out).toEqual({ ok: true, text: "Applied the B2B template: 2 record types and 1 view added. Nothing that was already here changed." });
+  });
+
+  it("reports a view the API refused instead of claiming success", () => {
+    const out = describeTemplateResult("B2B", result({
+      created: { record_types: ["account"], datasets: [], views: [] },
+      skipped: [{ what: "view", key: "pipeline", reason: "violates check constraint", failed: true }],
+    }));
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("1 could not be added: view pipeline (violates check constraint)");
   });
 });
