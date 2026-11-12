@@ -229,11 +229,25 @@ export function groupIngestBatches(entries: ActivityEntry[]): { batches: IngestB
       };
       batches.set(key, batch);
     }
-    if (entry.kind === "create") batch.created += 1;
-    else if (entry.kind === "update") batch.updated += 1;
-    else batch.other += 1;
     if (entry.ts > batch.latest) batch.latest = entry.ts;
     batch.entries.push(entry);
+  }
+  // The counts are records, not changes: a record a sync created and then
+  // updated is one created record, and one updated twice is one updated
+  // record — so the title agrees with "Show N records".
+  for (const batch of batches.values()) {
+    const rank = { create: 2, update: 1 } as Record<string, number>;
+    const strongest = new Map<string, string>();
+    for (const entry of batch.entries) {
+      const id = entry.node_id ?? entry.id;
+      const seen = strongest.get(id);
+      if (seen === undefined || (rank[entry.kind] ?? 0) > (rank[seen] ?? 0)) strongest.set(id, entry.kind);
+    }
+    for (const kind of strongest.values()) {
+      if (kind === "create") batch.created += 1;
+      else if (kind === "update") batch.updated += 1;
+      else batch.other += 1;
+    }
   }
   return { batches: [...batches.values()].sort((a, b) => b.latest.localeCompare(a.latest)), rest };
 }

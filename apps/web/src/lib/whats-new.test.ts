@@ -173,4 +173,14 @@ describe("ingest syncs", () => {
     ]);
     expect(long.batches.map((batch) => [batch.record_type, batch.entries.length])).toEqual([["deal", 1], ["account", 2]]);
   });
+
+  it("counts records, not changes", () => {
+    const { batches } = groupIngestBatches([
+      ingest(1, { correlation_id: "s", kind: "create" }),
+      ingest(1, { correlation_id: "s", kind: "update" }),
+      ingest(2, { correlation_id: "s", kind: "update" }),
+      ingest(2, { correlation_id: "s", kind: "update" }),
+    ]);
+    expect(ingestBatchTitle(batches[0]!)).toBe("Ingest: 1 record created, 1 updated");
+  });
 });
