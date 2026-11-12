@@ -13,13 +13,17 @@
  * gesture as opening a workspace's panel, so it is the same kind of dialog,
  * centred and closable, with the hub still visible behind it.
  *
- * One screen, two questions: the name, and what it starts with. THE ADDRESS
+ * One screen, three questions: the name, the business model (B2B, B2C,
+ * Marketplace or just product — it decides the dashboard and the record
+ * types; `product` is preselected) and what it starts with. THE ADDRESS
  * IS NOT ASKED FOR, and must not be added back: the create body is
- * `{ name, template }`, and the server derives the slug from the name and
+ * `{ name, template, business_model }`, and the server derives the slug from the name and
  * numbers it if the instance already has one (`acme`, `acme-2`). Success
  * goes straight into the new workspace.
  *
- * Writes `POST /api/onboarding/create`. `apiErrorMessage` is exported for
+ * Writes `POST /api/onboarding/create`, then, for a business model other
+ * than product, the business settings and its template
+ * (`@/lib/business/client`). `apiErrorMessage` is exported for
  * `new-workspace-modal.test.ts`.
  */
 
@@ -31,6 +35,10 @@ import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { cn } from "@bcontext-dev/contract/utils";
 import { WORKSPACE_NAME_MAX } from "@bcontext-dev/contract/workspaces";
 import { workspacePath } from "@/web/workspace-url";
+import type { BusinessModel } from "@bcontext-dev/contract/business/record-types";
+import { BusinessModelPicker } from "@/components/business/business-model-picker";
+import { DEFAULT_BUSINESS_MODEL } from "@/lib/business/models";
+import { applyBusinessTemplate, patchBusinessSettings } from "@/lib/business/client";
 
 /** A workspace template as `page.tsx` summarises it from the contract. */
 export interface TemplateSummary {
@@ -77,6 +85,21 @@ export function apiErrorMessage(body: unknown, status: number): string {
   return fallback;
 }
 
+/**
+ * Sets the model and applies its template on the workspace just created.
+ * Best effort: the workspace exists either way, and a step that failed is
+ * one click in the workspace's Business settings — so the person is taken
+ * in regardless rather than stranded in a dialog over a half-done setup.
+ */
+async function setUpBusiness(slug: string, model: BusinessModel): Promise<void> {
+  try {
+    await patchBusinessSettings(slug, { business_model: model });
+    await applyBusinessTemplate(slug, model);
+  } catch {
+    /* see above: recoverable from settings */
+  }
+}
+
 export function NewWorkspaceModal({ templates, onClose }: Props) {
   const router = useRouter();
 
@@ -86,6 +109,7 @@ export function NewWorkspaceModal({ templates, onClose }: Props) {
     [templates],
   );
   const [templateId, setTemplateId] = useState(defaultTemplate);
+  const [businessModel, setBusinessModel] = useState<BusinessModel>(DEFAULT_BUSINESS_MODEL);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,6 +126,9 @@ export function NewWorkspaceModal({ templates, onClose }: Props) {
         body: JSON.stringify({
           name: name.trim(),
           template: templateId || undefined,
+          // Also set after the create (`setUpBusiness`), so an API that does
+          // not take it at creation still ends with the model chosen.
+          business_model: businessModel,
         }),
       });
       const data = (await r.json().catch(() => null)) as
@@ -111,6 +138,7 @@ export function NewWorkspaceModal({ templates, onClose }: Props) {
       // Straight in. The hub behind this dialog is stale the moment the
       // workspace exists, and the workspace is where the person was going.
       const slug = data?.workspace?.slug;
+      if (slug && businessModel !== "product") await setUpBusiness(slug, businessModel);
       router.push((slug ? workspacePath(slug) : (data?.next_url ?? "/workspaces")) as Route);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create the workspace.");
@@ -171,6 +199,20 @@ export function NewWorkspaceModal({ templates, onClose }: Props) {
                 <Label>Name</Label>
                 <Input placeholder="Acme" maxLength={WORKSPACE_NAME_MAX} />
               </TextField>
+
+              <div>
+                <div className="text-[13px] font-medium text-foreground">
+                  What kind of business is it?
+                </div>
+                <p className="mt-0.5 text-[12px] text-muted">
+                  Decides the dashboard, the record types (accounts, deals,
+                  suppliers…) and the views it starts with. You can change
+                  it later in the workspace&apos;s settings.
+                </p>
+                <div className="mt-2.5">
+                  <BusinessModelPicker value={businessModel} onChange={setBusinessModel} disabled={busy} />
+                </div>
+              </div>
 
               <div>
                 <div className="text-[13px] font-medium text-foreground">

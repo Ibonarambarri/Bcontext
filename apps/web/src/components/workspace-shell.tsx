@@ -26,6 +26,8 @@ import { WorkspaceRealtimeProvider } from "@/lib/collab/workspace-realtime";
 import { ViewHeaderSlotProvider, useViewHeaderSlotTarget } from "./view-header-slot";
 import type { KnowledgeNode } from "@bcontext-dev/contract/types";
 import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
+import type { BusinessSettings } from "@bcontext-dev/contract/business/record-types";
+import { BusinessProvider } from "./business/business-context";
 
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
 const CreateNodeDialogHost = dynamic(() => import("./create-node-dialog-host").then((m) => m.CreateNodeDialogHost));
@@ -45,6 +47,7 @@ export function WorkspaceShell({
   workspaces,
   nodes,
   currentUser,
+  business,
   children,
 }: {
   workspaceSlug: string;
@@ -52,6 +55,8 @@ export function WorkspaceShell({
   workspaces: WorkspaceCard[];
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
+  /** Model and currency (@/web/business); drives the sidebar's Business section. */
+  business?: BusinessSettings;
   children: React.ReactNode;
 }) {
   return (
@@ -69,7 +74,9 @@ export function WorkspaceShell({
         nodes={nodes}
         currentUser={currentUser}
       >
-        <ShellBody>{children}</ShellBody>
+        <BusinessProvider value={business}>
+          <ShellBody>{children}</ShellBody>
+        </BusinessProvider>
       </WorkspaceProvider>
     </WorkspaceRealtimeProvider>
   );

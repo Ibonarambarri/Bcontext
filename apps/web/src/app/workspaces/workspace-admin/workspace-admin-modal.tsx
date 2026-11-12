@@ -28,12 +28,13 @@
  * invitation list that have drifted apart are worse than a spinner.
  *
  * Must not break: a member who cannot manage the workspace still opens it
- * (General says what their role allows, Members is a read-only roster); the
- * Invitations and Usage sections only appear for those who manage it.
+ * (General says what their role allows, Members is a read-only roster,
+ * Business and Record types are read-only); the Invitations, Usage and
+ * Ingest keys sections only appear for those who manage it.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Gauge, Mail, Settings2, Users, X } from "lucide-react";
+import { Briefcase, Gauge, KeyRound, Mail, Rows3, Settings2, Users, X } from "lucide-react";
 import { Modal, Skeleton } from "@heroui/react";
 import { Sidebar as SidebarPrimitive } from "@/components/ui/sidebar";
 import { gradientCss, gradientFor } from "@bcontext-dev/contract/workspace-gradients";
@@ -48,6 +49,9 @@ import { GeneralSection } from "./general-section";
 import { MembersSection } from "./members-section";
 import { InvitationsSection } from "./invitations-section";
 import { UsageSection } from "./usage-section";
+import { BusinessSection } from "./business-section";
+import { RecordTypesSection } from "./record-types-section";
+import { IngestKeysSection } from "./ingest-keys-section";
 
 /** What the host already knows about the workspace, so the header paints at once. */
 export interface PanelWorkspace {
@@ -66,7 +70,11 @@ interface RailItem {
   manageOnly?: boolean;
 }
 
-/** Grouped, because the sections are not siblings: the workspace itself, and the people in it. */
+/**
+ * Grouped, because the sections are not siblings: the workspace itself, the
+ * people in it, and the business it runs (model, record types, the keys its
+ * app sends data with).
+ */
 const GROUPS: ReadonlyArray<{ label: string; items: readonly RailItem[] }> = [
   {
     label: "Workspace",
@@ -80,6 +88,14 @@ const GROUPS: ReadonlyArray<{ label: string; items: readonly RailItem[] }> = [
     items: [
       { id: "members", label: "Members", icon: Users },
       { id: "invitations", label: "Invitations", icon: Mail, manageOnly: true },
+    ],
+  },
+  {
+    label: "Business",
+    items: [
+      { id: "business", label: "Business", icon: Briefcase },
+      { id: "record-types", label: "Record types", icon: Rows3 },
+      { id: "ingest-keys", label: "Ingest keys", icon: KeyRound, manageOnly: true },
     ],
   },
 ];
@@ -146,7 +162,7 @@ export function WorkspaceAdminModal({
 
   // A section the person cannot use is not offered, and a link that named
   // one (`?section=invitations` for a viewer) falls back to General.
-  const shown = canManage || (section !== "invitations" && section !== "usage") ? section : "general";
+  const shown = canManage || (section !== "invitations" && section !== "usage" && section !== "ingest-keys") ? section : "general";
 
   const counts = useMemo<Partial<Record<PanelSection, number>>>(
     () => ({
@@ -260,6 +276,14 @@ export function WorkspaceAdminModal({
                     setMetadata(next.metadata);
                   }}
                 />
+              ) : shown === "business" ? (
+                // The business sections read their own routes, so like
+                // General they do not wait on the roster.
+                <BusinessSection slug={workspace.slug} canManage={canManage} onGo={setSection} />
+              ) : shown === "record-types" ? (
+                <RecordTypesSection slug={workspace.slug} canManage={canManage} />
+              ) : shown === "ingest-keys" ? (
+                <IngestKeysSection slug={workspace.slug} />
               ) : error ? (
                 <p role="alert" className="text-[13px] text-danger">
                   {error}
