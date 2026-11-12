@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { NODE_KINDS } from "@bcontext-dev/contract/types";
 import { BUSINESS_MODELS } from "@bcontext-dev/contract/business/record-types";
+import { VIEW_RENDERERS, ViewPresentationSchema, ViewQuerySchema } from "@bcontext-dev/contract/views/schema";
 
 const MIGRATIONS = join(process.cwd(), "supabase", "migrations");
 
@@ -42,6 +43,23 @@ describe("business vocabularies match the database", () => {
   it("record type keys may not be core kinds — the same list", () => {
     const literals = latest(/constraint record_types_key_not_core check \(\s*key <> all \(array\[([^\]]*)\]\)/gi);
     expect(literals).toEqual([...NODE_KINDS]);
+  });
+
+  // The API stores the normalised query and presentation, so every key the
+  // contract's schemas fill in must be one the CHECK allows (0104: a template
+  // applied on Postgres skipped every view because these lists lagged).
+  it("saved_views_query_keys allows every key of a normalised view query", () => {
+    const allowed = latest(/add constraint saved_views_query_keys check \(\s*\(query - array\[([^\]]*)\]\)/gi);
+    const keys = Object.keys(ViewQuerySchema.parse({ schema_version: 1 }));
+    expect(keys.filter((key) => !allowed?.includes(key))).toEqual([]);
+  });
+
+  it("saved_views_presentation_keys allows every renderer and presentation key", () => {
+    const renderers = latest(/add constraint saved_views_presentation_keys check \([\s\S]*?\(presentation ->> 'renderer'\) = any \(array\[([^\]]*)\]\)/gi);
+    expect(VIEW_RENDERERS.filter((renderer) => !renderers?.includes(renderer))).toEqual([]);
+    const allowed = latest(/add constraint saved_views_presentation_keys check \([\s\S]*?\(presentation - array\[([^\]]*)\]\)/gi);
+    const keys = Object.keys(ViewPresentationSchema.parse({ schema_version: 1, renderer: "table" }));
+    expect(keys.filter((key) => !allowed?.includes(key))).toEqual([]);
   });
 
   it("workspaces_business_model_check lists exactly BUSINESS_MODELS", () => {

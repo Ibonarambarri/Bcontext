@@ -47,13 +47,14 @@ const NODE_STATUSES = [
   "on_track", "at_risk", "off_track", "achieved", "missed", "abandoned",
 ] as const;
 const DATE_FIELDS = ["created_at", "updated_at", "due_date"] as const;
-const RENDERERS = ["graph", "board", "table", "list", "changes", "browse", "credentials", "roadmap", "metrics", "heatmap"] as const;
+/** Every renderer a stored view may name; 0104 lists the same in `saved_views_presentation_keys`. */
+export const VIEW_RENDERERS = ["graph", "board", "table", "list", "changes", "browse", "credentials", "roadmap", "metrics", "heatmap"] as const;
 /**
  * Renderers that no longer exist but may survive in stored presentations or
  * inbound API payloads. They are coerced on parse — a saved "timeline" view
  * keeps working, rendered by the list renderer (timeline retired 2026-07-21).
  */
-const LEGACY_RENDERER_ALIASES: Record<string, (typeof RENDERERS)[number]> = {
+const LEGACY_RENDERER_ALIASES: Record<string, (typeof VIEW_RENDERERS)[number]> = {
   timeline: "list",
 };
 
@@ -159,7 +160,7 @@ export const ViewPresentationSchema = z.object({
   schema_version: z.literal(VIEW_PRESENTATION_SCHEMA_VERSION),
   renderer: z.preprocess(
     (value) => (typeof value === "string" && value in LEGACY_RENDERER_ALIASES ? LEGACY_RENDERER_ALIASES[value] : value),
-    z.enum(RENDERERS),
+    z.enum(VIEW_RENDERERS),
   ),
   /** A core column (`status`, `tag`…) or `field:<key>`; a record board defaults to its type's `stage_field`. */
   group_by: z.string().trim().min(1).max(80).nullable().default(null),
