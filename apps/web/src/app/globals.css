@@ -266,7 +266,7 @@ body { height: 100%; }
 
 /* ─── Per-workspace accent theme ───────────────────────────
    No static block here on purpose: the workspace layout
-   (app/w/[org]/[ws]/layout.tsx) SERVER-renders an inline <style>
+   (app/w/[ws]/layout.tsx) SERVER-renders an inline <style>
    from lib/workspace-accent.ts (workspaceAccentCss) that
    overrides HeroUI's --accent/--accent-foreground on :root —
    plus dark variants under .dark/[data-theme="dark"] — so the
@@ -1918,7 +1918,7 @@ body:has(.auth-paper) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Field type pass — workspace shell (/w/[org]/[ws])                  */
+/* Field type pass — workspace shell (/w/[ws])                        */
 /* Same operation as the /workspaces hub (now fully HeroUI/Tailwind):  */
 /* keep the --paper/--ink/--line tokens, swap the TYPE VOICE to        */
 /* the field system — Bricolage for display, Figtree for body, Martian */
@@ -2023,10 +2023,10 @@ body:has(.auth-paper) {
 
    The Sidebar (`components/ui/sidebar`) is built to be a page's
    navigation: the aside is `height: 100svh` and sticky, and its
-   provider is at least that tall. The organization panel is the same navigation
-   in a 760px-tall dialog, so exactly those page-sized rules are
-   undone here — scoped to `.org-panel`, so the workspace's own
-   sidebar and the admin shell keep every one of them.
+   provider is at least that tall. The workspace panel is the same
+   navigation in a 760px-tall dialog, so exactly those page-sized rules
+   are undone here — scoped to `.workspace-panel`, so the workspace's
+   own sidebar and the admin shell keep every one of them.
 
    Plain rules, no `!important`: `ui/sidebar.css` sits in the
    components layer, so these unlayered rules win over it.
@@ -2036,13 +2036,13 @@ body:has(.auth-paper) {
    left edge. The panel lays out its own padding per section, so the dialog
    keeps none — and the rail then runs corner to corner and gets clipped into
    the window's radius by the `overflow-hidden` already on it. */
-.org-panel.modal__dialog {
+.workspace-panel.modal__dialog {
   padding: 0;
   border-radius: 16px;
 }
 
-.org-panel .sidebar__provider { min-height: 0; }
-.org-panel .sidebar {
+.workspace-panel .sidebar__provider { min-height: 0; }
+.workspace-panel .sidebar {
   height: auto;
   min-height: 0;
   position: static;
@@ -2054,5 +2054,5 @@ body:has(.auth-paper) {
   border-color: var(--line);
 }
 @media (max-width: 767px) {
-  .org-panel .sidebar { width: 100%; }
+  .workspace-panel .sidebar { width: 100%; }
 }

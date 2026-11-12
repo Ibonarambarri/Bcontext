@@ -2,7 +2,7 @@
 
 /**
  * The workspace's client-side state, as one React context (`useWorkspace`),
- * provided by `workspace-shell.tsx` around every `/w/<org>/<ws>/**` page.
+ * provided by `workspace-shell.tsx` around every `/w/<ws>/**` page.
  * The web has no data of its own: `nodes` arrive from the layout (fetched
  * server-side through the API), and everything this file does is keep them
  * coherent with what the person and their peers are doing in between RSC
@@ -91,6 +91,7 @@ import {
   useWorkspaceRealtime,
 } from "@/lib/collab/workspace-realtime";
 import { workspacePath, workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
+import type { PanelSection } from "@/app/workspaces/workspace-admin/sections";
 import { supabaseAuthConfigured } from "@/lib/public-env";
 
 /**
@@ -142,17 +143,11 @@ export interface ToastApi {
 
 /** Everything `useWorkspace()` returns. Grouped as in the file header. */
 interface WorkspaceCtx {
-  /** Where this workspace lives: the `<org>/<workspace>` pair every URL and API call carries. */
+  /** Where this workspace lives: the slug every URL and API call carries. */
   address: WorkspaceAddress;
   workspaceSlug: string;
   workspace: WorkspaceCard | null;
   workspaces: WorkspaceCard[];
-  /**
-   * Whether the interface names the organization at all. Derived once, on
-   * the server, by `@/lib/org-layer`: false for one person with one
-   * workspace, true the moment a second workspace or a second member exists.
-   */
-  orgLayer: boolean;
   nodes: KnowledgeNode[];
   /** Nodes with status `archived` — hidden from `nodes`, shown on the tasks board's shelf. */
   archivedNodes: KnowledgeNode[];
@@ -228,6 +223,15 @@ interface WorkspaceCtx {
   openSettings: () => void;
   closeSettings: () => void;
 
+  /**
+   * The workspace panel (members, invitations, usage, name and colour), the
+   * same dialog the hub opens from a card. Null while closed; the section it
+   * shows otherwise. Mounted by `workspace-shell.tsx`.
+   */
+  workspacePanel: PanelSection | null;
+  openWorkspacePanel: (section?: PanelSection) => void;
+  closeWorkspacePanel: () => void;
+
   toasts: Toast[];
   toast: ToastApi;
 }
@@ -246,28 +250,23 @@ export function useToast(): ToastApi {
   return useWorkspace().toast;
 }
 
-/* Keyed by the `<org>~<workspace>` ref: two companies both get to have a
-   `docs`, and their sidebars are not the same sidebar. */
+/* Keyed by the workspace slug, so every workspace keeps its own sidebar. */
 function layoutKey(ref: string) {
   return `bcontext:${ref}:layout`;
 }
 
 /** See the file header for what this provides and the invariants it keeps. */
 export function WorkspaceProvider({
-  org,
   workspaceSlug,
   workspace,
   workspaces,
-  orgLayer = false,
   nodes: serverNodes,
   currentUser,
   children,
 }: {
-  org: string;
   workspaceSlug: string;
   workspace: WorkspaceCard | null;
   workspaces: WorkspaceCard[];
-  orgLayer?: boolean;
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
   children: React.ReactNode;
@@ -275,12 +274,12 @@ export function WorkspaceProvider({
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const address = useMemo<WorkspaceAddress>(
-    () => ({ org, slug: workspaceSlug }),
-    [org, workspaceSlug],
+    () => ({ slug: workspaceSlug }),
+    [workspaceSlug],
   );
   const apiRef = workspaceApiRef(address);
   const activeNodeId = useMemo(() => {
-    const m = pathname.match(/\/w\/[^/]+\/[^/]+\/n\/([^/?#]+)/);
+    const m = pathname.match(/\/w\/[^/]+\/n\/([^/?#]+)/);
     return m ? (m[1] ?? null) : null;
   }, [pathname]);
 
@@ -987,6 +986,15 @@ export function WorkspaceProvider({
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
+  // The workspace panel. Opening it closes the settings dialog: the two are
+  // centred dialogs and one of them at a time is the only legible state.
+  const [workspacePanel, setWorkspacePanel] = useState<PanelSection | null>(null);
+  const openWorkspacePanel = useCallback((section: PanelSection = "members") => {
+    setSettingsOpen(false);
+    setWorkspacePanel(section);
+  }, []);
+  const closeWorkspacePanel = useCallback(() => setWorkspacePanel(null), []);
+
   useEffect(() => {
     // Fallback only — `theme-script.tsx` sets `data-density` + `data-text-scale`
     // before paint to avoid FOUC. This effect reconciles when the pre-paint
@@ -1031,7 +1039,6 @@ export function WorkspaceProvider({
     workspaceSlug,
     workspace,
     workspaces,
-    orgLayer,
     nodes,
     archivedNodes,
     currentUser,
@@ -1067,6 +1074,9 @@ export function WorkspaceProvider({
     settingsOpen,
     openSettings,
     closeSettings,
+    workspacePanel,
+    openWorkspacePanel,
+    closeWorkspacePanel,
     toasts,
     toast: toastApi,
   };

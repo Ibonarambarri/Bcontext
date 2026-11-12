@@ -5,7 +5,7 @@
  * the empty answer — built on HeroUI so the panel looks like one product
  * rather than three screens that each invented a text box.
  *
- * It lives here because Organizations, Users and Errors had grown three
+ * It lives here because Workspaces, Users and Errors had grown three
  * copies of the same six components, and a fix to the debounce or the pager
  * only ever landed in one of them.
  */

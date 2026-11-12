@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings as SettingsIcon,
   UserRound,
+  Users,
   Sparkles,
 } from "lucide-react";
 import { Dropdown, Header, Label, Separator, Skeleton } from "@heroui/react";
@@ -22,8 +23,8 @@ import { ThemeSwitcher } from "./theme-switcher";
 const AccountModal = dynamic(() => import("./account-modal").then((m) => m.AccountModal));
 
 /**
- * Account menu — avatar + dropdown with Profile, Activity and Settings (when
- * scoped to a workspace), theme toggle, and sign-out. Lives in the workspace
+ * Account menu — avatar + dropdown with Profile, Activity, Members and
+ * Settings (when scoped to a workspace), theme toggle, and sign-out. Lives in the workspace
  * sidebar footer and in the /workspaces top nav, and is the same component
  * in both places on purpose: two account menus that look different are two
  * products.
@@ -35,9 +36,9 @@ const AccountModal = dynamic(() => import("./account-modal").then((m) => m.Accou
  * the first paint is a skeleton instead: a shape in the right place, rather
  * than a wrong answer that corrects itself half a second later.
  *
- * `onOpenSettings` and `onOpenActivity` are optional so the menu can render
- * outside a workspace (e.g. on /workspaces) without depending on
- * `WorkspaceProvider`; the corresponding item is hidden when the prop is
+ * `onOpenSettings`, `onOpenActivity` and `onOpenMembers` are optional so the
+ * menu can render outside a workspace (e.g. on /workspaces) without depending
+ * on `WorkspaceProvider`; the corresponding item is hidden when the prop is
  * omitted. Activity is here, not in the sidebar, on purpose.
  *
  * `align` controls where the dropdown anchors. The sidebar footer wants it
@@ -49,6 +50,7 @@ const AccountModal = dynamic(() => import("./account-modal").then((m) => m.Accou
 export function UserMenu({
   onOpenSettings,
   onOpenActivity,
+  onOpenMembers,
   onOpenGuide,
   align = "up",
   profileCard = false,
@@ -56,6 +58,8 @@ export function UserMenu({
   onOpenSettings?: () => void;
   /** Navigate to the workspace Activity feed; hidden when omitted. */
   onOpenActivity?: () => void;
+  /** Open the workspace panel on its members; hidden when omitted. */
+  onOpenMembers?: () => void;
   /** Bring the "Getting started" guide back; hidden when omitted. */
   onOpenGuide?: () => void;
   align?: "up" | "down";
@@ -78,6 +82,8 @@ export function UserMenu({
       setAccountOpen(true);
     } else if (key === "settings") {
       onOpenSettings?.();
+    } else if (key === "members") {
+      onOpenMembers?.();
     } else if (key === "activity") {
       onOpenActivity?.();
     } else if (key === "guide") {
@@ -182,6 +188,16 @@ export function UserMenu({
                 >
                   <Label>Activity</Label>
                   <ActivityIcon size={14} className="ml-auto text-muted" />
+                </Dropdown.Item>
+              )}
+              {onOpenMembers && (
+                <Dropdown.Item
+                  id="members"
+                  textValue="Members"
+                  className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-[var(--ink-2)] hover:bg-[var(--paper-2)] hover:text-[var(--ink)]"
+                >
+                  <Label>Members</Label>
+                  <Users size={14} className="ml-auto text-muted" />
                 </Dropdown.Item>
               )}
               {onOpenGuide && (

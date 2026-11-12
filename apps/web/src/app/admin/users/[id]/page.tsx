@@ -6,8 +6,8 @@ import type {
   AdminUserAgent,
   AdminUserDetail,
   AdminUserWorkspace,
-} from "@bcontext-dev/contract/admin-orgs";
-import { Alert, Chip, Table } from "@heroui/react";
+} from "@bcontext-dev/contract/admin-workspaces";
+import { Alert, Table } from "@heroui/react";
 import { AdminPage } from "@/components/admin/admin-shell";
 import { Empty, Section } from "@/components/admin/detail-ui";
 
@@ -89,7 +89,7 @@ export default async function AdminUserPage({
 
           <Section
             title="Workspaces"
-            hint="Everywhere this person can read. A workspace reached through an organization role is not in its members list, which is why access nobody can find is usually here."
+            hint="Everywhere this person belongs, and as what. Membership is the only way into a workspace, so this list is the whole of what they can read."
           >
             {user.workspaces.length === 0 ? (
               <Empty>
@@ -100,41 +100,31 @@ export default async function AdminUserPage({
                 <Table.ScrollContainer>
                   <Table.Content
                     aria-label="Workspaces"
-                    className="min-w-[640px] whitespace-nowrap"
+                    className="min-w-[480px] whitespace-nowrap"
                   >
                     <Table.Header>
                       <Table.Column isRowHeader>Workspace</Table.Column>
-                      <Table.Column>Organization</Table.Column>
                       <Table.Column>Role</Table.Column>
-                      <Table.Column>Through</Table.Column>
                     </Table.Header>
                     <Table.Body>
                       {user.workspaces.map((ws: AdminUserWorkspace) => (
                         <Table.Row key={ws.id} id={ws.id}>
                           <Table.Cell>
-                            <div className="text-[12.5px] text-[var(--ink)]">
+                            {/* To the workspace's admin page, not the product's
+                                /w/<slug>: the operator is rarely a member, and
+                                the questions that follow this one — who else is
+                                in, what was sent — are answered there. */}
+                            <Link
+                              href={`/admin/workspaces/${ws.id}` as Route}
+                              className="text-[12.5px] text-[var(--ink)] underline-offset-2 hover:underline"
+                            >
                               {ws.name}
-                            </div>
+                            </Link>
                             <div className="font-mono text-[10.5px] text-[var(--ink-mute)]">
                               /w/{ws.slug}
                             </div>
                           </Table.Cell>
-                          <Table.Cell>
-                            <Link
-                              href={`/admin/orgs/${ws.organization_id}` as Route}
-                              className="text-[var(--ink-2)] underline-offset-2 hover:text-[var(--ink)] hover:underline"
-                            >
-                              {ws.organization_slug}
-                            </Link>
-                          </Table.Cell>
                           <Table.Cell>{ws.role}</Table.Cell>
-                          <Table.Cell
-                            className={
-                              ws.via_org_role ? "" : "text-[var(--ink-mute)]"
-                            }
-                          >
-                            {ws.via_org_role ? "organization role" : "membership"}
-                          </Table.Cell>
                         </Table.Row>
                       ))}
                     </Table.Body>
@@ -204,27 +194,6 @@ export default async function AdminUserPage({
                   </Table.Content>
                 </Table.ScrollContainer>
               </Table>
-            )}
-          </Section>
-
-          <Section
-            title="Organizations"
-            hint="Who they belong to, and as what."
-          >
-            {user.orgs.length === 0 ? (
-              <Empty>
-                No organization — nothing to sign in to.
-              </Empty>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {user.orgs.map((org) => (
-                  <Link key={org.id} href={`/admin/orgs/${org.id}` as Route}>
-                    <Chip variant="secondary">
-                      {org.name} · {org.role}
-                    </Chip>
-                  </Link>
-                ))}
-              </div>
             )}
           </Section>
         </>

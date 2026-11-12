@@ -1,23 +1,23 @@
 "use client";
 
 /**
- * Creating a workspace, from the hub, in a dialog.
+ * Creating a workspace, from the hub, in a dialog. Mounted by
+ * `workspaces-view.tsx` when the person may create one
+ * (`WorkspacesResponse.can_create_workspace`).
  *
  * This used to be a page of its own (`/onboard`, a two-step "wizard" in the
  * paper shell the sign-up flow is written on). That shape made sense when
  * the first workspace was the first thing a new account ever saw; now an
  * account arrives through `/start` or an invitation, lands on the hub, and
- * "one more workspace" is something an administrator does between two other
- * things — the same gesture as opening the organization panel or a
- * workspace's settings, so it is the same kind of dialog, centred and
- * closable, with the hub still visible behind it.
+ * "one more workspace" is something done between two other things — the same
+ * gesture as opening a workspace's panel, so it is the same kind of dialog,
+ * centred and closable, with the hub still visible behind it.
  *
- * One screen, three questions at most: which organization (only when there
- * is more than one to choose from), the name, and what it starts with. THE
- * ADDRESS IS NOT ASKED FOR, and must not be added back: the create body is
- * `{ name, organization, template }`, and the server derives the slug from
- * the name and numbers it if the organization already has one (`acme`,
- * `acme-2`). Success goes straight into the new workspace.
+ * One screen, two questions: the name, and what it starts with. THE ADDRESS
+ * IS NOT ASKED FOR, and must not be added back: the create body is
+ * `{ name, template }`, and the server derives the slug from the name and
+ * numbers it if the instance already has one (`acme`, `acme-2`). Success
+ * goes straight into the new workspace.
  *
  * Writes `POST /api/onboarding/create`. `apiErrorMessage` is exported for
  * `new-workspace-modal.test.ts`.
@@ -27,17 +27,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { LayoutGrid, X } from "lucide-react";
-import {
-  Button,
-  Input,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  TextField,
-} from "@heroui/react";
+import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { cn } from "@bcontext-dev/contract/utils";
-import type { OrganizationVM } from "./workspaces-view";
+import { WORKSPACE_NAME_MAX } from "@bcontext-dev/contract/workspaces";
+import { workspacePath } from "@/web/workspace-url";
 
 /** A workspace template as `page.tsx` summarises it from the contract. */
 export interface TemplateSummary {
@@ -48,12 +41,6 @@ export interface TemplateSummary {
 }
 
 interface Props {
-  /** Every organization on the hub; only the creatable ones are offered. */
-  organizations: OrganizationVM[];
-  /** The one the person was looking at when they asked, if any. */
-  initialOrganization: OrganizationVM | null;
-  /** Does the dialog name the organization? See `@/lib/org-layer`. */
-  orgLayer: boolean;
   templates: TemplateSummary[];
   onClose: () => void;
 }
@@ -90,27 +77,8 @@ export function apiErrorMessage(body: unknown, status: number): string {
   return fallback;
 }
 
-export function NewWorkspaceModal({
-  organizations,
-  initialOrganization,
-  orgLayer,
-  templates,
-  onClose,
-}: Props) {
+export function NewWorkspaceModal({ templates, onClose }: Props) {
   const router = useRouter();
-
-  // A workspace is created inside an organization the person administers.
-  // Most people have exactly one, so the choice is made for them and never
-  // shown; several is a picker, defaulting to the one they came from.
-  const creatable = useMemo(
-    () => organizations.filter((org) => org.canCreateWorkspace),
-    [organizations],
-  );
-  const [organization, setOrganization] = useState<string>(() => {
-    if (initialOrganization?.canCreateWorkspace) return initialOrganization.slug;
-    return creatable[0]?.slug ?? "";
-  });
-  const chosenOrg = creatable.find((org) => org.slug === organization) ?? null;
 
   const [name, setName] = useState("");
   const defaultTemplate = useMemo(
@@ -121,7 +89,7 @@ export function NewWorkspaceModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = name.trim().length > 0 && organization !== "" && !busy;
+  const ready = name.trim().length > 0 && !busy;
 
   async function submit() {
     if (!ready) return;
@@ -133,15 +101,17 @@ export function NewWorkspaceModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          organization,
           template: templateId || undefined,
         }),
       });
-      const data = (await r.json()) as { next_url?: string };
+      const data = (await r.json().catch(() => null)) as
+        | { workspace?: { slug?: string }; next_url?: string }
+        | null;
       if (!r.ok) throw new Error(apiErrorMessage(data, r.status));
       // Straight in. The hub behind this dialog is stale the moment the
       // workspace exists, and the workspace is where the person was going.
-      router.push((data.next_url ?? "/workspaces") as Route);
+      const slug = data?.workspace?.slug;
+      router.push((slug ? workspacePath(slug) : (data?.next_url ?? "/workspaces")) as Route);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create the workspace.");
       setBusy(false);
@@ -178,9 +148,7 @@ export function NewWorkspaceModal({
                 New workspace
               </h2>
               <div className="truncate text-[12px] text-muted">
-                {orgLayer && chosenOrg
-                  ? `In ${chosenOrg.name}`
-                  : "One per product, team or client, with its own members and agents."}
+                One per product, team or client, with its own members and agents.
               </div>
             </div>
           </header>
@@ -193,32 +161,6 @@ export function NewWorkspaceModal({
             }}
           >
             <div className="space-y-5">
-              {creatable.length > 1 ? (
-                <Select
-                  aria-label="Organization"
-                  value={organization}
-                  onChange={(key) => setOrganization(key == null ? "" : String(key))}
-                  isDisabled={busy}
-                  fullWidth
-                >
-                  <Label>Organization</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {creatable.map((org) => (
-                        <ListBox.Item key={org.slug} id={org.slug} textValue={org.name}>
-                          {org.name}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              ) : null}
-
               <TextField
                 value={name}
                 onChange={setName}
@@ -227,7 +169,7 @@ export function NewWorkspaceModal({
                 fullWidth
               >
                 <Label>Name</Label>
-                <Input placeholder="Acme" maxLength={80} />
+                <Input placeholder="Acme" maxLength={WORKSPACE_NAME_MAX} />
               </TextField>
 
               <div>
@@ -288,7 +230,7 @@ export function NewWorkspaceModal({
 
 /**
  * One starting point. A pressed button rather than a radio, in the same
- * family as the gradient picker in a workspace's settings: the picked one
+ * family as the gradient picker in a workspace's panel: the picked one
  * reads as ink on paper, and there is exactly one filled shape in the dialog,
  * which is the button at the bottom.
  */

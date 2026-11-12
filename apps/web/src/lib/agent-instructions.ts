@@ -59,11 +59,11 @@ export function rulesFileFor(providerSlug: string): RulesFile {
  */
 export function agentInstructions(
   target: McpTarget,
-  address: { org: string; slug: string },
+  address: { slug: string },
   providerSlug = "claude-code",
 ): string {
   const { frontmatter = "" } = rulesFileFor(providerSlug);
-  const workspace = `${address.org}/${address.slug}`;
+  const workspace = address.slug;
   return (
     frontmatter +
     `# Bcontext — how this project keeps its memory

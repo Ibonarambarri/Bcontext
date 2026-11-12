@@ -2,7 +2,7 @@
 
 /**
  * Empty workspace — first-content seeder, shown by the workspace home
- * (`/w/<org>/<ws>/page.tsx`) when the workspace has no nodes.
+ * (`/w/<ws>/page.tsx`) when the workspace has no nodes.
  *
  * EmptyState (outline variant: dashed border, icon media) with a
  * grid of seed cards. Each seed creates a real node through the workspace

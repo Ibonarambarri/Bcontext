@@ -7,19 +7,19 @@
  * `useSidebar`).
  *
  * Called by the workspace shell (`workspace-shell.tsx` + `sidebar.tsx`), the
- * admin shell (`admin/admin-shell.tsx`) and the organization panel
- * (`workspaces/org-admin/org-admin-modal.tsx`).
+ * admin shell (`admin/admin-shell.tsx`) and the workspace panel
+ * (`workspaces/workspace-admin/workspace-admin-modal.tsx`).
  *
  * What must not break:
  * - The class names (`sidebar`, `sidebar__provider`, `sidebar__menu-item`…)
  *   and `data-current` / `data-state` attributes: `sidebar.css` styles them
- *   and `globals.css` hooks into them (the organization panel's rail).
+ *   and `globals.css` hooks into them (the workspace panel's rail).
  * - `--sidebar-width` set on the Provider is the rail's width (the workspace
  *   sidebar is user-resizable through it).
  * - Under 768px the desktop aside hides and `Sidebar.Mobile` is a drawer
  *   opened by the same `Sidebar.Trigger`; a link row closes it on press.
  * - `collapsible="offcanvas"` slides the rail away entirely; `"none"` keeps
- *   it fixed (and visible on phones: the organization panel has no drawer).
+ *   it fixed (and visible on phones: the workspace panel has no drawer).
  *   `mod+b` toggles unless `toggleShortcut={false}`.
  */
 import {

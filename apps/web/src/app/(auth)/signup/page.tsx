@@ -8,7 +8,7 @@ export const metadata = {
 /**
  * `/signup` is the address people and old links type; `/start` is where
  * signing up actually happens, because an account on its own is not a thing
- * anybody can use — it comes with an organization.
+ * anybody can use — it comes with a workspace.
  */
 export default function SignupPage() {
   redirect("/start");

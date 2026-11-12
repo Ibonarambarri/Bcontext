@@ -15,8 +15,8 @@ import { Sidebar as SidebarPrimitive } from "@/components/ui/sidebar";
 import {
   ArrowLeft,
   Bug,
-  Building2,
   Gauge,
+  LayoutGrid,
   Users,
 } from "lucide-react";
 
@@ -46,7 +46,9 @@ interface AdminSection {
 
 const SECTIONS: AdminSection[] = [
   { href: "/admin", label: "Overview", icon: Gauge, exact: true },
-  { href: "/admin/orgs", label: "Organizations", icon: Building2 },
+  // The same mark the app puts on "New workspace", so the thing is
+  // recognisable from either side of the panel.
+  { href: "/admin/workspaces", label: "Workspaces", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/errors", label: "Errors", icon: Bug },
 ];

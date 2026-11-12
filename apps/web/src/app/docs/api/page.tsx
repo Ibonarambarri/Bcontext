@@ -18,7 +18,7 @@ Authorization: Bearer bctx_live_...
 Content-Type: application/json
 
 {
-  "workspace": "acme/docs",
+  "workspace": "acme",
   "query":     "what is blocking the embedding pipeline?",
   "k":         6,
   "scope":     { "schema_version": 1, "type": "tags", "tags_any": ["product", "tech"] },
@@ -27,7 +27,7 @@ Content-Type: application/json
 }`;
 
 const CONTEXT_RES = `{
-  "workspace": "acme/docs",
+  "workspace": "acme",
   "query":     "what is blocking the embedding pipeline?",
   "scope":     { "schema_version": 1, "type": "tags", "size": 31, "workspace_size": 128, "can_expand_to_workspace": true },
   "retrieved": [
@@ -43,7 +43,7 @@ Idempotency-Key: agent-42-batch-7
 Content-Type: application/json
 
 {
-  "workspace": "acme/docs",
+  "workspace": "acme",
   "ops": [
     { "op": "create", "node": {
         "title": "ADR — switch auth provider",
@@ -55,7 +55,7 @@ Content-Type: application/json
   ]
 }`;
 
-const NODES_REQ = `GET /api/nodes?workspace=acme/docs
+const NODES_REQ = `GET /api/nodes?workspace=acme
 Authorization: Bearer bctx_live_...
 
 POST /api/nodes
@@ -63,27 +63,27 @@ Authorization: Bearer bctx_live_...
 Content-Type: application/json
 
 {
-  "workspace": "acme/docs",
+  "workspace": "acme",
   "title":     "Migration plan",
   "kind":      "doc",
   "parent_id": null,
   "tag_ids":   ["tag_product", "tag_ai"]
 }`;
 
-const TAGS_REQ = `GET /api/tags?workspace=acme/docs
+const TAGS_REQ = `GET /api/tags?workspace=acme
 Authorization: Bearer bctx_live_...
 
 POST /api/tags
 Authorization: Bearer bctx_live_...
 Content-Type: application/json
 
-{ "workspace": "acme/docs", "name": "Customer research" }
+{ "workspace": "acme", "name": "Customer research" }
 
 PUT /api/nodes/node_123/tags
 Authorization: Bearer bctx_live_...
 Content-Type: application/json
 
-{ "workspace": "acme/docs", "tag_ids": ["tag_product", "tag_ai"] }`;
+{ "workspace": "acme", "tag_ids": ["tag_product", "tag_ai"] }`;
 
 export default async function ApiDocsPage() {
   const origin = appOrigin(await headers());
@@ -98,12 +98,12 @@ export default async function ApiDocsPage() {
       <DocSection title="MCP endpoints">
         <p>
           Agents connect to{" "}
-          <Inline>{`${origin}/mcp/<org>/<workspace>`}</Inline>,
+          <Inline>{`${origin}/mcp/<workspace>`}</Inline>,
           one endpoint per workspace: OAuth through it issues a token bound to
           that workspace, and nothing else needs saying. The root{" "}
           <Inline>/mcp</Inline> serves tokens that reach several workspaces;
           those name the one to use per request with{" "}
-          <Inline>X-Bcontext-Workspace: &lt;org&gt;/&lt;workspace&gt;</Inline>.
+          <Inline>X-Bcontext-Workspace: &lt;workspace&gt;</Inline>.
         </p>
       </DocSection>
 
@@ -111,8 +111,8 @@ export default async function ApiDocsPage() {
         <p>
           Send your token as <Inline>Authorization: Bearer bctx_live_...</Inline>.
           Tokens are workspace-scoped: a token issued for workspace{" "}
-          <Inline>acme/docs</Inline> can only read/write nodes in{" "}
-          <Inline>acme/docs</Inline>. Cross-workspace calls return{" "}
+          <Inline>acme</Inline> can only read/write nodes in{" "}
+          <Inline>acme</Inline>. Cross-workspace calls return{" "}
           <Inline>403</Inline> with{" "}
           <Inline>&quot;token does not grant access to this workspace&quot;</Inline>.
         </p>

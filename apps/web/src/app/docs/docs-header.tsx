@@ -22,7 +22,7 @@ export function DocsHeader() {
         <Link href="/login" className={navbarItemClass}>
           Sign in
         </Link>
-        {/* The way in is `/start` (account + organization), the
+        {/* The way in is `/start` (account + workspace), the
             same one the auth pages offer — never a landing anchor. */}
         <Link href="/start" className={navbarItemClass}>
           Start now

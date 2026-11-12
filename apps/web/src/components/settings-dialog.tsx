@@ -5,6 +5,7 @@ import {
   Loader2,
   LogOut,
   Settings as SettingsIcon,
+  Users,
   X,
 } from "lucide-react";
 import { Modal } from "@heroui/react";
@@ -56,7 +57,10 @@ const YOU_TABS: TabSpec[] = [
  * `settingsOpen`. Two rails:
  *
  *   Workspace — Appearance (name + gradient, a server action), Tags (the
- *               shared `TagManager`), Data (export ZIP link)
+ *               shared `TagManager`), Data (export ZIP link), and a
+ *               "Members & invitations" row that hands over to the
+ *               workspace panel (`workspace-admin/`) rather than growing a
+ *               second copy of it here
  *   You       — Display (density + node panel size, this device)
  *
  * Workspace-scoped tabs assume an active workspace. "You" tabs are
@@ -64,7 +68,7 @@ const YOU_TABS: TabSpec[] = [
  * node panel size also goes to Supabase Auth user metadata via the context.
  */
 export function SettingsDialog() {
-  const { settingsOpen, closeSettings } = useWorkspace();
+  const { settingsOpen, closeSettings, openWorkspacePanel } = useWorkspace();
   const [tab, setTab] = useState<Tab>("ws-appearance");
 
   if (!settingsOpen) return null;
@@ -112,6 +116,10 @@ export function SettingsDialog() {
                 {t.label}
               </RailRow>
             ))}
+            <RailRow active={false} onClick={() => openWorkspacePanel("members")}>
+              Members &amp; invitations
+              <Users size={12} className="ml-auto text-[var(--ink-3)]" />
+            </RailRow>
           </RailGroup>
 
           <RailGroup label="You">

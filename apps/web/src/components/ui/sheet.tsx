@@ -2,7 +2,7 @@
 
 /**
  * Sheet — a panel that slides in from a screen edge over a backdrop. Used by
- * the admin "New organization" form and the graph's "Manage tags" panel.
+ * the admin "New workspace" form and the graph's "Manage tags" panel.
  *
  * A thin layer over HeroUI's Drawer that keeps the call-site shape the app
  * was written against: `placement` on the root, and sizing classes on

@@ -11,18 +11,18 @@
  *   &state=<opaque>
  *   &code_challenge=<base64url>
  *   &code_challenge_method=S256
- *   &workspace=<org>/<workspace>  (optional pre-selection)
+ *   &workspace=<slug>             (optional pre-selection)
  *   &resource=<MCP server URL>    (RFC 8707, optional)
  *
  * The user creates a durable agent identity, selects explicit workspaces,
  * chooses a role and can reduce the scopes requested by the client.
  *
  * `resource` is the server URL the client connected through. When it is a
- * workspace endpoint (`/mcp/<org>/<workspace>`) the choice of workspace is
- * already made: the screen locks it to that one and the API issues a token
- * bound to it. The field travels to `POST /api/oauth/authorize` unchanged —
- * the API is the authority on what it accepts; this page only reads it to
- * shape the form.
+ * workspace endpoint (`/mcp/<slug>`, or the pre-0100 two-segment alias the
+ * API still serves) the choice of workspace is already made: the screen
+ * locks it to that one and the API issues a token bound to it. The field
+ * travels to `POST /api/oauth/authorize` unchanged — the API is the
+ * authority on what it accepts; this page only reads it to shape the form.
  */
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -31,7 +31,9 @@ import { getSession } from "@/web/session";
 import type {
   OAuthClientPublic,
   WorkspaceCard,
+  WorkspaceResponse,
 } from "@bcontext-dev/contract/workspaces";
+import { parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 import { parseScopes } from "@bcontext-dev/contract/auth/scopes";
 import { detectAgentProvider } from "@bcontext-dev/contract/agents/connections";
 import { ProviderLogo, detectProviderInfo } from "@/lib/agent-providers";
@@ -120,10 +122,7 @@ export default async function AuthorizePage({ searchParams }: PageProps) {
     return <ErrorScreen title="Unknown client" detail="The MCP client trying to connect isn't registered (or has been revoked)." />;
   }
 
-  // Workspaces the signed-in user can grant access to. The card read is what
-  // carries the organization, and the person approving needs to see it: two
-  // companies can both have a `docs`, and this screen hands an agent the keys
-  // to one of them.
+  // Workspaces the signed-in user can grant access to.
   const { workspaces } = await apiJson<{ workspaces: WorkspaceCard[] }>(
     "/api/workspaces?stats=1",
   );
@@ -140,26 +139,34 @@ export default async function AuthorizePage({ searchParams }: PageProps) {
   // is not a member of ends here — the API would refuse the token anyway,
   // and a form that cannot be submitted correctly is worse than an answer.
   const resourceTarget = parseMcpResource(resource, appOrigin(await headers()));
-  const lockedWorkspace =
+  const resourceSlug =
     resourceTarget?.kind === "workspace"
-      ? workspaces.find(
-          (w) =>
-            w.organization.slug === resourceTarget.org && w.slug === resourceTarget.slug,
-        ) ?? null
-      : null;
-  if (resourceTarget?.kind === "workspace" && !lockedWorkspace) {
+      ? resourceTarget.slug
+      : resourceTarget?.kind === "legacy"
+        ? await currentSlugOfLegacyRef(resourceTarget.ref)
+        : null;
+  const lockedWorkspace =
+    resourceSlug !== null ? workspaces.find((w) => w.slug === resourceSlug) ?? null : null;
+  if (resourceTarget && resourceTarget.kind !== "root" && !lockedWorkspace) {
     return (
       <ErrorScreen
         title="Workspace not available"
-        detail={`This client connects through the endpoint of ${resourceTarget.org}/${resourceTarget.slug}, a workspace your account cannot reach. Ask for access, or point the client at a workspace you belong to.`}
+        detail="This client connects through the endpoint of a workspace your account cannot reach. Ask for access, or point the client at a workspace you belong to."
       />
     );
   }
+  // The hint may still be an old pair (`a/b` or `a~b`); one REST segment
+  // spells it with `~`.
+  const preferredRef = parseWorkspaceRef(preferredWorkspace);
+  const preferredSlug =
+    preferredRef?.kind === "slug"
+      ? preferredRef.slug
+      : preferredRef?.kind === "legacy"
+        ? await currentSlugOfLegacyRef(preferredRef.name.replace("/", "~"))
+        : null;
   const defaultWorkspaceId =
     lockedWorkspace?.id ??
-    workspaces.find(
-      (w) => `${w.organization.slug}/${w.slug}` === preferredWorkspace,
-    )?.id ??
+    workspaces.find((w) => w.slug === preferredSlug)?.id ??
     workspaces[0]!.id;
   // In demo mode (no Supabase) there is no client registry to check against,
   // so the preview trusts the scopes the client requested. With Supabase
@@ -219,7 +226,7 @@ export default async function AuthorizePage({ searchParams }: PageProps) {
           workspaces={(lockedWorkspace ? [lockedWorkspace] : workspaces).map((workspace) => ({
             id: workspace.id,
             name: workspace.name,
-            slug: `${workspace.organization.slug}/${workspace.slug}`,
+            slug: workspace.slug,
           }))}
           defaultWorkspaceId={defaultWorkspaceId}
           workspaceLocked={lockedWorkspace !== null}
@@ -233,6 +240,24 @@ export default async function AuthorizePage({ searchParams }: PageProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * Today's slug for a pair written before workspaces stood alone (an old
+ * `.mcp.json` endpoint or `?workspace=` hint). The API keeps every pair that
+ * existed and answers with the workspace it became; anything it will not
+ * resolve for this person — unknown pair, not a member — is null, and the
+ * caller treats that as a workspace out of reach.
+ */
+async function currentSlugOfLegacyRef(ref: string): Promise<string | null> {
+  try {
+    const found = await apiJsonOrNull<WorkspaceResponse>(
+      `/api/workspaces/${encodeURIComponent(ref)}`,
+    );
+    return found?.workspace.slug ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function ErrorScreen({ title, detail }: { title: string; detail: string }) {

@@ -1,6 +1,6 @@
 /**
- * `/workspaces` — the hub: every workspace the signed-in person belongs to,
- * grouped by organization. The first page after login and where `/` lands.
+ * `/workspaces` — the hub: every workspace the signed-in person belongs to.
+ * The first page after login and where `/` lands.
  *
  * Server Component. Session from Supabase Auth (`@/web/session`), everything
  * else from `GET /api/workspaces?stats=1` through `@/web/api-client`; the view
@@ -10,29 +10,24 @@
  */
 import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@bcontext-dev/contract/env";
-import { parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 import type { Route } from "next";
 import { apiJson } from "@/web/api-client";
 import { whoami } from "@/web/me";
 import { getSession } from "@/web/session";
-import { showOrgLayer } from "@/lib/org-layer";
 import type {
   WorkspaceCard,
   WorkspacesResponse,
 } from "@bcontext-dev/contract/workspaces";
 import { listTemplates } from "@bcontext-dev/contract/templates/workspaces";
-import {
-  WorkspacesView,
-  type OrganizationVM,
-  type WorkspaceVM,
-} from "./workspaces-view";
+import { WorkspacesView, type WorkspaceVM } from "./workspaces-view";
+import { parsePanelSection } from "./workspace-admin/sections";
 
 export const metadata = {
   title: "Workspaces — Bcontext",
 };
 
 interface Props {
-  searchParams: Promise<{ ws?: string }>;
+  searchParams: Promise<{ ws?: string; section?: string }>;
 }
 
 /* Deterministic per slug: the same workspace gets the same hue and glyph
@@ -60,14 +55,6 @@ function toVM(w: WorkspaceCard): WorkspaceVM {
     glyph: glyphFor(w.name),
     description: w.description ?? null,
     role: w.role,
-    org: {
-      id: w.organization.id,
-      slug: w.organization.slug,
-      name: w.organization.name,
-      // The caller's role in the company, which is the only role that
-      // administers anything: there is no workspace-level administrator.
-      role: w.organization.role,
-    },
     memberCount: w.member_count,
     taskCount: w.open_task_count,
     nodeCount: w.node_count,
@@ -84,26 +71,26 @@ export default async function WorkspacesIndexPage({ searchParams }: Props) {
   const sp = await searchParams;
 
   // Supabase off: the API answers from the demo store and there is no one to
-  // sign in as, so the hub renders for a stand-in person.
+  // sign in as, so the hub renders without a session.
   const demoMode = !isSupabaseConfigured();
-  let currentUser = { id: "demo", email: "you@demo.local" as string | null };
   if (!demoMode) {
     const { data: auth } = await (await getSession()).auth.getUser();
     if (!auth.user) redirect("/login?next=/workspaces");
-    currentUser = { id: auth.user.id, email: auth.user.email ?? null };
   }
 
-  const { workspaces: cards, organizations: orgCards } =
+  const { workspaces: cards, can_create_workspace: canCreate } =
     await apiJson<WorkspacesResponse>("/api/workspaces?stats=1");
 
-  // Somebody with an account and no organization: if they may create one,
+  // Somebody with an account and no workspace: if they may create one,
   // `/start` asks for its name (this is also where the confirmation email
   // lands them); otherwise the hub's empty state says who can invite them.
-  // Only asked when there is nothing to show, so the common path costs no
-  // extra request.
-  if (!demoMode && orgCards.length === 0 && cards.length === 0) {
+  // Asked of `/api/me` rather than read off the hub's own answer so `/start`
+  // and this page decide from the same source and can never bounce a person
+  // between them. Only asked when there is nothing to show, so the common
+  // path costs no extra request.
+  if (!demoMode && cards.length === 0) {
     const me = await whoami();
-    if (me?.can_create_organization) redirect("/start" as Route);
+    if (me?.can_create_workspace) redirect("/start" as Route);
   }
 
   const workspaces = cards.map(toVM);
@@ -115,69 +102,29 @@ export default async function WorkspacesIndexPage({ searchParams }: Props) {
     description: t.description,
     node_count: t.nodes.length,
   }));
-  // One decision, taken here and handed down: does this hub name the
-  // organization at all? See `@/lib/org-layer`.
-  const orgLayer = showOrgLayer({ organizations: orgCards, workspaces: cards });
-  const organizations: OrganizationVM[] = orgCards.map((o) => ({
-    id: o.id,
-    slug: o.slug,
-    name: o.name,
-    role: o.role,
-    workspaceCount: o.workspace_count,
-    memberCount: o.member_count,
-    canCreateWorkspace: o.can_create_workspace,
-    canManage: o.can_manage,
-  }));
-
-  // The settings drawer is URL-driven: the roster is fetched only for the
-  // workspace named in ?ws=, and only when it is one the person belongs to.
-  // The parameter carries the full `<org>~<workspace>` ref; a bare slug still
-  // resolves, because invitations hand one over when the org has a single
-  // workspace to land in.
-  const settingsWs = sp.ws ? findWorkspace(workspaces, sp.ws) : null;
-
-  if (!settingsWs) {
-    return (
-      <WorkspacesView
-        currentUser={currentUser}
-        workspaces={workspaces}
-        organizations={organizations}
-        orgLayer={orgLayer}
-        demoMode={demoMode}
-        settingsWs={null}
-        isAdmin={false}
-        templates={templates}
-      />
-    );
-  }
+  // The workspace panel is URL-driven: `?ws=<slug>` opens it for that
+  // workspace, and `&section=` picks the part it opens on.
+  const panelWs = sp.ws ? findWorkspace(workspaces, sp.ws) : null;
 
   return (
     <WorkspacesView
-      currentUser={currentUser}
       workspaces={workspaces}
-      organizations={organizations}
-      orgLayer={orgLayer}
-      demoMode={demoMode}
-      settingsWs={settingsWs}
-      // Administering is an organization role. A workspace has members, not
-      // administrators of its own.
-      isAdmin={
-        demoMode ||
-        settingsWs.org.role === "owner" ||
-        settingsWs.org.role === "admin"
-      }
+      canCreate={canCreate}
+      panelWs={panelWs}
+      panelSection={parsePanelSection(sp.section)}
       templates={templates}
     />
   );
 }
 
-/** `?ws=` as either `<org>~<workspace>` or the bare slug an invite sends. */
+/**
+ * `?ws=` as a slug. A two-part value (`a~b`, from a link written before
+ * workspaces stood alone) is matched by its workspace half, which is what
+ * the slug was in nearly every case; when it is not, the panel simply does
+ * not open and the hub is shown as it is.
+ */
 function findWorkspace(workspaces: WorkspaceVM[], raw: string): WorkspaceVM | null {
-  const ref = parseWorkspaceRef(raw);
-  if (ref) {
-    return (
-      workspaces.find((w) => w.org.slug === ref.org && w.slug === ref.workspace) ?? null
-    );
-  }
-  return workspaces.find((w) => w.slug === raw) ?? null;
+  const value = raw.trim().toLowerCase();
+  const slug = value.includes("~") ? (value.split("~")[1] ?? "") : value;
+  return workspaces.find((w) => w.slug === slug) ?? null;
 }

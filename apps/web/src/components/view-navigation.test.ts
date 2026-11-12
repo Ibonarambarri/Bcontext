@@ -74,7 +74,7 @@ describe("workspace sidebar", () => {
   });
 
   it("legacy slugs redirect: tools → webhooks; agents and webhooks render", () => {
-    const page = read("../app/w/[org]/[ws]/v/[view]/page.tsx");
+    const page = read("../app/w/[ws]/v/[view]/page.tsx");
     expect(page).toContain('tools: (ws) => systemViewPath(ws, "webhooks")');
     expect(page).not.toContain("agents: (ws)");
     expect(page).toContain('new Set<WorkspaceAdminSurface>(["agents", "webhooks"])');

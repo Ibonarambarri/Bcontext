@@ -1,5 +1,7 @@
 /**
- * Server Actions behind the workspace settings dialog on the hub.
+ * Server Actions behind the in-workspace settings dialog
+ * (`components/settings-dialog.tsx`, Appearance). The hub's workspace panel
+ * writes the same route from the browser instead (`workspace-admin/`).
  */
 "use server";
 
@@ -27,7 +29,7 @@ async function requireUser() {
   return data.user;
 }
 
-/** Every workspace route takes the `<org>~<workspace>` ref as one segment. */
+/** Every workspace route takes the workspace slug as one segment. */
 const wsPath = (ref: string) => `/api/workspaces/${encodeURIComponent(ref)}`;
 
 /* -------------------------------------------------------------------------- */
@@ -35,8 +37,8 @@ const wsPath = (ref: string) => `/api/workspaces/${encodeURIComponent(ref)}`;
 /* -------------------------------------------------------------------------- */
 
 /**
- * Rename and/or re-tint a workspace. `slug` in the form is the `<org>~<workspace>`
- * ref, not the bare slug; fields left empty are simply not patched.
+ * Rename and/or re-tint a workspace. `slug` in the form is the workspace
+ * slug; fields left empty are simply not patched.
  */
 export async function updateWorkspaceAction(formData: FormData) {
   await requireUser();

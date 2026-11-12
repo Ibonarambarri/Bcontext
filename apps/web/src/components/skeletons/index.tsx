@@ -148,7 +148,7 @@ export function ListSkeleton({
 
 /* ────────────────────────────────────────────────────────────────────────
  * DashboardSkeleton — traced from the real workspace overview
- * (src/app/w/[org]/[ws]/page.tsx): mini-stats + legend, Brain-activity Card with
+ * (src/app/w/[ws]/page.tsx): mini-stats + legend, Brain-activity Card with
  * a 260px chart, two OverviewSection lists, recent-decisions chip row.
  * ──────────────────────────────────────────────────────────────────────── */
 
@@ -466,8 +466,8 @@ export function NodePageSkeleton() {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
- * WorkspacesHubSkeleton — /workspaces route (top nav, header row, an
- * organization section header and its card grid), traced from WorkspacesView.
+ * WorkspacesHubSkeleton — /workspaces route (top nav, header row and the
+ * card grid), traced from WorkspacesView.
  * ──────────────────────────────────────────────────────────────────────── */
 
 export function WorkspacesHubSkeleton() {
@@ -489,12 +489,6 @@ export function WorkspacesHubSkeleton() {
             <span className="ml-auto" />
             <Skeleton className="h-8 w-20 rounded-lg" />
             <Skeleton className="h-8 w-36 rounded-lg" />
-          </div>
-          {/* Organization section header */}
-          <div className="mt-5 flex items-center gap-2.5">
-            <Skeleton className="size-3.5 rounded" />
-            <Skeleton className="h-4 w-40 rounded" />
-            <Skeleton className="h-3 w-24 rounded" />
           </div>
           <GridSkeleton cards={6} minHeightClassName="min-h-[150px]" />
         </div>

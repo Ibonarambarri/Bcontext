@@ -2,48 +2,33 @@
 
 /**
  * Workspaces hub — the launcher listing every workspace the user belongs to,
- * grouped by the organization that owns it.
+ * rendered by `app/workspaces/page.tsx` from the view models it builds.
  *
  * Matches the Agents surface family: clean header row, a Filter toggle that
  * reveals an Activity-style filters bar (grid-template-rows height
- * animation), a responsive card grid, and dialogs for creating a workspace,
- * a workspace's settings and the organization panel. All chrome comes from
+ * animation), a responsive card grid, and dialogs for creating a workspace
+ * and for a workspace's own panel (`workspace-admin/`). All chrome comes from
  * HeroUI, src/components/ui and theme tokens.
  *
- * A workspace slug is unique inside its organization, so a section is the
- * only place a name like `docs` is unambiguous — which is why the grouping
- * is structural here rather than a filter people opt into.
- *
- * All of that is true once there is an organization worth naming. Below that
- * — one company, one workspace, one person — `orgLayer` is false and the hub
- * is a flat grid of workspaces: no section headers, no organization filter,
- * no `/w/<org>/<ws>` address on the cards. The predicate is `@/lib/org-layer`.
- *
- * What never hides is the two things an administrator comes here to do:
- * create a workspace and administer the organization — the layer decides how
- * the hub *talks*, not what it lets you do. Each lives in exactly one place:
- * with a single organization the page header carries the pair and the
- * section (when the layer draws one) carries nothing; with several, each
- * section carries its own pair so the dialog opens on the right company, and
- * the page header carries none. Two buttons for one action, one above the
- * other, is what this replaced.
+ * A workspace is the top-level thing, so the hub is one flat grid. The two
+ * acts people come here for each live in exactly one place: "New workspace"
+ * in the header (only when `canCreate` — the instance's creation policy), and
+ * a workspace's panel behind the gear on its card, URL-driven through
+ * `?ws=<slug>` so it survives a reload and can be linked to.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 import type { ComponentType } from "react";
 import {
   ArrowDownUp,
-  Building2,
-  ChevronRight,
   GitBranch,
   LayoutGrid,
   Plus,
   Search,
   Settings,
-  Settings2,
   SlidersHorizontal,
   UserRound,
   X,
@@ -59,44 +44,15 @@ import {
 } from "@heroui/react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard } from "@/components/ui/item-card";
-import { WorkspaceSettingsModal } from "./workspace-settings-modal";
 import { NewWorkspaceModal, type TemplateSummary } from "./new-workspace-modal";
-import { OrgAdminModal } from "./org-admin/org-admin-modal";
+import { WorkspaceAdminModal } from "./workspace-admin/workspace-admin-modal";
+import type { PanelSection } from "./workspace-admin/sections";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@bcontext-dev/contract/utils";
 import { gradientCss, gradientFor } from "@bcontext-dev/contract/workspace-gradients";
-import { workspacePath, workspaceApiRef } from "@/web/workspace-url";
+import { workspacePath } from "@/web/workspace-url";
 
 type Role = "owner" | "admin" | "editor" | "viewer" | "agent";
-
-/** The organization a workspace belongs to, as its card and section name it. */
-interface WorkspaceOrgVM {
-  id: string;
-  slug: string;
-  name: string;
-  /**
-   * The caller's role in the company. It is the only role that administers
-   * anything: a workspace has members, not administrators of its own.
-   */
-  role: "owner" | "admin" | "editor" | "viewer" | null;
-}
-
-/**
- * An organization the person belongs to. It gets a section even with no
- * workspaces in it — that is what a company looks like on its first day, and
- * the empty section is where the first workspace gets created.
- */
-export interface OrganizationVM {
-  id: string;
-  slug: string;
-  name: string;
-  /** The caller's role in the organization, not in any of its workspaces. */
-  role: "owner" | "admin" | "editor" | "viewer";
-  memberCount: number;
-  canCreateWorkspace: boolean;
-  /** Owner or admin of the organization: the only ones who administer it. */
-  canManage: boolean;
-}
 
 /** A workspace card, as `page.tsx` builds it from the API's `WorkspaceCard`. */
 export interface WorkspaceVM {
@@ -105,8 +61,8 @@ export interface WorkspaceVM {
   name: string;
   glyph: string;
   description: string | null;
+  /** The caller's role in this workspace. */
   role: Role;
-  org: WorkspaceOrgVM;
   memberCount: number;
   taskCount: number;
   nodeCount: number;
@@ -121,15 +77,13 @@ export interface WorkspaceVM {
 }
 
 interface Props {
-  currentUser: { id: string; email: string | null };
   workspaces: WorkspaceVM[];
-  organizations: OrganizationVM[];
-  /** Is the organization level worth showing? See `@/lib/org-layer`. */
-  orgLayer: boolean;
-  demoMode: boolean;
-  /** Workspace whose settings drawer should open (driven by `?ws=` in the URL). */
-  settingsWs: WorkspaceVM | null;
-  isAdmin: boolean;
+  /** May this person create a workspace? `WorkspacesResponse.can_create_workspace`. */
+  canCreate: boolean;
+  /** Workspace whose panel should be open (driven by `?ws=` in the URL). */
+  panelWs: WorkspaceVM | null;
+  /** The part of the panel it opens on (`&section=`), when one was named. */
+  panelSection: PanelSection | null;
   /** What a new workspace may start with; the create dialog offers them. */
   templates: TemplateSummary[];
 }
@@ -163,125 +117,41 @@ type SortKey = "activity" | "name" | "created";
 interface HubFilters {
   q: string;
   role: "" | Role;
-  /** An organization slug, or "" for every one of them. */
-  org: string;
   sort: SortKey;
 }
 
-const EMPTY_FILTERS: HubFilters = { q: "", role: "", org: "", sort: "activity" };
+const EMPTY_FILTERS: HubFilters = { q: "", role: "", sort: "activity" };
 
 function countActiveFilters(filters: HubFilters): number {
   let count = 0;
   if (filters.q.trim() !== "") count += 1;
   if (filters.role !== "") count += 1;
-  if (filters.org !== "") count += 1;
   if (filters.sort !== "activity") count += 1;
   return count;
 }
 
-/* ── Collapsed sections ──────────────────────────────────────────────── */
-
-/**
- * One key per organization, so collapsing a company on this browser says
- * nothing about the others and an organization that appears later starts
- * expanded like every other. Storage is per-browser and best-effort: a
- * private window or blocked site data throws on read, and the hub renders
- * fully expanded, which is the state everything starts in anyway.
- */
-const collapsedKey = (orgId: string) => `bcontext:workspaces:org:${orgId}:collapsed`;
-
-function readCollapsed(orgIds: string[]): Set<string> {
-  const collapsed = new Set<string>();
-  for (const id of orgIds) {
-    try {
-      if (window.localStorage.getItem(collapsedKey(id)) === "1") collapsed.add(id);
-    } catch {
-      /* storage unavailable — the section stays expanded */
-    }
-  }
-  return collapsed;
-}
-
-function writeCollapsed(orgId: string, collapsed: boolean): void {
-  try {
-    if (collapsed) window.localStorage.setItem(collapsedKey(orgId), "1");
-    else window.localStorage.removeItem(collapsedKey(orgId));
-  } catch {
-    /* storage unavailable — the choice lives for this page view only */
-  }
-}
-
 export function WorkspacesView({
-  currentUser,
   workspaces,
-  organizations,
-  orgLayer,
-  demoMode: _demoMode,
-  settingsWs,
-  isAdmin,
+  canCreate,
+  panelWs,
+  panelSection,
   templates,
 }: Props) {
   const router = useRouter();
-  /** The organization whose administration modal is open, by slug. */
-  const [managing, setManaging] = useState<string | null>(null);
-  /**
-   * The create dialog: closed, or open with the organization the person was
-   * looking at (null when they asked from nowhere in particular).
-   */
-  const [creating, setCreating] = useState<
-    { org: OrganizationVM | null } | null
-  >(null);
+  const [creating, setCreating] = useState(false);
   const [filters, setFilters] = useState<HubFilters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const activeFilterCount = countActiveFilters(filters);
 
-  // The settings drawer is URL-driven: ?ws=<org>~<workspace> opens it for that
-  // workspace. Closing clears the param so the grid is the canonical hub state.
-  const closeSettings = () => router.push("/workspaces" as Route);
-  const openSettings = (ws: WorkspaceVM) =>
-    router.push(
-      `/workspaces?ws=${workspaceApiRef({ org: ws.org.slug, slug: ws.slug })}` as Route,
-    );
-
-  // Every organization the person belongs to, plus any that only shows up on
-  // a workspace card — a section is never dropped just because the two reads
-  // disagree.
-  const sections = useMemo(() => {
-    const byId = new Map<string, OrganizationVM>();
-    for (const org of organizations) byId.set(org.id, org);
-    for (const ws of workspaces) {
-      if (byId.has(ws.org.id)) continue;
-      byId.set(ws.org.id, {
-        id: ws.org.id,
-        slug: ws.org.slug,
-        name: ws.org.name,
-        role: "viewer",
-        memberCount: 0,
-        canCreateWorkspace: false,
-        canManage: false,
-      });
-    }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [organizations, workspaces]);
-
-  // Collapsed sections are a per-browser preference, so they are read after
-  // hydration: the server has no way to know them and rendering them from
-  // storage on the first pass would mismatch the HTML it sent.
-  useEffect(() => {
-    setCollapsed(readCollapsed(sections.map((org) => org.id)));
-  }, [sections]);
-
-  const toggleSection = (orgId: string) => {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      const collapse = !next.has(orgId);
-      if (collapse) next.add(orgId);
-      else next.delete(orgId);
-      writeCollapsed(orgId, collapse);
-      return next;
-    });
+  // The panel is URL-driven: ?ws=<slug> opens it for that workspace. Closing
+  // clears the param so the grid is the canonical hub state, and refreshes
+  // it: a rename, a new member or a revoked invitation all change a card.
+  const closePanel = () => {
+    router.push("/workspaces" as Route);
+    router.refresh();
   };
+  const openPanel = (ws: WorkspaceVM) =>
+    router.push(`/workspaces?ws=${encodeURIComponent(ws.slug)}` as Route);
 
   const visible = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
@@ -295,7 +165,6 @@ export function WorkspacesView({
         return false;
       }
       if (filters.role && w.role !== filters.role) return false;
-      if (filters.org && w.org.slug !== filters.org) return false;
       return true;
     });
     return filtered.toSorted((a, b) => {
@@ -307,13 +176,6 @@ export function WorkspacesView({
     });
   }, [workspaces, filters]);
 
-  const shownSections = filters.org
-    ? sections.filter((org) => org.slug === filters.org)
-    : sections;
-  // One organization: the page header owns both actions. Several: each
-  // section owns its own, and `soleOrg` is null so the header shows none.
-  const soleOrg = sections.length === 1 ? sections[0] ?? null : null;
-  const openCreate = (org: OrganizationVM | null) => setCreating({ org });
   const nothingMatches = workspaces.length > 0 && visible.length === 0;
 
   return (
@@ -322,7 +184,7 @@ export function WorkspacesView({
 
       <main className="scroll min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1180px] px-7 pb-16 pt-7 max-sm:px-4 max-sm:pb-[calc(56px+env(safe-area-inset-bottom))] max-sm:pt-5">
-          {sections.length === 0 ? (
+          {workspaces.length === 0 && !canCreate ? (
             <HubEmptyState />
           ) : (
             <>
@@ -334,14 +196,7 @@ export function WorkspacesView({
                   </h1>
                   <p className="mt-0.5 text-[12px] text-[var(--ink-3)]">
                     {workspaces.length}{" "}
-                    {workspaces.length === 1 ? "workspace" : "workspaces"}
-                    {orgLayer ? (
-                      <>
-                        {" "}across {sections.length}{" "}
-                        {sections.length === 1 ? "organization" : "organizations"}
-                      </>
-                    ) : null}{" "}
-                    · sorted by{" "}
+                    {workspaces.length === 1 ? "workspace" : "workspaces"} · sorted by{" "}
                     {filters.sort === "name"
                       ? "name"
                       : filters.sort === "created"
@@ -372,22 +227,8 @@ export function WorkspacesView({
                     </Chip>
                   ) : null}
                 </Button>
-                {soleOrg?.canManage ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onPress={() => setManaging(soleOrg.slug)}
-                  >
-                    <Settings2 size={13} /> Manage organization
-                  </Button>
-                ) : null}
-                {soleOrg?.canCreateWorkspace ? (
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    onPress={() => openCreate(soleOrg)}
-                  >
+                {canCreate ? (
+                  <Button size="sm" className="gap-1.5" onPress={() => setCreating(true)}>
                     <Plus size={14} /> New workspace
                   </Button>
                 ) : null}
@@ -409,12 +250,7 @@ export function WorkspacesView({
                       filtersOpen ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
                     )}
                   >
-                    <HubFiltersBar
-                      filters={filters}
-                      setFilters={setFilters}
-                      organizations={sections}
-                      showOrgFilter={orgLayer}
-                    />
+                    <HubFiltersBar filters={filters} setFilters={setFilters} />
                     <div className="h-1" />
                   </div>
                 </div>
@@ -426,34 +262,12 @@ export function WorkspacesView({
                 </p>
               ) : (
                 <div className="mt-5">
-                  {orgLayer ? (
-                    shownSections.map((org) => (
-                      <OrgSection
-                        key={org.id}
-                        org={org}
-                        workspaces={visible.filter((w) => w.org.id === org.id)}
-                        isEmpty={workspaces.every((w) => w.org.id !== org.id)}
-                        collapsed={collapsed.has(org.id)}
-                        onToggle={() => toggleSection(org.id)}
-                        actions={soleOrg === null}
-                        onManage={() => setManaging(org.slug)}
-                        onCreate={() => openCreate(org)}
-                        onSettings={openSettings}
-                      />
-                    ))
-                  ) : workspaces.length === 0 ? (
-                    // One company, nothing in it: the first workspace, with
-                    // no mention of the company it will live in.
-                    <EmptyOrg org={soleOrg} orgLayer={false} onCreate={() => openCreate(soleOrg)} />
+                  {workspaces.length === 0 ? (
+                    <EmptyWorkspaces canCreate={canCreate} onCreate={() => setCreating(true)} />
                   ) : (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {visible.map((ws) => (
-                        <WorkspaceCard
-                          key={ws.id}
-                          ws={ws}
-                          orgLayer={false}
-                          onSettings={() => openSettings(ws)}
-                        />
+                        <WorkspaceCard key={ws.id} ws={ws} onSettings={() => openPanel(ws)} />
                       ))}
                     </div>
                   )}
@@ -464,155 +278,22 @@ export function WorkspacesView({
         </div>
       </main>
 
-      {managing ? (
-        <OrgAdminModal
-          orgSlug={managing}
-          onClose={() => {
-            setManaging(null);
-            // A person may have been let in or removed: the grid is a
-            // projection of that.
-            router.refresh();
-          }}
-          onCreateWorkspace={() => {
-            // The panel's own "New workspace" hands over to this dialog: one
-            // place creates workspaces, and it is not inside the panel.
-            const org = sections.find((o) => o.slug === managing) ?? null;
-            setManaging(null);
-            openCreate(org);
-          }}
-        />
-      ) : null}
       {creating ? (
-        <NewWorkspaceModal
-          organizations={sections}
-          initialOrganization={creating.org}
-          orgLayer={orgLayer}
-          templates={templates}
-          onClose={() => setCreating(null)}
-        />
+        <NewWorkspaceModal templates={templates} onClose={() => setCreating(false)} />
       ) : null}
-      {settingsWs ? (
-        <WorkspaceSettingsModal
-          ws={settingsWs}
-          isAdmin={isAdmin}
-          orgLayer={orgLayer}
-          onClose={closeSettings}
+      {panelWs ? (
+        <WorkspaceAdminModal
+          workspace={{
+            slug: panelWs.slug,
+            name: panelWs.name,
+            metadata: panelWs.metadata,
+            role: panelWs.role,
+          }}
+          initialSection={panelSection ?? undefined}
+          onClose={closePanel}
         />
       ) : null}
     </div>
-  );
-}
-
-/* ──────────────────────────────────────────────────────────── */
-/*  Organization section — header, its cards, and a rule before  */
-/*  the next company. Collapsing is remembered per browser, so   */
-/*  someone who works in one company keeps the others folded.    */
-/* ──────────────────────────────────────────────────────────── */
-function OrgSection({
-  org,
-  workspaces,
-  isEmpty,
-  collapsed,
-  actions,
-  onToggle,
-  onManage,
-  onCreate,
-  onSettings,
-}: {
-  org: OrganizationVM;
-  workspaces: WorkspaceVM[];
-  /** The organization holds no workspaces at all — not merely none matching. */
-  isEmpty: boolean;
-  collapsed: boolean;
-  /**
-   * Draw this section's own "Manage" and "New workspace". False when the
-   * page header already carries them for the one organization there is.
-   */
-  actions: boolean;
-  onToggle: () => void;
-  onManage: () => void;
-  /** Open the wizard with this organization already chosen. */
-  onCreate: () => void;
-  onSettings: (ws: WorkspaceVM) => void;
-}) {
-  const panelId = `org-section-${org.id}`;
-  return (
-    <section className="border-t border-[var(--line)] pb-7 pt-7 first:border-t-0 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-expanded={!collapsed}
-          aria-controls={panelId}
-          onPress={onToggle}
-          className="-ml-1.5 h-auto gap-2 px-1.5 py-1 font-normal"
-        >
-          <ChevronRight
-            size={14}
-            className={cn(
-              "shrink-0 text-[var(--ink-3)] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
-              !collapsed && "rotate-90",
-            )}
-          />
-          <Building2 size={13} className="shrink-0 text-[var(--ink-3)]" />
-          <span className="text-[14px] font-semibold text-[var(--ink)]" style={{ letterSpacing: "-.01em" }}>
-            {org.name}
-          </span>
-        </Button>
-        <span className="text-[11px] text-[var(--ink-3)]" style={mono}>
-          {workspaces.length} {workspaces.length === 1 ? "workspace" : "workspaces"}
-        </span>
-        <Chip size="sm" variant="secondary" className="capitalize">
-          {org.role}
-        </Chip>
-        <span className="ml-auto" />
-        {actions && org.canManage ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onPress={onManage}
-          >
-            <Settings2 size={13} /> Manage organization
-          </Button>
-        ) : null}
-        {actions && org.canCreateWorkspace && !isEmpty ? (
-          <Button size="sm" variant="outline" className="gap-1.5" onPress={onCreate}>
-            <Plus size={13} /> New workspace
-          </Button>
-        ) : null}
-      </div>
-
-      <div
-        id={panelId}
-        inert={collapsed}
-        className={cn(
-          "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
-        )}
-      >
-        <div className="min-h-0 overflow-hidden">
-          {isEmpty ? (
-            <EmptyOrg org={org} orgLayer onCreate={onCreate} />
-          ) : workspaces.length === 0 ? (
-            <p className="py-5 text-[12px] text-[var(--ink-3)]">
-              No workspaces here match these filters.
-            </p>
-          ) : (
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {workspaces.map((ws) => (
-                <WorkspaceCard
-                  key={ws.id}
-                  ws={ws}
-                  orgLayer
-                  onSettings={() => onSettings(ws)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -646,14 +327,9 @@ function TopNav() {
 function HubFiltersBar({
   filters,
   setFilters,
-  organizations,
-  showOrgFilter,
 }: {
   filters: HubFilters;
   setFilters: React.Dispatch<React.SetStateAction<HubFilters>>;
-  organizations: OrganizationVM[];
-  /** One organization and nothing to tell apart: no filter for it. */
-  showOrgFilter: boolean;
 }) {
   const set = <K extends keyof HubFilters>(key: K, value: HubFilters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));
@@ -678,14 +354,7 @@ function HubFiltersBar({
         </Chip>
       </header>
 
-      <div
-        className={cn(
-          "grid grid-cols-1 items-end gap-3.5 sm:grid-cols-2",
-          showOrgFilter
-            ? "md:grid-cols-[2fr_1fr_1fr_1fr_auto]"
-            : "md:grid-cols-[2fr_1fr_1fr_auto]",
-        )}
-      >
+      <div className="grid grid-cols-1 items-end gap-3.5 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_auto]">
         <FilterField label="Search" Icon={Search}>
           <TextField
             aria-label="Search workspaces"
@@ -696,19 +365,6 @@ function HubFiltersBar({
             <Input placeholder="Name, slug or description" />
           </TextField>
         </FilterField>
-        {showOrgFilter ? (
-          <FilterField label="Organization" Icon={Building2}>
-            <FilterSelect
-              aria-label="Organization"
-              value={filters.org}
-              onChange={(value) => set("org", value)}
-              items={[
-                { id: "", label: "All organizations" },
-                ...organizations.map((org) => ({ id: org.slug, label: org.name })),
-              ]}
-            />
-          </FilterField>
-        ) : null}
         <FilterField label="Your role" Icon={UserRound}>
           <FilterSelect
             aria-label="Your role"
@@ -809,12 +465,9 @@ function FilterSelect({
 /* ──────────────────────────────────────────────────────────── */
 function WorkspaceCard({
   ws,
-  orgLayer,
   onSettings,
 }: {
   ws: WorkspaceVM;
-  /** Spell the full `/w/<org>/<ws>` address, or just the workspace. */
-  orgLayer: boolean;
   onSettings: () => void;
 }) {
   const grad = gradientFor({ slug: ws.slug, metadata: ws.metadata });
@@ -825,7 +478,7 @@ function WorkspaceCard({
         variant="outline"
         className="h-full min-h-[168px] flex-col items-stretch gap-3 rounded-[12px] border-[var(--line)] bg-[var(--paper)] p-4 text-left no-underline transition-colors hover:border-[var(--ink-mute)] hover:bg-[var(--paper-2)]"
         render={(props) => (
-          <Link {...props} href={workspacePath({ org: ws.org.slug, slug: ws.slug }) as Route} />
+          <Link {...props} href={workspacePath(ws.slug) as Route} />
         )}
       >
         <div className="flex items-start gap-3">
@@ -840,7 +493,7 @@ function WorkspaceCard({
               {ws.name}
             </ItemCard.Title>
             <ItemCard.Description className="mt-0.5 truncate text-[10.5px] text-[var(--ink-3)]" style={mono}>
-              {orgLayer ? `/w/${ws.org.slug}/${ws.slug}` : ws.slug}
+              {ws.slug}
             </ItemCard.Description>
           </ItemCard.Content>
           <Chip size="sm" variant="soft" className="mr-8 shrink-0 capitalize">
@@ -891,7 +544,7 @@ function WorkspaceCard({
         isIconOnly
         size="sm"
         variant="tertiary"
-        aria-label={`Settings for ${ws.name}`}
+        aria-label={`Manage ${ws.name}`}
         onPress={onSettings}
         className="absolute right-2.5 top-2.5 z-[2] opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
       >
@@ -906,11 +559,11 @@ function WorkspaceCard({
 /* ──────────────────────────────────────────────────────────── */
 
 /**
- * Nothing to show at all: the person belongs to no organization. Anybody who
- * may create one is sent to `/start` before this renders (`page.tsx`), so the
- * people who see it are on an instance where organizations are created by
- * its administrators — the honest thing is to say who can let them in, not
- * to offer a button that would fail.
+ * Nothing to show at all: the person belongs to no workspace and may not
+ * create one. Anybody who may is sent to `/start` before this renders
+ * (`page.tsx`), so the people who see it are on an instance where workspaces
+ * are created by its administrators — the honest thing is to say who can let
+ * them in, not to offer a button that would fail.
  */
 function HubEmptyState() {
   return (
@@ -919,10 +572,11 @@ function HubEmptyState() {
         <EmptyState.Media variant="icon">
           <LayoutGrid size={18} />
         </EmptyState.Media>
-        <EmptyState.Title>You&apos;re not in an organization yet</EmptyState.Title>
+        <EmptyState.Title>You&apos;re not in a workspace yet</EmptyState.Title>
         <EmptyState.Description className="max-w-[430px]">
-          On this instance, organizations are created by its administrators.
-          Ask one of them, or an owner of your organization, for an invitation.
+          On this instance, workspaces are created by its administrators. Ask
+          one of them, or an owner of the workspace you should be in, for an
+          invitation.
         </EmptyState.Description>
       </EmptyState.Header>
     </EmptyState>
@@ -930,34 +584,28 @@ function HubEmptyState() {
 }
 
 /**
- * An organization with nothing in it yet — day one of a company. The button
- * opens the same create dialog as the header's.
+ * No workspaces yet, for somebody who may create one — normally only seen in
+ * demo mode, since `page.tsx` sends a signed-in person in this state to
+ * `/start`. The button opens the same create dialog as the header's.
  */
-function EmptyOrg({
-  org,
-  orgLayer,
+function EmptyWorkspaces({
+  canCreate,
   onCreate,
 }: {
-  org: OrganizationVM | null;
-  orgLayer: boolean;
+  canCreate: boolean;
   onCreate: () => void;
 }) {
-  const canCreate = org?.canCreateWorkspace ?? false;
   return (
     <EmptyState className="mt-3 min-h-[180px] rounded-2xl border border-dashed border-[var(--line)] bg-[var(--paper-2)]">
       <EmptyState.Header>
         <EmptyState.Media variant="icon">
           <LayoutGrid size={18} />
         </EmptyState.Media>
-        <EmptyState.Title>
-          {orgLayer && org ? `Nothing in ${org.name} yet` : "No workspaces yet"}
-        </EmptyState.Title>
+        <EmptyState.Title>No workspaces yet</EmptyState.Title>
         <EmptyState.Description className="max-w-[430px]">
           {canCreate
             ? "One workspace per product, team or client, with its own members and agents."
-            : orgLayer
-              ? "An owner or admin of this organization creates the first workspace."
-              : "An admin creates the first workspace."}
+            : "An administrator creates the first workspace."}
         </EmptyState.Description>
       </EmptyState.Header>
       {canCreate ? (

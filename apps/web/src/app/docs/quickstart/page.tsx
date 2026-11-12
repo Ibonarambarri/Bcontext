@@ -1,7 +1,7 @@
 /**
  * `/docs/quickstart` — connecting an MCP client (Claude Code, Claude Desktop)
  * to a workspace. Prose; the MCP endpoints are the API's (`/mcp` and
- * `/mcp/<org>/<workspace>`), which this app proxies at the same paths — so
+ * `/mcp/<workspace>`), which this app proxies at the same paths — so
  * the examples use this instance's own origin (`appOrigin`).
  * The workspace endpoint is the recommended way in: OAuth through it yields
  * a token bound to that workspace, no header to remember.
@@ -22,13 +22,13 @@ const PLUGIN_INSTALL = `/plugin marketplace add Ibonarambarri/bcontext
 
 /** The copyable examples, on this instance's own origin. */
 function examples(origin: string) {
-  const CLAUDE_CODE_OAUTH = `claude mcp add --transport http bcontext-acme-docs ${origin}/mcp/acme/docs`;
+  const CLAUDE_CODE_OAUTH = `claude mcp add --transport http bcontext-acme ${origin}/mcp/acme`;
 
   const CLAUDE_CODE_CONFIG = `{
   "mcpServers": {
-    "bcontext-acme-docs": {
+    "bcontext-acme": {
       "transport": "http",
-      "url": "${origin}/mcp/acme/docs",
+      "url": "${origin}/mcp/acme",
       "headers": {
         "Authorization": "Bearer bctx_live_..."
       }
@@ -38,11 +38,11 @@ function examples(origin: string) {
 
   const CLAUDE_DESKTOP_CONFIG = `{
   "mcpServers": {
-    "bcontext-acme-docs": {
+    "bcontext-acme": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "${origin}/mcp/acme/docs",
+        "${origin}/mcp/acme",
         "--header",
         "Authorization: Bearer bctx_live_..."
       ]
@@ -51,14 +51,14 @@ function examples(origin: string) {
 }`;
 
   const CLAUDE_MD = agentInstructions(
-    { endpoint: `${origin}/mcp/acme/docs`, serverName: "bcontext-acme-docs" },
-    { org: "acme", slug: "docs" },
+    { endpoint: `${origin}/mcp/acme`, serverName: "bcontext-acme" },
+    { slug: "acme" },
   );
 
   const TEST_CURL = `curl -X POST ${origin}/api/agents/context \\
   -H "Authorization: Bearer bctx_live_..." \\
   -H "Content-Type: application/json" \\
-  -d '{ "workspace": "acme/docs", "query": "what is blocking us?", "k": 5 }'`;
+  -d '{ "workspace": "acme", "query": "what is blocking us?", "k": 5 }'`;
 
   return { CLAUDE_CODE_OAUTH, CLAUDE_CODE_CONFIG, CLAUDE_DESKTOP_CONFIG, CLAUDE_MD, TEST_CURL };
 }
@@ -83,13 +83,13 @@ export default async function QuickstartPage() {
       <DocSection title="1. Take the workspace endpoint">
         <p>
           Each workspace is served at{" "}
-          <Inline>{`${origin}/mcp/<org>/<workspace>`}</Inline>{" "}
+          <Inline>{`${origin}/mcp/<workspace>`}</Inline>{" "}
           — <Inline>Agents → Add agent</Inline> inside the workspace shows the
           exact URL and a snippet per client. A client connected through it
           can only reach that workspace, so a project folder can carry its
           own <Inline>.mcp.json</Inline>. The root <Inline>/mcp</Inline> stays
           for tokens that reach several workspaces; those pick one per request
-          with the <Inline>X-Bcontext-Workspace: &lt;org&gt;/&lt;workspace&gt;</Inline>{" "}
+          with the <Inline>X-Bcontext-Workspace: &lt;workspace&gt;</Inline>{" "}
           header.
         </p>
       </DocSection>

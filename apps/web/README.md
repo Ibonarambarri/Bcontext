@@ -52,7 +52,7 @@ npm run dev -w bcontext-web     # http://localhost:3000, API at :4000
 ```
 src/
   app/            routes: (auth), start, invite, oauth (agent consent),
-                  w/[org]/[ws] (the workspace shell), workspaces, admin, docs
+                  w/[ws] (the workspace shell), workspaces, admin, docs
   components/     shell, sidebar, editor, views (board/list/graph/browse),
                   agents, webhooks, admin, skeletons…
   web/            api-client (HTTP to the API), session (Supabase Auth), me, workspace

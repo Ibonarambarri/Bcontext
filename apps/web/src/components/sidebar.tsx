@@ -152,6 +152,7 @@ export function Sidebar({
     address,
     activeViewSlug,
     openSettings,
+    openWorkspacePanel,
   } = useWorkspace();
   const router = useRouter();
   const { setMobileOpen } = useSidebar();
@@ -270,6 +271,7 @@ export function Sidebar({
               align="up"
               profileCard
               onOpenSettings={openSettings}
+              onOpenMembers={() => openWorkspacePanel("members")}
               onOpenActivity={() => navigate(systemViewPath(address, "changes"))}
               onOpenGuide={() => window.dispatchEvent(new CustomEvent(OPEN_GUIDE_EVENT))}
             />

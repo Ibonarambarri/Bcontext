@@ -23,7 +23,7 @@ import type {
   DashboardMetrics,
   PeriodMetrics,
 } from "@bcontext-dev/contract/admin-metrics";
-import type { AdminOrgHealth } from "@bcontext-dev/contract/admin-orgs";
+import type { AdminWorkspaceHealth } from "@bcontext-dev/contract/admin-workspaces";
 
 const mono: React.CSSProperties = {
   fontFamily: "var(--f-martian-mono), var(--font-mono), monospace",
@@ -48,7 +48,7 @@ function ago(iso: string | null): string {
 }
 
 /**
- * A customer stalls before it starts and drifts after it starts, and the two
+ * A workspace stalls before it starts and drifts after it starts, and the two
  * look nothing alike — so they are named separately rather than folded into
  * one "unhealthy" flag an operator would then have to open to understand.
  *
@@ -62,13 +62,13 @@ const QUIET_DAYS = 14;
 
 type Alarm = "stalled" | "quiet" | null;
 
-function alarmFor(org: AdminOrgHealth): Alarm {
-  if (org.first_sign_in_at === null) {
+function alarmFor(workspace: AdminWorkspaceHealth): Alarm {
+  if (workspace.first_sign_in_at === null) {
     // Nobody has ever been inside. Only worth raising once the invitation has
     // had time to be read — and only if one was actually sent.
     if (
-      org.oldest_pending_invite_at &&
-      daysSince(org.oldest_pending_invite_at) >= STALE_INVITE_DAYS
+      workspace.oldest_pending_invite_at &&
+      daysSince(workspace.oldest_pending_invite_at) >= STALE_INVITE_DAYS
     ) {
       return "stalled";
     }
@@ -76,24 +76,24 @@ function alarmFor(org: AdminOrgHealth): Alarm {
   }
   // It started. The question is whether it is still going.
   if (
-    org.last_activity_at &&
-    daysSince(org.last_activity_at) >= QUIET_DAYS &&
-    org.mcp_calls + org.writes === 0
+    workspace.last_activity_at &&
+    daysSince(workspace.last_activity_at) >= QUIET_DAYS &&
+    workspace.mcp_calls + workspace.writes === 0
   ) {
     return "quiet";
   }
   return null;
 }
 
-function alarmLine(org: AdminOrgHealth, alarm: Alarm): string | null {
+function alarmLine(workspace: AdminWorkspaceHealth, alarm: Alarm): string | null {
   if (alarm === "stalled") {
-    const d = org.oldest_pending_invite_at
-      ? daysSince(org.oldest_pending_invite_at)
-      : daysSince(org.created_at);
+    const d = workspace.oldest_pending_invite_at
+      ? daysSince(workspace.oldest_pending_invite_at)
+      : daysSince(workspace.created_at);
     return `Invited ${d} day${d === 1 ? "" : "s"} ago, never signed in.`;
   }
   if (alarm === "quiet") {
-    return `Was busy, went quiet — nothing since ${ago(org.last_activity_at)}.`;
+    return `Was busy, went quiet — nothing since ${ago(workspace.last_activity_at)}.`;
   }
   return null;
 }
@@ -136,7 +136,7 @@ export function AdminDashboard({
   healthError,
 }: {
   initial: DashboardMetrics;
-  health: AdminOrgHealth[];
+  health: AdminWorkspaceHealth[];
   healthError: string | null;
 }) {
   const [data, setData] = useState<DashboardMetrics>(initial);
@@ -225,7 +225,7 @@ export function AdminDashboard({
         </Alert>
       ) : null}
 
-      <WorthAMessageToday orgs={health} error={healthError} />
+      <WorthAMessageToday workspaces={health} error={healthError} />
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Kpi
@@ -234,7 +234,7 @@ export function AdminDashboard({
           sub={`cost ${usd(current ? current.aiCostUsd : 0)} · measured`}
         />
         <Kpi
-          label="Organizations"
+          label="Workspaces"
           value={healthError ? "—" : int(health.length)}
           sub="on this instance"
         />
@@ -467,19 +467,19 @@ function Legend({
 }
 
 /**
- * Which organization needs a message today.
+ * Which workspace needs a message today.
  *
  * It sits above the numbers because it is the only thing on this screen an
- * operator can act on this morning, and twenty organizations read one at a
+ * operator can act on this morning, and twenty workspaces read one at a
  * time is not a sweep. Only the two moments that call for a message are
  * here — one that never got started and one that stopped; how far each has
- * climbed is the Organizations list.
+ * climbed is the Workspaces list.
  */
 function WorthAMessageToday({
-  orgs,
+  workspaces,
   error,
 }: {
-  orgs: AdminOrgHealth[];
+  workspaces: AdminWorkspaceHealth[];
   error: string | null;
 }) {
   if (error) {
@@ -488,16 +488,18 @@ function WorthAMessageToday({
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Description>
-            Customer health couldn&apos;t be loaded: {error}
+            Workspace health couldn&apos;t be loaded: {error}
           </Alert.Description>
         </Alert.Content>
       </Alert>
     );
   }
 
-  const alarms = new Map(orgs.map((o) => [o.id, alarmFor(o)] as const));
-  const stalled = orgs.filter((o) => alarms.get(o.id) === "stalled");
-  const quiet = orgs.filter((o) => alarms.get(o.id) === "quiet");
+  const alarms = new Map(
+    workspaces.map((ws) => [ws.id, alarmFor(ws)] as const),
+  );
+  const stalled = workspaces.filter((ws) => alarms.get(ws.id) === "stalled");
+  const quiet = workspaces.filter((ws) => alarms.get(ws.id) === "quiet");
   if (stalled.length + quiet.length === 0) return null;
 
   return (
@@ -509,20 +511,20 @@ function WorthAMessageToday({
         {stalled.length} never signed in · {quiet.length} went quiet — the two
         moments an operator has to act. Everyone else is on{" "}
         <Link
-          href={"/admin/orgs" as Route}
+          href={"/admin/workspaces" as Route}
           className="text-[var(--ink-2)] underline underline-offset-2"
         >
-          Organizations
+          Workspaces
         </Link>
         .
       </p>
       <div className="rounded-md border border-[var(--line)]">
-        {[...stalled, ...quiet].map((org) => {
-          const alarm = alarms.get(org.id) ?? null;
+        {[...stalled, ...quiet].map((workspace) => {
+          const alarm = alarms.get(workspace.id) ?? null;
           return (
             <Link
-              key={org.id}
-              href={`/admin/orgs/${org.id}` as Route}
+              key={workspace.id}
+              href={`/admin/workspaces/${workspace.id}` as Route}
               className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-[var(--paper-2)]"
             >
               <div className="flex min-w-0 items-center gap-2.5">
@@ -536,17 +538,17 @@ function WorthAMessageToday({
                   )}
                 />
                 <span className="truncate text-[12.5px] text-[var(--ink)]">
-                  {org.name}
+                  {workspace.name}
                 </span>
                 <span
                   className="truncate text-[11px] text-[var(--ink-3)]"
                   style={mono}
                 >
-                  {org.owner_email ?? "no owner on record"}
+                  {workspace.owner_email ?? "no owner on record"}
                 </span>
               </div>
               <span className="text-[11.5px] text-[var(--ink-2)]">
-                {alarmLine(org, alarm)}
+                {alarmLine(workspace, alarm)}
               </span>
             </Link>
           );
