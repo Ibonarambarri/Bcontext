@@ -208,3 +208,16 @@ export interface BusinessEvent extends BusinessEventInput {
   properties: Record<string, unknown>;
   subject_erased_at: string | null;
 }
+
+/** How many of a subject's events one read returns at most. */
+export const SUBJECT_EVENTS_MAX = 200;
+
+/**
+ * `GET /api/workspaces/:ws/events?subject_type=&subject_id=&limit=` — one
+ * subject's events, newest first: what a record's 360 page draws as its
+ * timeline and rebuilds its MRR history from. A read for members (session
+ * or `bctx_live_` token); an ingest key cannot read it.
+ */
+export interface SubjectEventsResponse {
+  events: BusinessEvent[];
+}

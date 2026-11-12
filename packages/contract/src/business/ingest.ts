@@ -11,6 +11,7 @@
  * a write-only key into a read key.
  */
 import { z } from "zod";
+import type { KnowledgeNode } from "../types.js";
 
 /** Distinct from `bctx_live_` on purpose (see the header). */
 export const INGEST_KEY_PREFIX = "bctx_ingest_";
@@ -75,6 +76,22 @@ export interface RecordBatchResponse {
   unchanged: number;
   invalid: number;
   results: RecordUpsertResult[];
+}
+
+/** How many records `GET /records/:type` returns at most. */
+export const RECORD_LIST_MAX = 1_000;
+
+/**
+ * `GET /api/workspaces/:ws/records/:type?limit=` — a node record type's
+ * records with their `data` (and so `data.fields`), which the node index
+ * leaves out. For the web's overview lists and 360 pages; a read for
+ * members, never for an ingest key. Dataset types answer 400: their records
+ * are rows, read through the dataset.
+ */
+export interface RecordListResponse {
+  records: KnowledgeNode[];
+  /** True when the type has more records than were returned. */
+  truncated: boolean;
 }
 
 /** `DELETE /records/:type/:external_id` — what erasing a subject removed. */
