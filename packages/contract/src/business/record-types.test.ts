@@ -75,6 +75,15 @@ describe("record type definitions", () => {
     expect(RecordTypeInputSchema.safeParse({ key: "client", label: "Client", dataset_node_id: "n1" }).success).toBe(false);
   });
 
+  it("keeps dataset-backed types to cell-compatible fields", () => {
+    const result = RecordTypeInputSchema.safeParse({
+      key: "client", label: "Client", storage: "dataset", dataset_node_id: "d",
+      fields: [{ key: "ltv", label: "LTV", type: "money" }, { key: "zone", label: "Zone", type: "text" }],
+    });
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error!.issues)).toContain("`ltv` is a money");
+  });
+
   it("re-checks a merged definition", () => {
     expect(definitionIssues(account)).toEqual([]);
     expect(definitionIssues({ ...account, stage_field: "seats" }).join()).toContain("stage_field");
