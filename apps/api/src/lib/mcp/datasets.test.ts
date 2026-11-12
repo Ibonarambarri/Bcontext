@@ -43,9 +43,9 @@ async function runStatement(text: string, values: unknown[]): Promise<{ rows: un
     // Only the projection is simulated — the predicates are not evaluated
     // here; that the WHERE is built correctly is asserted against the SQL
     // text in `src/lib/datasets/query.test.ts`. The projected columns are
-    // read out of the `jsonb_build_object($k, d.data -> $v)` pairs so the
+    // read out of the `jsonb_build_object($k::text, d.data -> $v)` pairs so the
     // order the caller asked for survives.
-    const columns = [...text.matchAll(/\$(\d+), d\.data -> \$\d+/g)].map(
+    const columns = [...text.matchAll(/\$(\d+)::text, d\.data -> \$\d+/g)].map(
       (match) => String(values[Number(match[1]) - 1]),
     );
     return {

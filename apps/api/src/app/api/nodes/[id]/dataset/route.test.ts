@@ -37,7 +37,7 @@ async function runStatement(text: string, values: unknown[]): Promise<{ rows: un
     return { rows: rows.slice(0, Number(values[2])).map((r) => ({ data: r.data })) };
   }
   if (text.startsWith("select jsonb_build_object")) {
-    const columns = [...text.matchAll(/\$(\d+), d\.data -> \$\d+/g)].map(
+    const columns = [...text.matchAll(/\$(\d+)::text, d\.data -> \$\d+/g)].map(
       (match) => String(values[Number(match[1]) - 1]),
     );
     return { rows: rows.map((r) => ({ row: Object.fromEntries(columns.map((c) => [c, r.data[c] ?? null])) })) };
