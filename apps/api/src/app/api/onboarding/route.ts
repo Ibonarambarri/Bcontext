@@ -42,7 +42,6 @@ export const GET = withRoute(async (req: Request) => {
     const [read, { data: current }] = await Promise.all([
       readOnboardingFacts(admin, {
         workspaceId: opened.storage.workspace.id,
-        userId: opened.actor.userId,
       }),
       admin.auth.admin.getUserById(opened.actor.userId),
     ]);

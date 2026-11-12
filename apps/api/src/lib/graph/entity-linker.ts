@@ -1,5 +1,5 @@
 /**
- * NEXO entity linking — people, customers and products as first-class nodes.
+ * Entity linking — people, customers and products as first-class nodes.
  *
  * A cheap on-save sweep with no LLM in it: when a node's prose names an
  * `entity` node of the same workspace (by title or by one of the aliases
@@ -10,8 +10,8 @@
  *   - an exact name/alias that maps to ONE entity → the edge is created
  *     directly (idempotent, same effect as `links_write`) and the change
  *     feed records it as actor `system` ("entity linked: <name>");
- *   - a name/alias that maps to SEVERAL entities → nothing is linked and a
- *     `doubt` conflict is opened on the Conflicts surface so a human picks.
+ *   - a name/alias that maps to SEVERAL entities → nothing is linked; the
+ *     sweep reports it as ambiguous and a person or agent links by hand.
  *
  * What it never does: link a node to itself, or re-link an edge a human
  * removed. Unlinking a `references` edge onto an entity records the entity
@@ -192,7 +192,7 @@ async function loadEntities(storage: Storage): Promise<EntityRef[]> {
 
 /**
  * Sweep one node: link every unambiguous entity mention that is not already
- * linked or dismissed, and raise a doubt for ambiguous ones. Safe to call
+ * linked or dismissed, and report ambiguous ones without guessing. Safe to call
  * repeatedly — the edge write is idempotent and the feed only records new
  * links.
  */
@@ -237,7 +237,7 @@ export async function linkEntities(
         before: node,
         after: node,
         via: "system",
-        source: "nexo.entity_linker",
+        source: "graph.entity_linker",
         relations: [{ operation: "link", from_id: node.id, to_id: entity.id, relation: ENTITY_LINK_RELATION }],
         extra: { entity_id: entity.id, matched_term: match.term },
       }),
@@ -257,49 +257,8 @@ export async function linkEntities(
     const candidates = amb.entityIds.filter((id) => id !== node.id && !dismissed.has(id) && !existing.has(id));
     if (candidates.length < 2) continue;
     result.ambiguous.push({ term: amb.term, entityIds: candidates });
-    if (storage.backend === "supabase") {
-      await openAmbiguityDoubt(storage, node, amb.term, candidates.map((id) => byId.get(id)!));
-    }
   }
   return result;
-}
-
-/**
- * One open doubt per (node, term): a redelivered save must not stack rows.
- */
-async function openAmbiguityDoubt(
-  storage: Storage,
-  node: Pick<KnowledgeNode, "id" | "title">,
-  term: string,
-  entities: EntityRef[],
-): Promise<void> {
-  const { getSupabaseAdmin } = await import("@/lib/supabase/admin");
-  const { openConflict } = await import("./conflicts");
-  const summary = `"${term}" in "${node.title}" could mean ${entities.length} entities: ${entities
-    .map((e) => e.title)
-    .join(", ")}.`;
-  const { data: dupes } = await getSupabaseAdmin()
-    .from("nexo_conflicts")
-    .select("id")
-    .eq("workspace_id", storage.workspace.id)
-    .eq("kind", "doubt")
-    .eq("status", "open")
-    .contains("related_node_ids", [node.id])
-    .eq("summary", summary.slice(0, 400))
-    .limit(1);
-  if (dupes && dupes.length > 0) return;
-  await openConflict({
-    workspaceId: storage.workspace.id,
-    kind: "doubt",
-    summary,
-    contextMd: [
-      `## Mention\n"${term}" appears in /n/${node.id} and matches more than one entity, so NEXO did not link it.`,
-      `## Candidates\n${entities.map((e) => `- /n/${e.id} — ${e.title}${e.aliases.length ? ` (aliases: ${e.aliases.join(", ")})` : ""}`).join("\n")}`,
-      `## Resolution\nSay which entity is meant (or that none is) and NEXO will link it.`,
-    ].join("\n\n"),
-    evidence: [{ source: "graph", url: `/n/${node.id}`, excerpt: term }],
-    relatedNodeIds: [node.id, ...entities.map((e) => e.id)],
-  });
 }
 
 /**
@@ -322,7 +281,7 @@ export async function rememberDismissedEntityLink(
     await storage.updateNode(fromId, { data: { ...(from.data ?? {}), entity_links_dismissed: next } });
     return true;
   } catch (err) {
-    log.warn("nexo.entity_linker.dismiss_failed", {
+    log.warn("graph.entity_linker.dismiss_failed", {
       workspace_id: storage.workspace.id,
       from_id: fromId,
       to_id: toId,

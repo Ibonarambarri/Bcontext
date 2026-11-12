@@ -123,7 +123,7 @@ describe("linkEntities (demo storage)", () => {
     expect((await storage.listEdges()).filter((e) => e.from_node === doc.id)).toEqual([]);
     // ...while a content change through the same entry point does.
     const swept = await runAfterNodeWrite(storage, updated, { created: false, contentChanged: true });
-    expect(swept).toEqual({ linked: [acmeNode.id], scan_enqueued: false });
+    expect(swept).toEqual({ linked: [acmeNode.id] });
   });
 
   it("leaves a link alone once a human unlinked it", async () => {

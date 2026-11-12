@@ -16,7 +16,7 @@ import {
   tagSlugBase,
 } from "@bcontext-dev/contract/tags";
 import { nodeSubtaskProgress } from "@bcontext-dev/contract/subtasks";
-import { afterNodeWrite } from "@/lib/nexo/after-write";
+import { afterNodeWrite } from "@/lib/graph/after-write";
 import { buildTagRefMatchers, nodeMatchesTagRefMatchers } from "@bcontext-dev/contract/tag-hierarchy";
 import {
   createNode as demoCreate,

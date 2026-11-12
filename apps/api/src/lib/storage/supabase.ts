@@ -15,7 +15,7 @@ import { slugify } from "@bcontext-dev/contract/utils";
 import { normalizeTagNames } from "@bcontext-dev/contract/tags";
 import { buildTagRefMatchers, nodeMatchesTagRefMatchers } from "@bcontext-dev/contract/tag-hierarchy";
 import { scheduleEmbed } from "@/lib/rag/embed";
-import { afterNodeWrite } from "@/lib/nexo/after-write";
+import { afterNodeWrite } from "@/lib/graph/after-write";
 import { nextPreviousBlockIds } from "@bcontext-dev/contract/rag/chunk";
 import {
   assertNoTagRelationCycle,

@@ -70,8 +70,6 @@ describe("GET /api/onboarding", () => {
       steps: [
         { id: "connect_agent", done: false },
         { id: "first_agent_write", done: false },
-        { id: "ask_nexo", done: false },
-        { id: "connect_integration", done: false },
       ],
       completed: false,
       dismissed_at: null,
