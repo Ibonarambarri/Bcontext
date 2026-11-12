@@ -110,6 +110,27 @@ describe("business reads", () => {
     expect(buyer.body.events.map((e: { idempotency_key: string; role: string }) => [e.idempotency_key, e.role])).toEqual([["b3", "subject"]]);
   });
 
+  it("follows a supplier's bookings to how they ended, when the later events do not name it", async () => {
+    const storage = resolveDemoStorage(door.slug)!;
+    await insertEvents(storage, [
+      { type: "booking.created", occurred_at: "2026-10-01T00:00:00Z", idempotency_key: "c1", subject_type: "buyer", subject_id: "u1", amount: 120, currency: "EUR", properties: { booking_id: "bk1", supplier_id: "s7" } },
+      { type: "booking.created", occurred_at: "2026-10-02T00:00:00Z", idempotency_key: "c2", subject_type: "buyer", subject_id: "u2", amount: 90, currency: "EUR", properties: { booking_id: "bk2", supplier_id: "s7" } },
+      // What senders send today: the booking id, no supplier.
+      { type: "booking.completed", occurred_at: "2026-10-05T00:00:00Z", idempotency_key: "c3", properties: { booking_id: "bk1" } },
+      { type: "booking.canceled", occurred_at: "2026-10-03T00:00:00Z", idempotency_key: "c4", properties: { booking_id: "bk2" } },
+      // Somebody else's booking ending is not this supplier's.
+      { type: "booking.created", occurred_at: "2026-10-02T00:00:00Z", idempotency_key: "c5", subject_type: "buyer", subject_id: "u3", amount: 50, currency: "EUR", properties: { booking_id: "bk3", supplier_id: "s8" } },
+      { type: "booking.canceled", occurred_at: "2026-10-04T00:00:00Z", idempotency_key: "c6", properties: { booking_id: "bk3" } },
+    ], null);
+    const supplier = await listEvents("?subject_type=supplier&subject_id=s7");
+    expect(supplier.body.events.map((e: { idempotency_key: string; role: string }) => [e.idempotency_key, e.role])).toEqual([
+      ["c3", "supplier"],
+      ["c4", "supplier"],
+      ["c2", "supplier"],
+      ["c1", "supplier"],
+    ]);
+  });
+
   it("needs a subject: the workspace-wide stream is not a page's to read", async () => {
     expect((await listEvents("")).status).toBe(400);
     expect((await listEvents("?subject_id=a1")).status).toBe(400);

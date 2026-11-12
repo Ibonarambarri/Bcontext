@@ -17,13 +17,14 @@
  */
 import { isCoreKind, type KnowledgeNode } from "@bcontext-dev/contract/types";
 import { log } from "@bcontext-dev/contract/log";
-import { readRecordFields, type RecordFields, type RecordType } from "@bcontext-dev/contract/business/record-types";
+import { promoteTargetsFor, readRecordFields, type RecordFields, type RecordType } from "@bcontext-dev/contract/business/record-types";
 import type { DatasetFilter, DatasetQuery } from "@bcontext-dev/contract/datasets";
 import {
   BUSINESS_VIEW_LIMITS,
   HeatmapLayoutSchema,
   MetricsLayoutSchema,
   aggregateRows,
+  heatmapRowLabels,
   readEventKey,
   type AggregateResult,
   type AggregateSpec,
@@ -67,7 +68,9 @@ export async function buildBusinessExtras(
     const parsed = HeatmapLayoutSchema.safeParse(view.presentation.layout.heatmap);
     if (!parsed.success) return { heatmap: { result: null, error: `layout.heatmap: ${parsed.error.issues[0]?.message ?? "invalid"}` } };
     try {
-      return { heatmap: { result: await runAggregate(storage, parsed.data.aggregate, types, settings.currency) } };
+      const result = await runAggregate(storage, parsed.data.aggregate, types, settings.currency);
+      const y_labels = await rowLabels(storage, parsed.data.aggregate.y?.key ?? null, result.y, types);
+      return { heatmap: { result, ...(y_labels ? { y_labels } : {}) } };
     } catch (err) {
       return { heatmap: { result: null, error: message(err) } };
     }
@@ -137,16 +140,40 @@ async function datasetPayload(storage: Storage, query: SavedView["query"], types
 }
 
 /**
- * Node record types a row can become, best match first: the more of the
- * dataset's fields a type declares, the less a promotion loses.
+ * Node record types a row can become, best match first — only those it fits
+ * (`promoteTargetsFor`): a target sharing no compatible field, or one whose
+ * required fields no column fills, would fail on every row.
  */
 function promoteTargets(type: RecordType, types: readonly RecordType[]): DatasetViewPayload["promote_targets"] {
-  const columns = new Set(type.fields.map((field) => field.key));
-  return types
-    .filter((candidate) => candidate.storage === "node")
-    .map((candidate) => ({ candidate, overlap: candidate.fields.filter((field) => columns.has(field.key)).length }))
-    .sort((a, b) => b.overlap - a.overlap || a.candidate.position - b.candidate.position)
-    .map(({ candidate }) => ({ key: candidate.key, label: candidate.label }));
+  return promoteTargetsFor(type, types);
+}
+
+/**
+ * Names for a heatmap's rows when its y key is a record type (`zone`): the
+ * values are that type's keys, and a person reads names. Best effort — a
+ * failed read leaves the keys, which is what the heatmap showed before.
+ */
+async function rowLabels(storage: Storage, yKey: string | null, values: readonly string[], types: readonly RecordType[]): Promise<Record<string, string> | null> {
+  const type = yKey ? types.find((candidate) => candidate.key === yKey) : undefined;
+  if (!type || values.length === 0) return null;
+  try {
+    if (type.storage === "node") {
+      const nodes = (await storage.listNodes({ kinds: [type.key], limit: 5_000 })).filter((node) => node.workspace_id === storage.workspace.id);
+      return heatmapRowLabels(values, nodes.map((node) => {
+        const externalId = (node.data as { external_id?: unknown } | null)?.external_id;
+        return { id: node.id, title: node.title, external_id: typeof externalId === "string" ? externalId : null, fields: readRecordFields(node.data) };
+      }));
+    }
+    if (!type.dataset_node_id) return null;
+    const answer = await queryDataset(storage, type.dataset_node_id, { schema_version: 1, where: [], limit: BUSINESS_VIEW_LIMITS.maxDatasetRows });
+    return heatmapRowLabels(values, answer.rows.map((row) => {
+      const key = row.external_id === null || row.external_id === undefined ? "" : String(row.external_id);
+      return { id: key, title: key, external_id: key, fields: row as Record<string, unknown> };
+    }));
+  } catch (err) {
+    log.warn("views.heatmap_labels_failed", { record_type: type.key, error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
 }
 
 /* -- metrics and aggregates ------------------------------------------------------ */

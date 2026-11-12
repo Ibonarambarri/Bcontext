@@ -294,6 +294,17 @@ describe("business layer over MCP", () => {
     const repromoted = await ok<{ id: string; created: boolean }>("data_write", { op: "promote_row", node_id: dataset.id, key: "cli_1", record_type: "vip" });
     expect(repromoted).toMatchObject({ id: promoted.id, created: false });
 
+    // A target whose required field no column fills is refused up front,
+    // naming the field, instead of a validation error per row.
+    await ok("admin_write", {
+      op: "record_type",
+      key: "ticket",
+      definition: { label: "Ticket", fields: [{ key: "zone", label: "Zone", type: "text" }, { key: "severity", label: "Severity", type: "select", options: ["low", "high"], required: true }] },
+    });
+    const refused = await call("data_write", { op: "promote_row", node_id: dataset.id, key: "cli_1", record_type: "ticket" });
+    expect(text(refused)).toContain("a `client` row cannot become `ticket`");
+    expect(text(refused)).toContain("severity");
+
     const dsKind = await call("nodes_write", { op: "create", kind: "client", title: "Not a node" });
     expect(text(dsKind)).toContain("live in a dataset");
 

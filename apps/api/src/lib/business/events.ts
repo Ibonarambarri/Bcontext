@@ -196,6 +196,11 @@ export async function unlinkSubject(storage: Scoped, subjectType: string, subjec
  * (`properties.supplier_id`) are included with `role: "supplier"`, as
  * erasure unlinks them — except when the asking type is the booking's own
  * subject type, so a buyer and a supplier that share an id do not mix.
+ *
+ * `booking.completed` / `booking.canceled` need not repeat the supplier: they
+ * join to the supplier's bookings on `properties.booking_id` (the
+ * `booking.created` that names it), so a supplier's timeline shows how its
+ * bookings ended without asking senders to change their payloads.
  */
 export async function listSubjectEvents(
   storage: Scoped,
@@ -206,9 +211,17 @@ export async function listSubjectEvents(
   const isSubject = (event: { subject_id: string | null; subject_type: string | null }) =>
     event.subject_id === subjectId && (event.subject_type === subjectType || event.subject_type === null);
   if (storage.backend !== "supabase") {
-    return [...(demoEvents.get(storage.workspace.id) ?? [])]
+    const all = demoEvents.get(storage.workspace.id) ?? [];
+    const supplierBookings = new Set(all
+      .filter((event) => event.type === "booking.created" && event.properties.supplier_id === subjectId)
+      .map((event) => event.properties.booking_id)
+      .filter((id): id is string => typeof id === "string"));
+    return [...all]
       .filter((event) => isSubject(event) || (
-        event.type.startsWith("booking.") && event.properties.supplier_id === subjectId && event.subject_type !== subjectType
+        event.type.startsWith("booking.") && event.subject_type !== subjectType && (
+          event.properties.supplier_id === subjectId ||
+          (typeof event.properties.booking_id === "string" && supplierBookings.has(event.properties.booking_id))
+        )
       ))
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
       .slice(0, limit)
@@ -234,8 +247,14 @@ export async function listSubjectEvents(
        from public.business_events
       where workspace_id = $1::uuid
         and ((subject_id = $2 and (subject_type = $3 or subject_type is null))
-             or (type like 'booking.%' and properties->>'supplier_id' = $2
-                 and subject_type is distinct from $3))
+             or (type like 'booking.%' and subject_type is distinct from $3
+                 and (properties->>'supplier_id' = $2
+                      or properties->>'booking_id' in (
+                        select created.properties->>'booking_id'
+                          from public.business_events created
+                         where created.workspace_id = $1::uuid
+                           and created.type = 'booking.created'
+                           and created.properties->>'supplier_id' = $2))))
       order by occurred_at desc, received_at desc, id desc
       limit $4`,
     [storage.workspace.id, subjectId, subjectType, limit],
