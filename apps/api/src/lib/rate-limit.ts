@@ -18,7 +18,8 @@ export type RateLimitScope =
   | "chat"
   | "embed"
   | "user"
-  | "public";
+  | "public"
+  | "ingest";
 
 interface Budget {
   capacity: number;
@@ -34,6 +35,11 @@ const BUDGETS: Record<RateLimitScope, Budget> = {
   // Unauthenticated endpoints keyed by IP (signup): a burst of 5,
   // then one request every 30s. Legit users submit once or twice.
   public: { capacity: 5, refillPerSec: 1 / 30 },
+  // Ingest keys, per key: a backfill sends batches (≤ 1.000 events or 500
+  // records each), so a burst of 60 batches then 5 a second is tens of
+  // thousands of rows a minute — far above a SaaS app's live rate, low
+  // enough that a runaway loop is stopped in seconds.
+  ingest: { capacity: 60, refillPerSec: 5 },
 };
 
 interface Bucket {

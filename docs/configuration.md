@@ -103,7 +103,7 @@ and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 | `SUPABASE_PUBLIC_URL` | `SUPABASE_URL` | The same gateway as browsers reach it; storage URLs and the session cookie name use it |
 | `SUPABASE_ANON_KEY` | — | Anon JWT, used to validate user sessions |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Service-role JWT for server-side reads and writes |
-| `DATABASE_URL` | — | Direct, session-mode Postgres URL (never a transaction pooler): worker queues, realtime `LISTEN/NOTIFY`, transactional webhooks |
+| `DATABASE_URL` | — | Direct, session-mode Postgres URL (never a transaction pooler): worker queues, realtime `LISTEN/NOTIFY`, transactional webhooks, dataset rows, business events and metric rollups ([ingest-api.md](ingest-api.md)) |
 | `APP_URL` | `http://localhost:3000` | Public URL of the web app: links, OAuth redirects (also `/api/capabilities/oauth/callback` for MCP servers connected with OAuth in Tools), discovery documents. Required in production: the API and worker refuse to boot without it |
 
 ### Process, database and queue

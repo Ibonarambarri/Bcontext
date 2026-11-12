@@ -8,14 +8,10 @@
  * reads through the storage it is given and never widens anything; a
  * workspace with no record types answers exactly `NODE_KINDS`.
  */
-import { NODE_KINDS } from "@bcontext-dev/contract/types";
+import { validKindsFor } from "@bcontext-dev/contract/business/record-types";
 import type { Storage } from "@/lib/storage";
+import { listRecordTypes } from "./record-types";
 
-/**
- * Core kinds only until the record type store lands (the business layer API
- * PR); nothing can create a record type before then, so this is exact.
- */
-export async function workspaceKinds(storage: Pick<Storage, "workspace">): Promise<string[]> {
-  void storage;
-  return [...NODE_KINDS];
+export async function workspaceKinds(storage: Pick<Storage, "backend" | "workspace">): Promise<string[]> {
+  return validKindsFor(await listRecordTypes(storage));
 }

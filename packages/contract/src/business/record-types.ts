@@ -82,6 +82,29 @@ export const RECORD_FIELD_TYPES = [
 ] as const;
 export type RecordFieldType = (typeof RECORD_FIELD_TYPES)[number];
 
+/**
+ * Field types a dataset-backed record type may use: the ones a dataset cell
+ * can hold (text, number, boolean, date — `datasets.ts`). Money, lists and
+ * relations would need a column per part or a cell that is not a cell; a
+ * person record in a B2C dataset does not need them, and a record that does
+ * is a node.
+ */
+export const DATASET_RECORD_FIELD_TYPES = ["text", "number", "date", "boolean", "select", "url", "email", "person"] as const;
+
+/** The dataset column type a field is stored as when its record type is dataset-backed. */
+export function datasetColumnTypeFor(type: RecordFieldType): "text" | "number" | "boolean" | "date" {
+  switch (type) {
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "date":
+      return "date";
+    default:
+      return "text";
+  }
+}
+
 export const RECORD_STORAGES = ["node", "dataset"] as const;
 export type RecordStorage = (typeof RECORD_STORAGES)[number];
 
@@ -211,6 +234,20 @@ function checkDefinition(
   }
   if (def.storage === "node" && def.dataset_node_id) {
     ctx.addIssue({ code: "custom", path: ["dataset_node_id"], message: "dataset_node_id is only for storage=dataset" });
+  }
+  if (def.storage === "dataset") {
+    for (const field of def.fields) {
+      if (!(DATASET_RECORD_FIELD_TYPES as readonly string[]).includes(field.type)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["fields"],
+          message: `field \`${field.key}\` is a ${field.type}; a dataset-backed type takes ${DATASET_RECORD_FIELD_TYPES.join(", ")}`,
+        });
+      }
+      if (field.key === "external_id") {
+        ctx.addIssue({ code: "custom", path: ["fields"], message: "`external_id` is the row key column of a dataset-backed type; do not declare it as a field" });
+      }
+    }
   }
   const seen = new Set<string>();
   for (const field of def.fields) {
