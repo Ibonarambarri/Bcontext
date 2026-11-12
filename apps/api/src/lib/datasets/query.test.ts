@@ -57,6 +57,18 @@ describe("compileDatasetQuery — what reaches the database", () => {
     for (const column of COLUMNS) expect(compiled.values).toContain(column.name);
     expect(compiled.shape).toEqual({ kind: "rows", columns: COLUMNS.map((c) => c.name) });
   });
+
+  // jsonb_build_object is variadic "any": Postgres cannot type a bare `$n`
+  // in it, so every plain row read and every `eq` filter failed on a real
+  // database ("could not determine data type of parameter $3").
+  it("types every parameter it hands to jsonb_build_object", () => {
+    for (const query of [{}, { where: [{ column: COLUMNS[0]!.name, op: "eq" as const, value: "x" }] }]) {
+      const text = compile(query).text;
+      const args = [...text.matchAll(/jsonb_build_object\(([^)]*)\)/g)].flatMap((m) => m[1]!.split(",").map((s) => s.trim()));
+      const bare = args.filter((arg) => /^\$\d+$/.test(arg));
+      expect(bare).toEqual([]);
+    }
+  });
 });
 
 describe("compileDatasetQuery — the types decide the comparison", () => {

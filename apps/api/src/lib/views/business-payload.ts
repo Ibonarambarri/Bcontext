@@ -16,6 +16,7 @@
  * so a GMV line never adds euros to dollars.
  */
 import { isCoreKind, type KnowledgeNode } from "@bcontext-dev/contract/types";
+import { log } from "@bcontext-dev/contract/log";
 import { readRecordFields, type RecordFields, type RecordType } from "@bcontext-dev/contract/business/record-types";
 import type { DatasetFilter, DatasetQuery } from "@bcontext-dev/contract/datasets";
 import {
@@ -126,9 +127,11 @@ async function datasetPayload(storage: Storage, query: SavedView["query"], types
       return { id: key, title: titleField && typeof row[titleField] === "string" ? String(row[titleField]) : key, type: type.key, fields };
     });
     return { type, rows, total: answer.row_count, truncated: answer.truncated, promote_targets };
-  } catch {
+  } catch (err) {
     // No dataset backend (demo), or the dataset was removed under the type:
-    // an empty table that says so beats a failed view.
+    // an empty table that says so beats a failed view — but logged, or a
+    // real failure reads as "no records".
+    log.warn("views.dataset_payload_failed", { record_type: type.key, error: err instanceof Error ? err.message : String(err) });
     return { type, rows: [], total: 0, truncated: false, promote_targets };
   }
 }
