@@ -11,6 +11,7 @@
  * on the API side; the web side only ever sees these shapes, over HTTP.
  */
 import type { Workspace } from "./types.js";
+import type { BusinessModel } from "./business/record-types.js";
 
 export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer" | "agent";
 
@@ -44,11 +45,23 @@ export const WORKSPACE_NAME_MAX = 80;
 export interface CreateWorkspaceBody {
   name: string;
   description?: string;
+  /**
+   * What kind of business it is. Anything but `product` (the default) also
+   * applies that model's template: its record types and views
+   * (`business/templates.ts`), as defaults the team edits afterwards.
+   */
+  business_model?: BusinessModel;
 }
 
 /** `201` from `POST /api/workspaces`. */
 export interface CreateWorkspaceResult {
   workspace: Workspace;
+  /** When a business model was chosen: what its template created and skipped. */
+  business_template?: {
+    model: BusinessModel;
+    created: { record_types: string[]; views: Array<{ key: string; id: string; name: string }> };
+    skipped: Array<{ what: "record_type" | "view"; key: string; reason: string }>;
+  };
 }
 
 /* -------------------------------------------------------------------------- */

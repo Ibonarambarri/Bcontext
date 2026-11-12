@@ -214,7 +214,17 @@ describe("MCP tool surface budget", () => {
     // nodes(op=list) does with the view query, instead of a 1.5 KB inline
     // schema). Against the previous surface a read-only principal pays +96
     // bytes for all of it, a writer +631, an admin the rest.
-    const BUDGET = 39_500;
+    //
+    // 39.500 → 40.300 for views over record types, with no new tool. Measured
+    // 40.286. The view query gained `field_filters` (eq|in|gt|lt|empty) and
+    // `dataset_type` (~250 bytes minified per copy: `views` op=query and
+    // `views_write` create/update carry it), the renderer enum gained
+    // `metrics` and `heatmap`, and admin_write gained
+    // op=apply_business_template (~180 with its clause). The alternative —
+    // an opaque query validated on the call — would save more, but it would
+    // take the shape of a view query out of the schema of the tool that
+    // writes views, which is where an agent learns it.
+    const BUDGET = 40_300;
     expect(
       bytes,
       `The tool schema is ${bytes} bytes (~${Math.round(bytes / 4)} tokens), over ` +
@@ -283,7 +293,10 @@ describe("MCP tool surface budget", () => {
       // 14.100 → 13.300 (measured 13.280) with `ask_nexo` gone from a
       // reader's list; still 13.294 with the gateway back, whose admin tools
       // a reader never sees.
-    ).toBeLessThanOrEqual(13_300);
+      // 13.300 → 13.600 (measured 13.567) for record views: `views` op=query
+      // takes `field_filters` and `dataset_type` and the two new renderers
+      // — a read, so a reader rightly pays it.
+    ).toBeLessThanOrEqual(13_600);
     expect(bytes).toBeLessThan(schemaBytes(TOOLS) / 2);
   });
 

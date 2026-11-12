@@ -9,7 +9,7 @@ import { withRoute } from "@/lib/route";
 import { ViewQuerySchema } from "@bcontext-dev/contract/views/schema";
 import { resolveViewQuery, ViewQueryCostError } from "@/lib/views/resolver";
 import { resolveViewRequest, viewErrorResponse } from "@/lib/views/http";
-import { assertViewKindsExist } from "@/lib/views/kinds";
+import { assertViewAgainstWorkspace } from "@/lib/views/business-checks";
 
 const Schema = z.object({ workspace: z.string().min(1), query: ViewQuerySchema }).strict();
 
@@ -20,7 +20,7 @@ export const POST = withRoute(async (req: Request) => {
   const resolved = await resolveViewRequest(req, parsed.data.workspace, "nodes:read");
   if ("response" in resolved) return resolved.response;
   try {
-    await assertViewKindsExist(resolved.storage, parsed.data.query);
+    await assertViewAgainstWorkspace(resolved.storage, parsed.data.query);
     return Response.json({ result: await resolveViewQuery(resolved.storage, parsed.data.query) });
   } catch (error) {
     if (error instanceof ViewQueryCostError) return Response.json({ error: "query_cost_exceeded", message: error.message }, { status: 422 });
