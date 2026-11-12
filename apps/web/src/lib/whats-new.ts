@@ -159,3 +159,108 @@ export function badgeLabel(count: number, capped = false): string | null {
   if (capped || count > 99) return "99+";
   return String(count);
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Ingest syncs                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A change the ingest API made: the product pushing its records
+ * (`via: "ingest"`, `source: "ingest:<type>"`). One sync writes one change
+ * per record, and listed one by one they bury everything a person or an
+ * agent did — 95 "System" rows after a single sync.
+ */
+export function isIngestChange(entry: ActivityEntry): boolean {
+  return entry.provenance?.via === "ingest" || (entry.source ?? "").startsWith("ingest");
+}
+
+/** Two ingest changes of the same source further apart than this are two syncs. */
+export const INGEST_BATCH_GAP_MS = 5 * 60_000;
+
+export interface IngestBatch {
+  key: string;
+  /** The record type the sync wrote (`ingest:<type>`), when the source says. */
+  record_type: string | null;
+  created: number;
+  updated: number;
+  /** Anything else the batch did (a delete, a rename). */
+  other: number;
+  latest: string;
+  entries: ActivityEntry[];
+}
+
+/**
+ * Split ingest changes out of the feed and fold them into one batch per
+ * sync. A sync is a run of changes from the same source (record type and
+ * actor) with no gap over `INGEST_BATCH_GAP_MS`, however many requests made
+ * it: an app that sends `PUT …/records/<type>/<id>` once per record writes one
+ * request per record, and that is still one sync to the person reading. A
+ * request's own changes (one correlation id) always stay in one batch, even
+ * when the request outlasts the gap. Newest batch first; `rest` is everything
+ * else, untouched, for `groupByActor`.
+ */
+export function groupIngestBatches(entries: ActivityEntry[]): { batches: IngestBatch[]; rest: ActivityEntry[] } {
+  const rest: ActivityEntry[] = [];
+  const ingest: ActivityEntry[] = [];
+  for (const entry of entries) (isIngestChange(entry) ? ingest : rest).push(entry);
+  const batches = new Map<string, IngestBatch>();
+  const open = new Map<string, { key: string; last: number }>();
+  const byRequest = new Map<string, string>();
+  for (const entry of [...ingest].sort((a, b) => a.ts.localeCompare(b.ts))) {
+    const source = entry.source ?? "ingest";
+    const stream = `${source}\u0000${entry.actor_id ?? ""}`;
+    const at = Date.parse(entry.ts);
+    const current = open.get(stream);
+    const key =
+      (entry.correlation_id ? byRequest.get(entry.correlation_id) : undefined) ??
+      (current && at - current.last <= INGEST_BATCH_GAP_MS ? current.key : `sync:${stream}:${entry.ts}`);
+    if (entry.correlation_id) byRequest.set(entry.correlation_id, key);
+    open.set(stream, { key, last: at });
+    let batch = batches.get(key);
+    if (!batch) {
+      batch = {
+        key,
+        record_type: source.startsWith("ingest:") ? source.slice("ingest:".length) || null : null,
+        created: 0,
+        updated: 0,
+        other: 0,
+        latest: entry.ts,
+        entries: [],
+      };
+      batches.set(key, batch);
+    }
+    if (entry.ts > batch.latest) batch.latest = entry.ts;
+    batch.entries.push(entry);
+  }
+  // The counts are records, not changes: a record a sync created and then
+  // updated is one created record, and one updated twice is one updated
+  // record — so the title agrees with "Show N records".
+  for (const batch of batches.values()) {
+    const rank = { create: 2, update: 1 } as Record<string, number>;
+    const strongest = new Map<string, string>();
+    for (const entry of batch.entries) {
+      const id = entry.node_id ?? entry.id;
+      const seen = strongest.get(id);
+      if (seen === undefined || (rank[entry.kind] ?? 0) > (rank[seen] ?? 0)) strongest.set(id, entry.kind);
+    }
+    for (const kind of strongest.values()) {
+      if (kind === "create") batch.created += 1;
+      else if (kind === "update") batch.updated += 1;
+      else batch.other += 1;
+    }
+  }
+  return { batches: [...batches.values()].sort((a, b) => b.latest.localeCompare(a.latest)), rest };
+}
+
+/** "Ingest: 95 records updated", "Ingest: 3 records created, 92 updated". */
+export function ingestBatchTitle(batch: Pick<IngestBatch, "created" | "updated" | "other">): string {
+  const parts: string[] = [];
+  const add = (n: number, verb: string) => {
+    if (!n) return;
+    parts.push(parts.length ? `${n} ${verb}` : `${n} ${n === 1 ? "record" : "records"} ${verb}`);
+  };
+  add(batch.created, "created");
+  add(batch.updated, "updated");
+  add(batch.other, "changed");
+  return `Ingest: ${parts.join(", ") || "no changes"}`;
+}

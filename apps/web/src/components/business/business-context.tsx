@@ -6,7 +6,9 @@
  * section, above all.
  *
  * Mounted by `workspace-shell.tsx` with what the layout read through
- * `@/web/business`; it is a separate, tiny context rather than a field of
+ * `@/web/business`, plus the sides the workspace renamed (`side_names`, from
+ * its record types) so the sidebar, the view header and the heatmap say
+ * "Instructors" where a template said "Suppliers"; it is a separate, tiny context rather than a field of
  * `useWorkspace()` so the business layer can move without touching the
  * workspace context every view depends on.
  *
@@ -15,15 +17,23 @@
  */
 import { createContext, useContext } from "react";
 import type { BusinessSettings } from "@bcontext-dev/contract/business/record-types";
+import type { SideNames } from "@bcontext-dev/contract/business/names";
 
-const PRODUCT: BusinessSettings = { business_model: "product", currency: "EUR" };
+export type BusinessShellValue = BusinessSettings & { side_names?: SideNames };
 
-const BusinessContext = createContext<BusinessSettings>(PRODUCT);
+const PRODUCT: BusinessShellValue = { business_model: "product", currency: "EUR", side_names: {} };
 
-export function BusinessProvider({ value, children }: { value: BusinessSettings | null | undefined; children: React.ReactNode }) {
+const BusinessContext = createContext<BusinessShellValue>(PRODUCT);
+
+export function BusinessProvider({ value, children }: { value: BusinessShellValue | null | undefined; children: React.ReactNode }) {
   return <BusinessContext.Provider value={value ?? PRODUCT}>{children}</BusinessContext.Provider>;
 }
 
-export function useBusiness(): BusinessSettings {
+export function useBusiness(): BusinessShellValue {
   return useContext(BusinessContext);
+}
+
+/** The workspace's renamed sides; `{}` when it renamed none (or is a product workspace). */
+export function useSideNames(): SideNames {
+  return useContext(BusinessContext).side_names ?? {};
 }

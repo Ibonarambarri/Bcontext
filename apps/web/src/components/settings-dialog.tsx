@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
+  Briefcase,
   Loader2,
   LogOut,
   Settings as SettingsIcon,
@@ -58,9 +59,11 @@ const YOU_TABS: TabSpec[] = [
  *
  *   Workspace — Appearance (name + gradient, a server action), Tags (the
  *               shared `TagManager`), Data (export ZIP link), and a
- *               "Members & invitations" row that hands over to the
+ *               "Members & invitations" row and a "Business" row (model,
+ *               currency, record types, ingest keys) that hand over to the
  *               workspace panel (`workspace-admin/`) rather than growing a
- *               second copy of it here
+ *               second copy of it here — Settings is where people look for
+ *               them, the panel is where they live
  *   You       — Display (density + node panel size, this device)
  *
  * Workspace-scoped tabs assume an active workspace. "You" tabs are
@@ -119,6 +122,10 @@ export function SettingsDialog() {
             <RailRow active={false} onClick={() => openWorkspacePanel("members")}>
               Members &amp; invitations
               <Users size={12} className="ml-auto text-[var(--ink-3)]" />
+            </RailRow>
+            <RailRow active={false} onClick={() => openWorkspacePanel("business")}>
+              Business
+              <Briefcase size={12} className="ml-auto text-[var(--ink-3)]" />
             </RailRow>
           </RailGroup>
 

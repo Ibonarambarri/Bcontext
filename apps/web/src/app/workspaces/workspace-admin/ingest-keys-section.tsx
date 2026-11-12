@@ -12,6 +12,11 @@
  * (`@/lib/business/ingest-examples`, written from the ingest API docs) so
  * the person who just made a key can use it without leaving the dialog.
  *
+ * Revoking is one press away from stopping an app's data, and cannot be
+ * undone, so "Revoke" first turns its row into an inline confirmation
+ * (what stops, Cancel / Revoke key) — in the page, not `window.confirm`,
+ * which this dialog cannot style and a phone shows out of context.
+ *
  * Must not break: the plaintext never outlives this component's state —
  * not in a URL, not in storage, not in a log.
  */
@@ -29,6 +34,8 @@ export function IngestKeysSection({ slug }: { slug: string }) {
   const [name, setName] = useState("");
   const [secret, setSecret] = useState<{ name: string; key: string } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  /** The key whose row is asking "revoke it?" — one at a time. */
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState("https://your-bcontext");
 
@@ -70,6 +77,7 @@ export function IngestKeysSection({ slug }: { slug: string }) {
     setError(null);
     try {
       await revokeIngestKey(slug, key.id);
+      setConfirming(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't revoke the key.");
@@ -147,10 +155,23 @@ export function IngestKeysSection({ slug }: { slug: string }) {
                     {key.prefix}…{key.last4} · created {relAgo(key.created_at)} · {key.last_used_at ? `last used ${relAgo(key.last_used_at)}` : "never used"}
                   </div>
                 </div>
-                {!key.revoked_at ? (
-                  <Button size="sm" variant="ghost" className="text-danger" isPending={pending === key.id} isDisabled={pending !== null} onPress={() => void revoke(key)}>
+                {!key.revoked_at && confirming !== key.id ? (
+                  <Button size="sm" variant="ghost" className="text-danger" isDisabled={pending !== null} onPress={() => setConfirming(key.id)}>
                     Revoke
                   </Button>
+                ) : null}
+                {!key.revoked_at && confirming === key.id ? (
+                  <div role="group" aria-label={`Revoke ${key.name}?`} className="flex w-full flex-wrap items-center gap-2 rounded-[8px] border border-danger/40 bg-danger/5 px-3 py-2">
+                    <span className="min-w-0 flex-1 text-[12.5px] text-foreground">
+                      Revoke “{key.name}”? Anything sending with it is refused from now on. This cannot be undone.
+                    </span>
+                    <Button size="sm" variant="ghost" isDisabled={pending !== null} onPress={() => setConfirming(null)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" variant="danger" isPending={pending === key.id} isDisabled={pending !== null} onPress={() => void revoke(key)}>
+                      Revoke key
+                    </Button>
+                  </div>
                 ) : null}
               </li>
             ))}
