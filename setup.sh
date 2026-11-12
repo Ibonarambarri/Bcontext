@@ -14,7 +14,9 @@
 #   --https-port <port>      Caddy's HTTPS port (default 443; a public domain needs 443)
 #   --resend-key <key>       Resend API key: turns on email (needs --email-from)
 #   --email-from <from>      sender, e.g. "Bcontext <no-reply@example.com>"
-#   --org-creation open|admin
+#   --workspace-creation open|admin
+#                            who may sign up and create workspaces
+#                            (--org-creation is the old name, still accepted)
 #   --rotate                 regenerate every secret except POSTGRES_PASSWORD (signs everyone out)
 #   -y, --yes                never prompt; use flags and defaults
 #
@@ -23,7 +25,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 ENV_FILE=.env
-DOMAIN="" ADMIN="" HTTP_PORT_ARG="" HTTPS_PORT_ARG="" RESEND="" FROM="" ORG="" ROTATE=0 YES=0
+DOMAIN="" ADMIN="" HTTP_PORT_ARG="" HTTPS_PORT_ARG="" RESEND="" FROM="" CREATION="" ROTATE=0 YES=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -33,7 +35,7 @@ while [ $# -gt 0 ]; do
     --https-port) HTTPS_PORT_ARG=$2; shift 2 ;;
     --resend-key) RESEND=$2; shift 2 ;;
     --email-from) FROM=$2; shift 2 ;;
-    --org-creation) ORG=$2; shift 2 ;;
+    --workspace-creation|--org-creation) CREATION=$2; shift 2 ;;
     --rotate) ROTATE=1; shift ;;
     -y|--yes) YES=1; shift ;;
     -h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
@@ -139,8 +141,8 @@ fi
 current_admin=$(get ADMIN_EMAILS)
 [ -n "$ADMIN" ] || ask ADMIN "Admin email (ADMIN_EMAILS)" "$current_admin"
 [ -n "$ADMIN" ] && set_var ADMIN_EMAILS "$ADMIN"
-if [ -n "$ORG" ]; then
-  case "$ORG" in open|admin) set_var ORG_CREATION "$ORG" ;; *) echo "--org-creation must be open or admin" >&2; exit 1 ;; esac
+if [ -n "$CREATION" ]; then
+  case "$CREATION" in open|admin) set_var WORKSPACE_CREATION "$CREATION" ;; *) echo "--workspace-creation must be open or admin" >&2; exit 1 ;; esac
 fi
 
 # --- 5. Email ------------------------------------------------------------------------
@@ -169,7 +171,10 @@ echo
 bold "Bcontext is configured ($ENV_FILE)"
 say "  URL            $(get PUBLIC_URL)"
 say "  admin          $(get ADMIN_EMAILS)"
-say "  org creation   $(get ORG_CREATION)"
+# An .env written before 0100 carries the old name, which the API still reads.
+creation=$(get WORKSPACE_CREATION)
+[ -n "$creation" ] || creation=$(get ORG_CREATION)
+say "  creation       ${creation:-open}"
 if [ "$email_on" = 0 ]; then
   echo
   bold "No email configured"

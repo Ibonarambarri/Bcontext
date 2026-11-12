@@ -34,7 +34,7 @@ export function buildCitationAnchor(c: CitationAnchorInput): string | null {
  * slug + node id; appends `?highlight=` only when a valid anchor exists.
  */
 export function buildCitationHref(
-  /** `<org>/<workspace>` — a bare slug names one workspace per organization. */
+  /** The workspace slug. */
   workspace: string,
   nodeId: string,
   chunkIndex?: number | null,

@@ -9,12 +9,9 @@ select ok(obj_description('public.activity'::regclass) like '%180 days%', 'reten
 select ok(not has_function_privilege('authenticated', 'public.prune_expired_activity()', 'EXECUTE'), 'clients cannot invoke retention definer');
 select ok((select relrowsecurity from pg_class where oid='public.activity'::regclass), 'activity RLS stays enabled');
 
-insert into public.organizations(id,slug,name) values
-  ('40000000-0000-4000-8000-000000000001','uix08-a','UIX08 A'),
-  ('40000000-0000-4000-8000-000000000002','uix08-b','UIX08 B');
-insert into public.workspaces(id,organization_id,slug,name) values
-  ('40000000-0000-4000-8000-000000000003','40000000-0000-4000-8000-000000000001','uix08-a','UIX08 A'),
-  ('40000000-0000-4000-8000-000000000004','40000000-0000-4000-8000-000000000002','uix08-b','UIX08 B');
+insert into public.workspaces(id,slug,name) values
+  ('40000000-0000-4000-8000-000000000003','uix08-a','UIX08 A'),
+  ('40000000-0000-4000-8000-000000000004','uix08-b','UIX08 B');
 insert into auth.users(id,email,created_at,updated_at) values
   ('40000000-0000-4000-8000-000000000010','uix08-member@example.test',now(),now()),
   ('40000000-0000-4000-8000-000000000011','uix08-outsider@example.test',now(),now());

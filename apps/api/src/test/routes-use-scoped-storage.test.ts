@@ -38,7 +38,7 @@ const LIB_HELPERS_EXEMPT: Record<string, string> = {
   "rag.ts": "falls back to an unscoped storage only when no caller supplied one",
   "ingest/candidates.ts": "auto-accept builds an explicit systemGrant",
   "mcp/http.ts":
-    "the MCP transport, shared by /mcp and /mcp/<org>/<workspace>: resolves the " +
+    "the MCP transport, shared by /mcp and /mcp/<workspace> (and its legacy alias): resolves the " +
     "workspace itself (the path or the token, never a member check alone) and " +
     "narrows the storage with scopedStorage(inner, grant) before any tool sees it",
 };

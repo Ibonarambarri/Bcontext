@@ -125,12 +125,16 @@ describe("oauth — redeemCode expires_in", () => {
         redirect_uris: [REDIRECT],
         revoked_at: null,
       },
-      workspaces: { slug: "docs", organization: { slug: "acme" } },
+      workspaces: { id: "ws-1", slug: "docs" },
     };
     const builder = (table: string) => {
       const b: Record<string, unknown> = {};
+      const filters: Array<[string, unknown]> = [];
       b.select = () => b;
-      b.eq = () => b;
+      b.eq = (k: string, v: unknown) => {
+        filters.push([k, v]);
+        return b;
+      };
       b.is = () => b;
       // insert(...) is awaited directly in some paths and chained with
       // .select().maybeSingle() in others (access tokens need their id).
@@ -144,7 +148,16 @@ describe("oauth — redeemCode expires_in", () => {
         return ins;
       };
       b.update = () => b;
-      b.maybeSingle = async () => ({ data: rows[table] ?? null, error: null });
+      // Workspaces are looked up by slug (the `resource` binding), so that
+      // read honours its filters; the other tables hold one row each.
+      b.maybeSingle = async () => {
+        const row = rows[table] as Record<string, unknown> | undefined;
+        if (table === "workspaces" && row) {
+          const hit = filters.every(([k, v]) => k !== "slug" || row[k] === v);
+          return { data: hit ? row : null, error: null };
+        }
+        return { data: row ?? null, error: null };
+      };
       b.then = (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: null, error: null }).then(resolve);
       return b;
@@ -181,10 +194,10 @@ describe("oauth — redeemCode expires_in", () => {
   });
 
   // RFC 8707: the `resource` a client sends has to be the endpoint the grant
-  // was made for. A workspace-scoped code belongs to `/mcp/<org>/<workspace>`
-  // and nothing else; a user-scoped one reaches the root and any workspace.
-  const DOCS: McpResource = { kind: "workspace", ref: { org: "acme", workspace: "docs" }, name: "acme/docs" };
-  const OPS: McpResource = { kind: "workspace", ref: { org: "acme", workspace: "ops" }, name: "acme/ops" };
+  // was made for. A workspace-scoped code belongs to `/mcp/<slug>` and
+  // nothing else; a user-scoped one reaches the root and any workspace.
+  const DOCS: McpResource = { kind: "workspace", ref: { kind: "slug", slug: "docs" }, name: "docs" };
+  const OPS: McpResource = { kind: "workspace", ref: { kind: "slug", slug: "ops" }, name: "ops" };
 
   it("mints a workspace-scoped token for the resource the grant is bound to", async () => {
     const token = await redeem("workspace", DOCS);
@@ -257,7 +270,7 @@ describe("oauth — refreshAccessToken", () => {
           }];
         }
         if (table === "agents") return [{ status: "active", name: "a" }];
-        if (table === "workspaces") return [{ id: "ws-1", slug: "docs", organization: { slug: "acme" } }];
+        if (table === "workspaces") return [{ id: "ws-1", slug: "docs" }];
         return [];
       };
       b.select = () => b;
@@ -373,14 +386,14 @@ describe("oauth — refreshAccessToken", () => {
   it("honours a resource that names the grant's workspace and refuses any other", async () => {
     const store = makeStore();
     const plain = await seed(store);
-    const docs: McpResource = { kind: "workspace", ref: { org: "acme", workspace: "docs" }, name: "acme/docs" };
+    const docs: McpResource = { kind: "workspace", ref: { kind: "slug", slug: "docs" }, name: "docs" };
     const out = await refresh(store, plain, undefined, docs);
     expect(out.workspace_id).toBe("ws-1");
 
     const other = makeStore();
     const live = await seed(other);
     await expect(
-      refresh(other, live, undefined, { kind: "workspace", ref: { org: "acme", workspace: "ops" }, name: "acme/ops" }),
+      refresh(other, live, undefined, { kind: "workspace", ref: { kind: "slug", slug: "ops" }, name: "ops" }),
     ).rejects.toMatchObject({ code: "invalid_target" });
     // Refused before rotation: the token is still live.
     expect(other.refresh[0]!.consumed_at).toBeNull();

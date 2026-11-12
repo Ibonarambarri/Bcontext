@@ -28,7 +28,7 @@ export interface OnboardingStep {
 }
 
 export interface Onboarding {
-  /** The workspace the steps were derived for, as `<org>/<workspace>`. */
+  /** The slug of the workspace the steps were derived for. */
   workspace: string;
   steps: OnboardingStep[];
   /** True when every step is done; the web treats it like a dismissal. */

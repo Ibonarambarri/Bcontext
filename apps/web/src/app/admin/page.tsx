@@ -1,6 +1,6 @@
 /**
  * `/admin` — the operator's overview: usage and AI cost from
- * `/api/admin/metrics`, plus the per-organization health list that says who
+ * `/api/admin/metrics`, plus the per-workspace health list that says who
  * needs a message today. Server Component; the numbers are drawn by
  * `AdminDashboard`.
  */
@@ -11,9 +11,9 @@ import { whoami } from "@/web/me";
 import { apiJson, ApiError } from "@/web/api-client";
 import type { DashboardMetrics } from "@bcontext-dev/contract/admin-metrics";
 import type {
-  AdminOrgHealth,
-  AdminOrgHealthList,
-} from "@bcontext-dev/contract/admin-orgs";
+  AdminWorkspaceHealth,
+  AdminWorkspaceHealthList,
+} from "@bcontext-dev/contract/admin-workspaces";
 import { AdminPage } from "@/components/admin/admin-shell";
 import { AdminDashboard } from "@/components/admin/admin-dashboard";
 
@@ -35,13 +35,13 @@ export default async function AdminHomePage() {
    * them — and it is the half an operator can act on, so it must not be able
    * to take the dashboard down with it when the route is unavailable.
    */
-  let health: AdminOrgHealth[] = [];
+  let health: AdminWorkspaceHealth[] = [];
   let healthError: string | null = null;
   try {
-    const list = await apiJson<AdminOrgHealthList>(
-      "/api/admin/organizations/health",
+    const list = await apiJson<AdminWorkspaceHealthList>(
+      "/api/admin/workspaces/health",
     );
-    health = list.organizations;
+    health = list.workspaces;
   } catch (err) {
     healthError =
       err instanceof ApiError && err.status === 404

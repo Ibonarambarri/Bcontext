@@ -122,7 +122,7 @@ export async function retrieve(
 }
 
 /**
- * Full retrieval: resolves the workspace (`<org>/<ws>` ref or id), the
+ * Full retrieval: resolves the workspace (slug, legacy pair or id), the
  * scope lanes and the principal's reach, then searches, merges, reranks and
  * annotates. `scope` metadata in the result tells the caller how the answer
  * was narrowed or widened.
@@ -133,9 +133,8 @@ export async function retrieveScoped(
   options: RetrieveOptions = {},
 ): Promise<RagResult> {
   const { getStorage, getStorageById } = await import("@/lib/storage");
-  // `<org>/<workspace>` is how a workspace is named; a bare id is what
-  // internal callers already holding the row pass. A bare slug is neither,
-  // because it names as many workspaces as there are organizations using it.
+  // A slug (or a legacy `<org>/<workspace>` pair) is how a workspace is
+  // named; a bare id is what internal callers already holding the row pass.
   const isId =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(workspaceRef);
   const storage =

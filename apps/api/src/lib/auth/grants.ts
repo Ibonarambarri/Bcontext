@@ -3,9 +3,9 @@
  *
  * The unit of permission is the pair, not the principal and not the workspace:
  * the same person can hold write access in one workspace and read-only, narrowed
- * to a slice of the graph, in another. Organisation membership grants no read
- * access at all — it covers administration and who may be invited — so
- * there is no precedence question between an org role and a workspace reach.
+ * to a slice of the graph, in another. There is nothing above the workspace
+ * that could grant access into it, so there is no precedence question: the
+ * grant on the pair is the whole answer.
  *
  * ## Why "reach" and not "scope"
  *
@@ -58,8 +58,8 @@ export const VERBS = [
   "tags:update",
   "tags:delete",
   // Granting and revoking access to THIS workspace. Deliberately per-pair like
-  // every other verb rather than an organisation-wide flag: holding admin in
-  // one workspace should not let you hand out access to another.
+  // every other verb rather than an instance-wide flag: holding admin in one
+  // workspace should not let you hand out access to another.
   "admin",
 ] as const;
 export type Verb = (typeof VERBS)[number];
@@ -491,14 +491,7 @@ async function legacyGrantForPrincipal(
     .eq("user_id", principal.id)
     .maybeSingle();
 
-  // No membership in the workspace itself is not the end of the question:
-  // whoever owns or administers the organization administers everything
-  // inside it. That is what an organization is for — otherwise its admin has
-  // to add themselves, one by one, to projects they are already responsible
-  // for, and a workspace someone else created inside their company is
-  // invisible to them. Editor and viewer at org level grant nothing here:
-  // those people are let into workspaces one at a time, on purpose.
-  const role = data ? String(data.role) : await orgAdminRole(workspaceId, principal.id);
+  const role = data ? String(data.role) : null;
   if (!role) return { denied: "not_found" };
 
   const roleVerbs = verbsForRole(role);
@@ -511,32 +504,6 @@ async function legacyGrantForPrincipal(
       : roleVerbs;
 
   return { workspaceId, principal, verbs, reach: { type: "all" } };
-}
-
-/**
- * `owner` / `admin` when the user administers the organization that holds
- * this workspace, null otherwise. One extra query, and only on the path
- * where the workspace membership was absent.
- */
-async function orgAdminRole(
-  workspaceId: string,
-  userId: string,
-): Promise<string | null> {
-  const admin = getSupabaseAdmin();
-  const { data: ws } = await admin
-    .from("workspaces")
-    .select("organization_id")
-    .eq("id", workspaceId)
-    .maybeSingle();
-  if (!ws?.organization_id) return null;
-  const { data: membership } = await admin
-    .from("organization_memberships")
-    .select("role")
-    .eq("organization_id", ws.organization_id as string)
-    .eq("user_id", userId)
-    .maybeSingle();
-  const role = membership?.role as string | undefined;
-  return role === "owner" || role === "admin" ? role : null;
 }
 
 /**

@@ -54,7 +54,7 @@ generated, and the options you pass are updated.
 | `--https-port <port>` | Caddy's HTTPS port (default 443). A public domain needs 443 |
 | `--resend-key <key>` | Turns on email through [Resend](https://resend.com); needs `--email-from` |
 | `--email-from "<Name> <address>"` | Sender of every email; the domain must be verified in Resend |
-| `--org-creation open\|admin` | Who may sign up and create organizations (see below) |
+| `--workspace-creation open\|admin` | Who may sign up and create workspaces (see below). `--org-creation` is the old name, still accepted |
 | `--rotate` | Regenerates every secret except `POSTGRES_PASSWORD`; signs everyone out |
 | `-y`, `--yes` | Never prompt: use the flags and the defaults |
 
@@ -100,21 +100,24 @@ Supabase gateway (`/auth/v1`, `/rest/v1`, `/storage/v1`). See
 ## The first admin and who may sign up
 
 `ADMIN_EMAILS` lists the people who may open `/admin` (users,
-organizations, and errors when the collector runs). Being an admin
+workspaces, and errors when the collector runs). Being an admin
 comes from the email alone, so the admin signs up like anyone else:
 
 1. Open `PUBLIC_URL` and go to `/start`.
-2. Create the account with the admin email, then the organization; its first
-   workspace is created with it.
+2. Create the account with the admin email, then name your first workspace.
 
-`ORG_CREATION` decides who else can do that:
+`WORKSPACE_CREATION` decides who else can do that:
 
 - `open` (default): anyone who reaches the instance may sign up and create
-  an organization; others join existing organizations by invitation.
-- `admin`: sign-up is closed and only `ADMIN_EMAILS` create organizations
+  a workspace; others join existing workspaces by invitation.
+- `admin`: sign-up is closed and only `ADMIN_EMAILS` create workspaces
   and invite their owners. Because sign-up is closed too, create the admin
   account first with `open`, then switch:
-  `./setup.sh --org-creation admin -y && docker compose up -d`.
+  `./setup.sh --workspace-creation admin -y && docker compose up -d`.
+
+An `.env` written before workspaces stood alone (migration 0100) has
+`ORG_CREATION` instead; the API still reads it when `WORKSPACE_CREATION` is
+unset, so upgrading does not reopen a closed instance.
 
 Accounts are created by the API. GoTrue's own `/auth/v1/signup` is disabled
 (`DISABLE_SIGNUP=true`) so it cannot be used to bypass this policy.
@@ -212,6 +215,15 @@ the code and the images must move together.
 
 Either way `migrate` applies the new migrations before `api` and `worker`
 start again. Check it with `docker compose logs migrate`.
+
+**Upgrading past migration 0100** (workspaces without organizations): every
+workspace is addressed by its slug alone, which has to be unique across the
+instance. If two organizations had a workspace with the same slug, the oldest
+keeps it and the others are renamed to `<org>-<slug>`; each rename is printed
+as a `WARNING` in `docker compose logs migrate`. Old addresses keep working —
+`/w/<org>/<workspace>` redirects, `/mcp/<org>/<workspace>` is still served
+and OAuth connections made through it keep their grant — but update
+`.mcp.json` files to `/mcp/<slug>` when convenient.
 
 ## Backups
 

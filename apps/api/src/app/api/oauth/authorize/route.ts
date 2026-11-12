@@ -14,7 +14,8 @@
  *
  * `resource` (RFC 8707) is the MCP endpoint the client started from, which
  * the consent screen forwards from the authorize query. Through
- * `/mcp/<org>/<workspace>` the grant is that workspace's alone: the form
+ * `/mcp/<slug>` (or its legacy `/mcp/<org>/<workspace>` alias) the grant is
+ * that workspace's alone: the form
  * has to select exactly that workspace and the code redeems as a
  * workspace-scoped token (30-day TTL, refresh token). Through `/mcp`, or
  * with no `resource`, the grant is user-scoped as before. Anything else is
@@ -93,7 +94,7 @@ export const POST = withRoute(async (req: Request) => {
     return Response.json(
       {
         error: "invalid_target",
-        error_description: "resource must be this server's /mcp or /mcp/<organization>/<workspace> URL",
+        error_description: "resource must be this server's /mcp or /mcp/<workspace> URL",
       },
       { status: 400 },
     );
@@ -126,11 +127,9 @@ export const POST = withRoute(async (req: Request) => {
   // implicit — approving an agent is about the workspaces on the screen.
   //
   // "Reaches" is `resolveGrant`'s question, so it is asked with `resolveGrant`'s
-  // own answer rather than a second reading of the tables underneath. An owner
-  // or admin who joined by invitation has no `memberships` rows on purpose —
-  // their organization role covers every workspace the company holds, including
-  // the ones created after they arrived — and a membership lookup here refuses
-  // them their own company's workspaces.
+  // own answer rather than a second reading of the tables underneath: the
+  // grant is authoritative, and a person invited with verbs may hold one
+  // without the role a membership lookup would look for.
   // A grant started from a workspace's own endpoint is for that workspace
   // and no other: the token it becomes is bound to the path the client
   // connected to. A name that resolves to nothing gets the same answer as a

@@ -4,7 +4,7 @@
  * Refined / Transcript selector for meeting nodes (`meeting-node-view.tsx`).
  *
  * A small segmented control rendered inside the node header on
- * /w/<org>/<ws>/n/<id> when:
+ * /w/<ws>/n/<id> when:
  *   - node.kind === "meeting"
  *   - node.data.transcript_md exists
  *

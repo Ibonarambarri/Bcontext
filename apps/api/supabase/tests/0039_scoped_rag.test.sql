@@ -10,12 +10,9 @@ select is((select prosecdef from pg_proc where oid='public.hybrid_search(text,ve
 select ok((select proconfig @> array['search_path=pg_catalog, public'] from pg_proc where oid='public.match_nodes(vector,uuid,integer,double precision,text,uuid[])'::regprocedure), 'vector RPC pins search_path');
 select ok((select prosrc like '%match_node_ids is null or e.node_id = any(match_node_ids)%' from pg_proc where oid='public.hybrid_search(text,vector,uuid,integer,integer,integer,integer,text,uuid[])'::regprocedure), 'hybrid candidates are filtered inside both retrieval lanes');
 
-insert into public.organizations(id, slug, name) values
-  ('39000000-0000-4000-8000-000000000001', 'uix-09-a', 'UIX-09 A'),
-  ('39000000-0000-4000-8000-000000000002', 'uix-09-b', 'UIX-09 B');
-insert into public.workspaces(id, organization_id, slug, name) values
-  ('39000000-0000-4000-8000-000000000003', '39000000-0000-4000-8000-000000000001', 'uix-09-a', 'UIX-09 A'),
-  ('39000000-0000-4000-8000-000000000004', '39000000-0000-4000-8000-000000000002', 'uix-09-b', 'UIX-09 B');
+insert into public.workspaces(id, slug, name) values
+  ('39000000-0000-4000-8000-000000000003', 'uix-09-a', 'UIX-09 A'),
+  ('39000000-0000-4000-8000-000000000004', 'uix-09-b', 'UIX-09 B');
 insert into public.nodes(id,workspace_id,kind,slug,title,content_md,data) values
   ('39000000-0000-4000-8000-000000000010','39000000-0000-4000-8000-000000000003','doc','alpha','Alpha','alpha shared term','{}'),
   ('39000000-0000-4000-8000-000000000011','39000000-0000-4000-8000-000000000003','doc','beta','Beta','beta shared term','{}'),

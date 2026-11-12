@@ -70,7 +70,6 @@ import type { Grant, Reach, Verb } from "./grants";
 import { ViewQuerySchema } from "@bcontext-dev/contract/views/schema";
 
 const WS = "ws-1";
-const ORG = "org-1";
 
 const reachOf = (tags: string[]): Reach => ({
   type: "query",
@@ -89,7 +88,7 @@ const granter = (
 
 /** A shareable workspace, nobody at the address, no rate pressure. */
 function freshWorkspace() {
-  single.workspaces = { id: WS, organization_id: ORG };
+  single.workspaces = { id: WS, slug: "docs" };
   single.workspace_invites = null;
   single.workspace_grants = null;
   single.memberships = null;
@@ -293,7 +292,7 @@ describe("an agent prepares an invitation, a person sends it", () => {
     expect(payloadOf(inviteRows()).delivery_state).toBe("pending");
   });
 
-  it("rate limits agents per organisation", async () => {
+  it("rate limits agents per workspace", async () => {
     freshWorkspace();
     counts.workspace_invites = AGENT_INVITE_RATE_LIMIT;
     await expect(
@@ -319,7 +318,7 @@ describe("an agent prepares an invitation, a person sends it", () => {
   });
 
   it("refuses to let an agent release its own held invitation", async () => {
-    single.workspaces = { id: WS, organization_id: ORG };
+    single.workspaces = { id: WS, slug: "docs" };
     await expect(
       releaseInvitation(granter(["admin"], { kind: "agent", id: "agent-1" }), "inv-1"),
     ).rejects.toMatchObject({ code: "forbidden" });
@@ -329,7 +328,7 @@ describe("an agent prepares an invitation, a person sends it", () => {
   });
 
   it("releases for a person and audits the decision", async () => {
-    single.workspaces = { id: WS, organization_id: ORG };
+    single.workspaces = { id: WS, slug: "docs" };
     lists.workspace_invites = [
       { id: "inv-1", email: "new@example.com", token: "t", delivery_state: "pending" },
     ];
@@ -345,7 +344,6 @@ describe("an agent prepares an invitation, a person sends it", () => {
 
 const pendingInvite = (over: Record<string, unknown> = {}) => ({
   id: "inv-1",
-  organization_id: ORG,
   workspace_id: WS,
   email: "new@example.com",
   role: "editor",
@@ -356,7 +354,7 @@ const pendingInvite = (over: Record<string, unknown> = {}) => ({
   invited_by_agent_id: null,
   expires_at: new Date(Date.now() + 86_400_000).toISOString(),
   accepted_at: null,
-  organization: { slug: "acme" },
+  workspace: { slug: "docs" },
   ...over,
 });
 
@@ -375,7 +373,7 @@ describe("acceptance re-checks the promise against today's reality", () => {
     single.memberships = { role: "owner" };
 
     const out = await acceptInvitation("tok", accepter);
-    expect(out).toEqual({ orgSlug: "acme" });
+    expect(out).toEqual({ workspaceSlug: "docs" });
     const grant = payloadOf(grantRows());
     expect(grant.principal_id).toBe("u-new");
     expect(grant.verbs).toEqual(["read", "write"]);
@@ -467,7 +465,7 @@ describe("acceptance re-checks the promise against today's reality", () => {
     ).toMatchObject({ error: expect.stringContaining("was sent to") });
   });
 
-  it("grants only the invited workspace, not every project in the org", async () => {
+  it("grants only the invited workspace", async () => {
     single.workspace_invites = pendingInvite();
     single.workspaces = null;
     single.workspace_grants = {

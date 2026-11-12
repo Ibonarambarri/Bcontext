@@ -32,6 +32,7 @@ const request = () =>
 afterEach(() => {
   sessionUser = null;
   delete process.env.ADMIN_EMAILS;
+  delete process.env.WORKSPACE_CREATION;
   delete process.env.ORG_CREATION;
 });
 
@@ -56,19 +57,29 @@ describe("GET /api/me", () => {
       },
       is_admin: false,
       has_password: true,
-      can_create_organization: true,
+      can_create_workspace: true,
     });
   });
 
-  it("keeps organization creation to admins when ORG_CREATION=admin", async () => {
+  it("keeps workspace creation to admins when WORKSPACE_CREATION=admin", async () => {
+    process.env.ADMIN_EMAILS = "root@example.com";
+    process.env.WORKSPACE_CREATION = "admin";
+    sessionUser = { id: "u-1", email: "ana@example.com" };
+    const ana = (await (await GET(request())).json()) as { can_create_workspace: boolean };
+    expect(ana.can_create_workspace).toBe(false);
+    sessionUser = { id: "u-2", email: "root@example.com" };
+    const root = (await (await GET(request())).json()) as { can_create_workspace: boolean };
+    expect(root.can_create_workspace).toBe(true);
+  });
+
+  it("still honours a pre-0100 ORG_CREATION=admin when WORKSPACE_CREATION is unset", async () => {
+    // An instance whose admin closed self-service must not reopen on upgrade
+    // just because its .env still uses the old name.
     process.env.ADMIN_EMAILS = "root@example.com";
     process.env.ORG_CREATION = "admin";
     sessionUser = { id: "u-1", email: "ana@example.com" };
-    const ana = (await (await GET(request())).json()) as { can_create_organization: boolean };
-    expect(ana.can_create_organization).toBe(false);
-    sessionUser = { id: "u-2", email: "root@example.com" };
-    const root = (await (await GET(request())).json()) as { can_create_organization: boolean };
-    expect(root.can_create_organization).toBe(true);
+    const ana = (await (await GET(request())).json()) as { can_create_workspace: boolean };
+    expect(ana.can_create_workspace).toBe(false);
   });
 
   it("carries the name the person gave, joined for display", async () => {

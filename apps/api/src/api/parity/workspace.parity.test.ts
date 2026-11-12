@@ -137,12 +137,14 @@ describe("parity: workspaces", () => {
   // `stable` then blanks the slug and id that legitimately differ.
   it("POST /api/workspaces", () =>
     assertParity(app, workspaces, { method: "POST", path: "/api/workspaces", headers: fromIp(), body: { name: "★★★" } }));
-  it("POST /api/workspaces with a colliding slug", () =>
+  // The slug is derived from the name, so a name that spells an existing
+  // slug is how a collision is asked for.
+  it("POST /api/workspaces with a colliding name", () =>
     assertParity(app, workspaces, {
       method: "POST",
       path: "/api/workspaces",
       headers: fromIp(),
-      body: { name: "Collides", slug: workspace.slug },
+      body: { name: workspace.slug },
     }));
   it("POST /api/workspaces with an invalid body", () =>
     assertParity(app, workspaces, { method: "POST", path: "/api/workspaces", headers: fromIp(), body: { name: "" } }));

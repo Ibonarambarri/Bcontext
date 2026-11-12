@@ -40,7 +40,7 @@ With the bundled `docker-compose.yml` you edit one file, the root `.env`
 | `ERRORS_INGEST_KEY` | generated | Shared secret between the processes and the error collector |
 | `PG_META_CRYPTO_KEY` | generated | Studio's key for postgres-meta (profile `studio`) |
 | `ADMIN_EMAILS` | — | Comma-separated emails that may open `/admin`. Unset: nobody |
-| `ORG_CREATION` | `open` | `open`: anyone may sign up and create an organization. `admin`: sign-up is closed and only `ADMIN_EMAILS` create organizations and invite their owners |
+| `WORKSPACE_CREATION` | `open` | `open`: anyone may sign up and create a workspace. `admin`: sign-up is closed and only `ADMIN_EMAILS` create workspaces and invite their owners. The pre-0100 name `ORG_CREATION` is still read when this is unset |
 
 ### Email
 
@@ -85,11 +85,11 @@ extraction.
 | `STUDIO_PORT` | `54323` | Supabase Studio on `127.0.0.1` (profile `studio`) |
 | `ERRORS_INGEST_URL` | — | Set to `http://errors:4100` when running the `errors` profile, so every process reports to it |
 | `JWT_EXPIRY` | `3600` | Session (access token) lifetime in seconds |
-| `DISABLE_SIGNUP` | `true` | `false` re-opens GoTrue's own `/auth/v1/signup`. Accounts are otherwise created only through the API, which enforces `ORG_CREATION` |
+| `DISABLE_SIGNUP` | `true` | `false` re-opens GoTrue's own `/auth/v1/signup`. Accounts are otherwise created only through the API, which enforces `WORKSPACE_CREATION` |
 
 ## API, worker and error collector (`apps/api/.env.example`)
 
-Variables already listed above (`ADMIN_EMAILS`, `ORG_CREATION`, email, AI,
+Variables already listed above (`ADMIN_EMAILS`, `WORKSPACE_CREATION`, email, AI,
 `ERRORS_INGEST_*`) mean the same here. The `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL`
 and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until

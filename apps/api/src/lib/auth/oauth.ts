@@ -18,7 +18,7 @@
  *      tokens never expire and get no refresh token.
  *   4. Resource indicators (RFC 8707). An MCP client names the endpoint it
  *      wants a token for as `resource`; a grant made through
- *      `/mcp/<org>/<workspace>` is workspace-scoped, and the token endpoint
+ *      `/mcp/<slug>` is workspace-scoped, and the token endpoint
  *      refuses (`invalid_target`) to mint for a resource the grant was not
  *      made for.
  */
@@ -28,7 +28,7 @@ import { sha256Hex } from "./tokens";
 import type { Scope } from "@bcontext-dev/contract/auth/scopes";
 import { parseScopes } from "@bcontext-dev/contract/auth/scopes";
 import type { McpResource } from "@/lib/mcp/resource";
-import { workspaceRefName } from "@bcontext-dev/contract/workspace-ref";
+import { findWorkspaceByRef } from "@/lib/workspaces/resolve";
 
 const CLIENT_ID_PREFIX = "bctx_client_";
 const CLIENT_SECRET_PREFIX = "bctx_csk_";
@@ -406,11 +406,14 @@ function parseScopesString(s: string): Scope[] {
 /**
  * The `resource` a client sends has to be the endpoint its grant was made
  * for (RFC 8707 §2.2). A workspace-scoped grant belongs to exactly one
- * `/mcp/<org>/<workspace>`; a user-scoped grant reaches the root endpoint
- * and, per request, any workspace the person is a member of, so either
- * spelling is fine there. No `resource` at all is fine for both: clients
- * that predate resource indicators keep working. Shared by both grants so
- * they fail identically, with `invalid_target`.
+ * workspace's endpoint — `/mcp/<slug>`, or the pre-0100 `/mcp/<org>/<ws>`
+ * alias of the same workspace, which a client that registered before the
+ * change keeps sending on every refresh. So the resource is resolved to a
+ * workspace and compared by id, never as text. A user-scoped grant reaches
+ * the root endpoint and, per request, any workspace the person is a member
+ * of, so any spelling is fine there. No `resource` at all is fine for both:
+ * clients that predate resource indicators keep working. Shared by both
+ * grants so they fail identically, with `invalid_target`.
  */
 async function assertResourceBinding(
   admin: SupabaseClient,
@@ -425,14 +428,8 @@ async function assertResourceBinding(
   if (resource.kind !== "workspace" || !input.workspaceId) {
     throw new OAuthError("invalid_target", "this grant is bound to one workspace's MCP endpoint");
   }
-  const { data } = await admin
-    .from("workspaces")
-    .select("slug, organization:organizations!inner(slug)")
-    .eq("id", input.workspaceId)
-    .maybeSingle();
-  const org = (data?.organization as { slug?: string } | null | undefined)?.slug;
-  const bound = data && org ? workspaceRefName(org, data.slug as string) : null;
-  if (bound !== resource.name) {
+  const named = await findWorkspaceByRef(resource.name, "id", admin);
+  if (!named || named.id !== input.workspaceId) {
     throw new OAuthError("invalid_target", "resource does not match the workspace this grant was made for");
   }
 }

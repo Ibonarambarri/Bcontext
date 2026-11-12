@@ -1,22 +1,38 @@
 /**
  * Workspace catalog — cross-workspace operations (list, create) that the
- * per-workspace Storage abstraction does not handle. Routes go through
- * this so creating a workspace lands in Supabase when configured, or in
- * the in-memory demo-store when not.
+ * per-workspace Storage abstraction does not handle, and the instance policy
+ * on who may create one.
+ *
+ * Called by `GET/POST /api/workspaces`, `POST /api/onboarding/create`,
+ * `/api/me` and `/api/signup` (the policy), and the instance admin's
+ * create-and-invite flow (`insertWorkspace`). Creating lands in Supabase when
+ * configured, or in the in-memory demo-store when not.
+ *
+ * Who may create a workspace is the instance's choice, `WORKSPACE_CREATION`:
+ *   open   (default) any signed-in person — and anyone may sign up;
+ *   admin  only the instance admins (`ADMIN_EMAILS`), who invite the owners.
+ *
+ * Must not break: a workspace nobody can open is worse than none, so the
+ * creator's owner membership and grant are written with the row, and a
+ * failure after the row is written undoes it.
  */
 import { syncGrantFromMembership } from "@/lib/auth/grant-sync";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { isAdminEmail } from "@/lib/admin/access";
 import type { Workspace } from "@bcontext-dev/contract/types";
+import {
+  WORKSPACE_NAME_MAX,
+  type WorkspaceCreationPolicy,
+} from "@bcontext-dev/contract/workspaces";
 import {
   createWorkspace as demoCreate,
   listWorkspaces as demoList,
 } from "@/lib/demo-store";
 import { baseSlug, disambiguate } from "@/lib/slugs";
 import { supabaseConfigured } from "@/lib/env";
+import { log } from "@bcontext-dev/contract/log";
 
 export interface CreateWorkspaceInput {
-  /** Slug or id of the organization it goes into. Required outside demo mode. */
-  organization?: string;
   name: string;
   /** Demo storage only — with Supabase the slug is always generated. */
   slug?: string;
@@ -24,59 +40,50 @@ export interface CreateWorkspaceInput {
 }
 
 /**
- * List workspaces visible to a user. When Supabase is configured we look
- * up membership rows; otherwise we return the in-memory demo workspaces.
+ * `WORKSPACE_CREATION`, read per call so a test (or an operator) can flip it.
+ *
+ * `ORG_CREATION` is still read when the new name is absent: it is what every
+ * `.env` written before 0100 carries, and silently falling back to `open`
+ * would turn an instance whose admin had closed self-service into one anyone
+ * can sign up to.
+ */
+export function workspaceCreationPolicy(): WorkspaceCreationPolicy {
+  const raw = (process.env.WORKSPACE_CREATION ?? process.env.ORG_CREATION ?? "")
+    .trim()
+    .toLowerCase();
+  return raw === "admin" ? "admin" : "open";
+}
+
+/** Whether a person with this address may create a workspace here. */
+export function mayCreateWorkspace(email: string | null | undefined): boolean {
+  return workspaceCreationPolicy() === "open" || isAdminEmail(email);
+}
+
+/**
+ * List workspaces visible to a user: the ones they hold a membership in.
+ * Without Supabase, the in-memory demo workspaces.
  */
 export async function listWorkspacesForUser(
   userId: string | null,
 ): Promise<Workspace[]> {
   if (!supabaseConfigured()) return demoList();
-  const admin = getSupabaseAdmin();
   if (!userId) return [];
-  // Two ways in, unioned: a membership in the workspace itself, or being an
-  // owner/admin of the organization that holds it. The second is the point
-  // of an organization — whoever administers it does not have to add
-  // themselves to every project inside it, one by one, to see that they
-  // exist. Editors and viewers of the org get nothing here: their access is
-  // granted workspace by workspace.
-  const [{ data: memberships }, { data: orgRoles }] = await Promise.all([
-    admin.from("memberships").select("workspace_id").eq("user_id", userId),
-    admin
-      .from("organization_memberships")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .in("role", ["owner", "admin"]),
-  ]);
-  const ids = (memberships ?? []).map(
-    (m: { workspace_id: string }) => m.workspace_id,
-  );
-  const adminOrgIds = (orgRoles ?? []).map(
-    (m: { organization_id: string }) => m.organization_id,
-  );
-  if (ids.length === 0 && adminOrgIds.length === 0) return [];
-
-  const byId = ids.length
-    ? admin.from("workspaces").select("*").in("id", ids)
-    : null;
-  const byOrg = adminOrgIds.length
-    ? admin.from("workspaces").select("*").in("organization_id", adminOrgIds)
-    : null;
-  const [mine, administered] = await Promise.all([
-    byId ? byId : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    byOrg ? byOrg : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-  ]);
-  const rows = new Map<string, Record<string, unknown>>();
-  for (const row of [...(mine.data ?? []), ...(administered.data ?? [])]) {
-    rows.set(row.id as string, row);
-  }
-  return [...rows.values()]
+  const admin = getSupabaseAdmin();
+  const { data: memberships } = await admin
+    .from("memberships")
+    .select("workspace_id")
+    .eq("user_id", userId);
+  const ids = (memberships ?? []).map((m: { workspace_id: string }) => m.workspace_id);
+  if (ids.length === 0) return [];
+  const { data } = await admin.from("workspaces").select("*").in("id", ids);
+  return ((data ?? []) as Record<string, unknown>[])
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
     .map(rowToWorkspace);
 }
 
 export class WorkspaceCreateError extends Error {
   constructor(
-    readonly status: 400 | 403 | 404,
+    readonly status: 400 | 403 | 404 | 409,
     readonly code: string,
     message?: string,
   ) {
@@ -86,21 +93,59 @@ export class WorkspaceCreateError extends Error {
 }
 
 /**
- * Create an empty workspace inside an organization the caller administers.
- *
- * A workspace always goes into an organization that already exists, and only
- * an owner or admin of it may put one there. Minting an organization per
- * workspace would make "organization" mean nothing: it would group nothing,
- * be shared with nobody and could not be administered.
+ * Write the workspace row, nothing else. The slug comes from `slug` when
+ * given (instance admin) or the name, and is disambiguated across the
+ * instance (`docs`, `docs-2`) — except with `strictSlug`, where an address
+ * somebody typed is taken as is or refused with 409 `slug_taken`.
+ */
+export async function insertWorkspace(input: {
+  name: string;
+  slug?: string;
+  strictSlug?: boolean;
+  description?: string | null;
+}): Promise<Workspace> {
+  const name = input.name.trim().slice(0, WORKSPACE_NAME_MAX);
+  if (!name) {
+    throw new WorkspaceCreateError(400, "invalid_name", "The workspace needs a name.");
+  }
+  const admin = getSupabaseAdmin();
+  const wanted = baseSlug(input.slug?.trim() || name, "workspace");
+  const taken = await takenSlugs(wanted);
+  let slug = wanted;
+  if (input.slug?.trim() && input.strictSlug) {
+    if (taken.includes(wanted)) {
+      throw new WorkspaceCreateError(409, "slug_taken", `The address "${wanted}" is already in use.`);
+    }
+  } else {
+    slug = disambiguate(wanted, taken);
+  }
+
+  const { data, error } = await admin
+    .from("workspaces")
+    .insert({ slug, name, description: input.description ?? null })
+    .select("*")
+    .single();
+  if (error || !data) {
+    // A unique violation here is a race with another create of the same slug.
+    if (error?.code === "23505") {
+      throw new WorkspaceCreateError(409, "slug_taken", `The address "${slug}" is already in use.`);
+    }
+    throw new Error(`insertWorkspace: ${error?.message ?? "no row returned"}`);
+  }
+  return rowToWorkspace(data);
+}
+
+/**
+ * Create a workspace owned by the caller, if the instance lets them.
  *
  * The slug is derived from the name and disambiguated with a number — never
  * supplied by the caller — because it is an address, not a label.
  */
 export async function createWorkspaceForUser(
-  userId: string | null,
+  user: { id: string | null; email?: string | null },
   input: CreateWorkspaceInput,
 ): Promise<Workspace> {
-  if (!supabaseConfigured() || !userId) {
+  if (!supabaseConfigured() || !user.id) {
     // Demo path — keep behaviour identical to before.
     return demoCreate({
       name: input.name,
@@ -108,102 +153,52 @@ export async function createWorkspaceForUser(
       description: input.description ?? undefined,
     });
   }
-  const name = input.name.trim();
-  if (!name) {
-    throw new WorkspaceCreateError(400, "invalid_name", "The workspace needs a name.");
+  if (!mayCreateWorkspace(user.email)) {
+    throw new WorkspaceCreateError(
+      403,
+      "workspace_creation_restricted",
+      "On this instance, workspaces are created by an administrator.",
+    );
   }
 
+  const ws = await insertWorkspace({ name: input.name, description: input.description });
   const admin = getSupabaseAdmin();
-  const org = await resolveAdministeredOrg(userId, input.organization);
-  const slug = await freeWorkspaceSlug(org.id, name);
-
-  const { data: ws, error } = await admin
-    .from("workspaces")
-    .insert({
-      organization_id: org.id,
-      slug,
-      name,
-      description: input.description ?? null,
-    })
-    .select("*")
-    .single();
-  if (error || !ws) {
-    throw new Error(`createWorkspace: ${error?.message ?? "no row returned"}`);
-  }
 
   // The creator's own access, written at the same moment as the row: a
   // membership (what node RLS gates on) and the grant that is authoritative.
-  await admin.from("memberships").insert({
-    user_id: userId,
+  const { error: memberErr } = await admin.from("memberships").insert({
+    user_id: user.id,
     workspace_id: ws.id,
     role: "owner",
   });
-  await syncGrantFromMembership(ws.id, userId, "owner", { reinstate: true });
+  if (memberErr) {
+    // Deleting the workspace cascades to anything already written for it,
+    // so pressing the button again is a clean retry.
+    await admin.from("workspaces").delete().eq("id", ws.id);
+    throw new Error(`createWorkspace: owner membership failed: ${memberErr.message}`);
+  }
+  await syncGrantFromMembership(ws.id, user.id, "owner", { reinstate: true });
 
-  return rowToWorkspace(ws);
+  log.info("workspace.created", {
+    workspace_id: ws.id,
+    slug: ws.slug,
+    policy: workspaceCreationPolicy(),
+  });
+  return ws;
 }
 
-/**
- * The organization a new workspace goes into, refused unless the caller
- * administers it. `organization` is a slug or an id — the web sends the slug
- * it already shows, an agent may hold the id.
- */
-async function resolveAdministeredOrg(
-  userId: string,
-  organization: string | undefined,
-): Promise<{ id: string; slug: string; name: string }> {
-  const raw = (organization ?? "").trim().toLowerCase();
-  if (!raw) {
-    throw new WorkspaceCreateError(
-      400,
-      "organization_required",
-      "Say which organization the workspace belongs to.",
-    );
-  }
-  const admin = getSupabaseAdmin();
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(raw);
-  const { data: org } = await admin
-    .from("organizations")
-    .select("id, slug, name")
-    .eq(isUuid ? "id" : "slug", raw)
-    .maybeSingle();
-  // A 404 for an organization the caller cannot administer either: whether
-  // it exists is not something an outsider gets to learn from this route.
-  if (!org) throw new WorkspaceCreateError(404, "organization_not_found");
-
-  const { data: membership } = await admin
-    .from("organization_memberships")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("organization_id", org.id as string)
-    .maybeSingle();
-  const role = membership?.role as string | undefined;
-  if (role !== "owner" && role !== "admin") {
-    throw new WorkspaceCreateError(
-      403,
-      "not_org_admin",
-      "Only an owner or admin of the organization can create a workspace in it.",
-    );
-  }
-  return org as { id: string; slug: string; name: string };
-}
-
-/** The first free spelling of the name inside this organization. */
-async function freeWorkspaceSlug(orgId: string, name: string): Promise<string> {
-  const admin = getSupabaseAdmin();
-  const base = baseSlug(name, "workspace");
-  const { data } = await admin
+/** Slugs already in use that `disambiguate` must step around. */
+async function takenSlugs(base: string): Promise<string[]> {
+  const { data } = await getSupabaseAdmin()
     .from("workspaces")
     .select("slug")
-    .eq("organization_id", orgId);
-  return disambiguate(base, (data ?? []).map((r: { slug: string }) => r.slug));
+    .like("slug", `${base}%`);
+  return ((data ?? []) as Array<{ slug: string }>).map((r) => r.slug.toLowerCase());
 }
 
-function rowToWorkspace(row: Record<string, unknown>): Workspace {
+export function rowToWorkspace(row: Record<string, unknown>): Workspace {
   return {
     id: row.id as string,
-    organization_id: row.organization_id as string,
     slug: row.slug as string,
     name: row.name as string,
     description: (row.description as string | null) ?? null,

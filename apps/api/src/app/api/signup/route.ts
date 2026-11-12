@@ -5,7 +5,7 @@
  * because the same-origin check and the per-IP rate limit are what keep an
  * endpoint that creates auth users from being scripted, and a second limit
  * keyed to this endpoint sits on top. Refused with 403 `signup_closed` when
- * `ORG_CREATION=admin`; 503 `confirm_email_failed` when the confirmation
+ * `WORKSPACE_CREATION=admin`; 503 `confirm_email_failed` when the confirmation
  * email could not be sent (the account is removed, so a retry is clean).
  * The rules live in `@/lib/auth/signup`.
  */

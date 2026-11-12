@@ -11,7 +11,7 @@
  * Two ideas carry the whole design:
  *
  *   - `operation` is WHERE. Not "the api" — `mcp.tool:nodes_write`,
- *     `rest:POST /api/nodes`, `job:webhook.drain`, `web.route:/w/[org]/[ws]`.
+ *     `rest:POST /api/nodes`, `job:webhook.drain`, `web.route:/w/[ws]`.
  *     "Which service" is one of four answers and never told anybody
  *     anything; the operation is what an operator filters on and what a fix
  *     is scoped to.
@@ -31,8 +31,8 @@ export const ERROR_SERVICES = ["api", "worker", "web", "browser", "landing"] as 
 export type ErrorService = (typeof ERROR_SERVICES)[number];
 
 /** What each one is, for the one screen that shows them. The panel never
- *  renders a vocabulary raw — `ADMIN_ORG_STATE_LABELS` is the same idea for
- *  the organizations screen. */
+ *  renders a vocabulary raw — `ADMIN_WORKSPACE_STATE_LABELS` is the same idea
+ *  for the workspaces screen. */
 export const ERROR_SERVICE_LABELS: Record<ErrorService, string> = {
   api: "API",
   worker: "Worker",
@@ -124,7 +124,6 @@ export const ErrorReportSchema = z.object({
   instance: z.string().trim().max(120).optional(),
 
   user_id: z.string().uuid().optional(),
-  organization_id: z.string().uuid().optional(),
   workspace_id: z.string().uuid().optional(),
   actor_type: z.enum(ERROR_ACTOR_TYPES).optional(),
   /** The token's id. Never the token. */
@@ -207,7 +206,6 @@ export interface AdminErrorEvent {
   environment: string | null;
   instance: string | null;
   user_id: string | null;
-  organization_id: string | null;
   workspace_id: string | null;
   actor_type: ErrorActorType | null;
   token_id: string | null;

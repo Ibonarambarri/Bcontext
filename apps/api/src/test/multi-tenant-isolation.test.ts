@@ -37,7 +37,6 @@ const dscribe = SHOULD_RUN ? describe : describe.skip;
 
 interface TestState {
   admin: SupabaseClient;
-  orgId: string;
   wsA: string;
   wsB: string;
   userA: { id: string; email: string; password: string };
@@ -53,20 +52,9 @@ dscribe("multi-tenant isolation (P0-06)", () => {
     const admin = createClient(URL!, SVC!);
     state.admin = admin;
 
-    const orgRow = await admin
-      .from("organizations")
-      .insert({
-        slug: `test-${Date.now()}`,
-        name: "RLS Isolation Test",
-      })
-      .select("id")
-      .single();
-    state.orgId = orgRow.data!.id as string;
-
     const wsa = await admin
       .from("workspaces")
       .insert({
-        organization_id: state.orgId,
         slug: `wa-${Date.now()}`,
         name: "Wa",
       })
@@ -75,7 +63,6 @@ dscribe("multi-tenant isolation (P0-06)", () => {
     const wsb = await admin
       .from("workspaces")
       .insert({
-        organization_id: state.orgId,
         slug: `wb-${Date.now()}`,
         name: "Wb",
       })
@@ -127,16 +114,15 @@ dscribe("multi-tenant isolation (P0-06)", () => {
 
   afterAll(async () => {
     if (!SHOULD_RUN || !state.admin) return;
-    // Cascade cleanup via organization delete.
+    // Cascade cleanup via workspace delete.
     if (state.userA?.id) {
       await state.admin.auth.admin.deleteUser(state.userA.id).catch(() => {});
     }
     if (state.userB?.id) {
       await state.admin.auth.admin.deleteUser(state.userB.id).catch(() => {});
     }
-    if (state.orgId) {
-      await state.admin.from("organizations").delete().eq("id", state.orgId);
-    }
+    const ids = [state.wsA, state.wsB].filter((id): id is string => Boolean(id));
+    if (ids.length) await state.admin.from("workspaces").delete().in("id", ids);
   });
 
   it("user B cannot SELECT a node in workspace A", async () => {

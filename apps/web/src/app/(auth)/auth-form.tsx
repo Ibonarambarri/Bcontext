@@ -1,8 +1,9 @@
 /**
- * The sign-in form (accounts are created at `/start`, together with the
- * organization they belong to). Rendered inside `(auth)/layout.tsx`; posts
- * to the Server Action next door and carries a same-site `next` through as
- * a hidden field so a deep link survives the round trip.
+ * The sign-in form (accounts are created at `/start`, together with their
+ * first workspace, or from an invitation). Rendered inside
+ * `(auth)/layout.tsx`; posts to the Server Action next door and carries a
+ * same-site `next` through as a hidden field so a deep link survives the
+ * round trip.
  */
 "use client";
 

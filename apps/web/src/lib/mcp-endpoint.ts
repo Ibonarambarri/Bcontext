@@ -2,12 +2,17 @@
  * The shape of Bcontext's MCP endpoint URLs, in one place.
  *
  * The API serves the root `/mcp` (the credential decides the workspace) and
- * one endpoint per workspace, `/mcp/<org>/<workspace>`, whose OAuth tokens
- * are bound to that workspace. Two things in the web need to agree on that
- * shape: the "Add agent" box builds the URL for the workspace the person is
- * in, and the consent screen reads the URL a client asked for back into a
- * workspace (the `resource` parameter of RFC 8707). Both come through here
- * so the two can never drift.
+ * one endpoint per workspace, `/mcp/<slug>`, whose OAuth tokens are bound to
+ * that workspace. Two things in the web need to agree on that shape: the
+ * "Add agent" box builds the URL for the workspace the person is in, and the
+ * consent screen reads the URL a client asked for back into a workspace (the
+ * `resource` parameter of RFC 8707). Both come through here so the two can
+ * never drift.
+ *
+ * The API still answers the pre-0100 two-segment `/mcp/<a>/<b>` spelling,
+ * because it sits in `.mcp.json` files written before workspaces stood alone.
+ * Nothing here ever builds it; the parser only recognises it, as `legacy`, so
+ * the consent screen can resolve it to today's workspace.
  *
  * Pure, no React, no I/O — `mcp-endpoint.test.ts` pins the parsing.
  */
@@ -15,9 +20,9 @@ import type { WorkspaceAddress } from "@/web/workspace-url";
 
 /** Where a client snippet points and what it files the server under. */
 export interface McpTarget {
-  /** The workspace endpoint, `<origin>/mcp/<org>/<ws>`. */
+  /** The workspace endpoint, `<origin>/mcp/<slug>`. */
   endpoint: string;
-  /** The key under `mcpServers` (or the CLI's server name): `bcontext-<org>-<ws>`. */
+  /** The key under `mcpServers` (or the CLI's server name): `bcontext-<slug>`. */
   serverName: string;
 }
 
@@ -26,9 +31,9 @@ export function mcpTargetFor(origin: string, ws: WorkspaceAddress): McpTarget {
   return { endpoint: workspaceMcpEndpoint(origin, ws), serverName: mcpServerName(ws) };
 }
 
-/** The workspace-bound endpoint: `<origin>/mcp/<org>/<workspace>`. */
+/** The workspace-bound endpoint: `<origin>/mcp/<slug>`. */
 export function workspaceMcpEndpoint(origin: string, ws: WorkspaceAddress): string {
-  return `${origin.replace(/\/+$/, "")}/mcp/${ws.org}/${ws.slug}`;
+  return `${origin.replace(/\/+$/, "")}/mcp/${ws.slug}`;
 }
 
 /**
@@ -37,13 +42,19 @@ export function workspaceMcpEndpoint(origin: string, ws: WorkspaceAddress): stri
  * without the two entries colliding.
  */
 export function mcpServerName(ws: WorkspaceAddress): string {
-  return `bcontext-${ws.org}-${ws.slug}`;
+  return `bcontext-${ws.slug}`;
 }
 
 /** What a `resource` URL names, when it is one of ours. */
 export type McpResource =
   | { kind: "root" }
-  | { kind: "workspace"; org: string; slug: string };
+  | { kind: "workspace"; slug: string }
+  /**
+   * The pre-0100 two-segment alias, still served by the API. `ref` is the
+   * pair as one REST path segment (`<a>~<b>`), which is how
+   * `GET /api/workspaces/:ws` resolves it to today's workspace.
+   */
+  | { kind: "legacy"; ref: string };
 
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -51,10 +62,10 @@ const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * Reads the `resource` an MCP client sent to the consent screen. Lenient on
  * the noise a client may add — a trailing slash, a query, a fragment — and
  * strict on the rest: only the app's own origin counts, and the path must
- * be exactly `/mcp` or `/mcp/<org>/<workspace>`. Anything else (absent,
- * a foreign origin, garbage, a deeper path) is `null`: the consent screen
- * then behaves as if no resource were given and lets the API, which sees
- * the same field, be the authority.
+ * be exactly `/mcp`, `/mcp/<slug>` or the legacy two-segment `/mcp/<a>/<b>`.
+ * Anything else (absent, a foreign origin, garbage, a deeper path) is
+ * `null`: the consent screen then behaves as if no resource were given and
+ * lets the API, which sees the same field, be the authority.
  */
 export function parseMcpResource(
   resource: string | null | undefined,
@@ -73,8 +84,12 @@ export function parseMcpResource(
   const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
   if (parts[0] !== "mcp") return null;
   if (parts.length === 1) return { kind: "root" };
+  if (parts.length === 2) {
+    const slug = parts[1]!;
+    return SEGMENT.test(slug) ? { kind: "workspace", slug } : null;
+  }
   if (parts.length !== 3) return null;
-  const [, org, slug] = parts as [string, string, string];
-  if (!SEGMENT.test(org) || !SEGMENT.test(slug)) return null;
-  return { kind: "workspace", org, slug };
+  const [, first, second] = parts as [string, string, string];
+  if (!SEGMENT.test(first) || !SEGMENT.test(second)) return null;
+  return { kind: "legacy", ref: `${first}~${second}` };
 }

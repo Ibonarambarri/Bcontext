@@ -1,11 +1,14 @@
 /**
  * Workspaces, membership and invitations, as the API returns them and the
- * hub / invite / consent pages render them.
+ * hub / workspace panel / invite / consent pages render them.
  *
- * Part of the contract between bcontext-api and bcontext-web. The
- * reads and writes behind these live in `@/lib/workspaces/*` and
- * `@/lib/auth/invitations` on the API side; the web side only ever sees these
- * shapes, over HTTP.
+ * A workspace is the single top-level entity: it has the people (members
+ * with a role), the agents, the invitations and the usage. There is no layer
+ * above it. Its slug is unique across the instance and is its address.
+ *
+ * Part of the contract between bcontext-api and bcontext-web. The reads and
+ * writes behind these live in `@/lib/workspaces/*` and `@/lib/auth/invitations`
+ * on the API side; the web side only ever sees these shapes, over HTTP.
  */
 import type { Workspace } from "./types.js";
 
@@ -14,61 +17,71 @@ export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer" | "agent";
 /** A role an invitation can carry. `agent` is a token's role, never a person's. */
 export type InviteRole = Exclude<WorkspaceRole, "agent">;
 
-/** The organization a workspace belongs to, as a card needs to name it. */
-export interface WorkspaceOrgRef {
-  id: string;
-  slug: string;
-  name: string;
-  /** The caller's role in the organization, not in the workspace. */
-  role: InviteRole | null;
-}
+/** Where an invitation email got to, when somebody asked for one. */
+export type InviteEmailStatus = "sent" | "skipped" | "error";
+
+/* -------------------------------------------------------------------------- */
+/*  Creation                                                                  */
+/* -------------------------------------------------------------------------- */
 
 /**
- * A workspace as the hub shows it: the row plus what the caller holds in it,
- * the organization it lives in and the numbers on the card.
- * `GET /api/workspaces?stats=1`.
+ * Who may create a workspace on this instance, from `WORKSPACE_CREATION`:
+ * `open` lets any signed-in person create one (and sign up), `admin` keeps
+ * it to the instance admins (`ADMIN_EMAILS`), who then invite the owners.
+ */
+export type WorkspaceCreationPolicy = "open" | "admin";
+
+export const WORKSPACE_CREATION_POLICIES: readonly WorkspaceCreationPolicy[] = ["open", "admin"];
+
+/** How long a workspace's name may be; the slug follows the same cap. */
+export const WORKSPACE_NAME_MAX = 80;
+
+/**
+ * `POST /api/workspaces` body. The creator becomes its owner. The slug is
+ * derived from the name and disambiguated across the instance (`docs`,
+ * `docs-2`) — never supplied, because it is an address, not a label.
+ */
+export interface CreateWorkspaceBody {
+  name: string;
+  description?: string;
+}
+
+/** `201` from `POST /api/workspaces`. */
+export interface CreateWorkspaceResult {
+  workspace: Workspace;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The hub                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A workspace as the hub shows it: the row plus what the caller holds in it
+ * and the numbers on the card. `GET /api/workspaces?stats=1`.
  */
 export interface WorkspaceCard extends Workspace {
   role: WorkspaceRole;
-  organization: WorkspaceOrgRef;
   member_count: number;
   open_task_count: number;
   node_count: number;
   last_activity_at: string;
 }
 
-/**
- * An organization the caller belongs to, with what they may do in it. The
- * hub groups by these, and `can_create_workspace` is what decides whether
- * the org appears in the "new workspace" picker.
- */
-export interface OrganizationCard {
-  id: string;
-  slug: string;
-  name: string;
-  role: InviteRole;
-  workspace_count: number;
-  member_count: number;
-  can_create_workspace: boolean;
-  can_manage: boolean;
-}
-
 /** `GET /api/workspaces` — the hub's single read. */
 export interface WorkspacesResponse {
   workspaces: WorkspaceCard[];
-  organizations: OrganizationCard[];
+  /** Whether "New workspace" is offered: see `WorkspaceCreationPolicy`. */
+  can_create_workspace: boolean;
 }
 
 /**
- * `POST /api/workspaces` body. The organization is required: a workspace is
- * always created inside one, and only an owner or admin of that organization
- * may create it. The slug is derived from the name and never supplied — see
- * `slugify` and the numeric disambiguation in the API.
+ * `GET /api/workspaces/:ws` — one workspace the caller can read. `:ws` may
+ * also be a legacy `<org>~<workspace>` pair; the answer always carries the
+ * current slug, which is how the web turns an old `/w/<org>/<ws>` URL into
+ * its permanent redirect.
  */
-export interface CreateWorkspaceBody {
-  organization: string;
-  name: string;
-  description?: string;
+export interface WorkspaceResponse {
+  workspace: Workspace;
 }
 
 /**
@@ -85,34 +98,148 @@ export interface WorkspacePatch {
   accent_gradient?: string;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  People                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** One person in a workspace, as its members screen lists them. */
 export interface WorkspaceMember {
-  userId: string;
+  user_id: string;
   email: string | null;
-  role: WorkspaceRole;
-  joined: string;
-  isYou: boolean;
+  /** Their profile name, joined; null while they have not given one. */
+  name: string | null;
+  role: InviteRole;
+  joined_at: string | null;
+  last_sign_in_at: string | null;
+  /** False while the person was created or invited and never signed in. */
+  confirmed: boolean;
+  /** True for the caller's own row, so the UI can refuse to lock them out. */
+  is_you: boolean;
 }
 
+/** An open invitation to the workspace. */
 export interface WorkspaceInvite {
   id: string;
   email: string;
   role: InviteRole;
-  token: string;
-  /** Absolute /invite/<token> URL — what the roster copies and shares. */
+  /** Absolute /invite/<token> URL — what the panel copies and shares. */
   url: string;
-  expiresAt: string;
-  createdAt: string;
+  expires_at: string;
+  created_at: string;
+  email_status: InviteEmailStatus | null;
+  email_sent_at: string | null;
+  email_error: string | null;
 }
 
-/** `GET /api/workspaces/:ws/members`. */
+/**
+ * `GET /api/workspaces/:ws/members` — the members screen: roster, open
+ * invitations (only for someone who administers the workspace) and the
+ * caller's own role.
+ */
 export interface WorkspaceMembersResponse {
   members: WorkspaceMember[];
   invites: WorkspaceInvite[];
   role: WorkspaceRole | null;
-  canManage?: boolean;
+  can_manage: boolean;
   /** Set when the workspace lives in demo storage: no roster exists. */
   demo?: boolean;
 }
+
+/**
+ * `POST /api/workspaces/:ws/invites` — how a person is added, and the only
+ * way. Creating one sends nothing; the reply carries the link, and emailing
+ * it is a second, explicit call (`POST …/invites/:id/email`).
+ */
+export interface CreateWorkspaceInviteBody {
+  email: string;
+  role?: InviteRole;
+}
+
+/** `201` from `POST /api/workspaces/:ws/invites`. */
+export interface CreateWorkspaceInviteResult {
+  invite: WorkspaceInvite;
+}
+
+/** `POST /api/workspaces/:ws/invites/:id/email`. */
+export interface SendWorkspaceInviteEmailResult {
+  status: InviteEmailStatus;
+  error: string | null;
+  invite: WorkspaceInvite;
+}
+
+/** `PATCH /api/workspaces/:ws/members/:userId`. */
+export interface WorkspaceMemberPatch {
+  role: InviteRole;
+}
+
+/** An agent a member connected to this workspace. */
+export interface WorkspaceMemberAgent {
+  id: string;
+  name: string;
+  provider: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  scopes: string[];
+}
+
+/**
+ * `GET /api/workspaces/:ws/members/:userId` — one person in full: their
+ * membership and the agents they connected here, which act in their name.
+ */
+export interface WorkspaceMemberDetail extends WorkspaceMember {
+  /** True while this is the last owner: the UI must not offer to demote them. */
+  is_last_owner: boolean;
+  agents: WorkspaceMemberAgent[];
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Usage                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * MCP tool calls: the only measure of how much a workspace's context is
+ * READ. `activity` records writes only. Split by tool because they are not
+ * the same thing: `ping` is noise, `nodes(op=search)` is a retrieval.
+ */
+export interface McpToolUsage {
+  tool: string;
+  calls: number;
+}
+
+export interface McpUsage {
+  total: number;
+  /** Busiest tool first. */
+  by_tool: McpToolUsage[];
+}
+
+/**
+ * `GET /api/workspaces/:ws/usage` — what the workspace is consuming this
+ * month. Measured, never priced: every field is something the database
+ * counts, for an administrator to read. There are no ceilings.
+ */
+export interface WorkspaceUsage {
+  /** `YYYY-MM` — the month the counters cover. */
+  period: string;
+  nodes_total: number;
+  nodes_created: number;
+  nodes_edited: number;
+  /**
+   * Writes split by who made them. They do not add up to the total on
+   * purpose: a migration or a backfill writes as `system`, and crediting
+   * that to either side would claim work nobody did.
+   */
+  writes_by_people: number;
+  writes_by_agents: number;
+  ai_queries: number;
+  meeting_minutes: number;
+  member_count: number;
+  agent_count: number;
+  mcp_calls: McpUsage;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Invitations, from the invitee's side                                      */
+/* -------------------------------------------------------------------------- */
 
 /**
  * What the invite page shows before the person signs in. The token is what
@@ -121,21 +248,14 @@ export interface WorkspaceMembersResponse {
 export interface InvitePreview {
   email: string;
   role: InviteRole;
-  organization_name: string;
-  organization_slug: string;
+  workspace_name: string;
+  workspace_slug: string;
   expires_at: string;
 }
 
-/** `POST /api/invites/:token/accept`. */
+/** `POST /api/invites/:token/accept` — where to land the person. */
 export interface InviteAccepted {
-  orgSlug: string;
-  /**
-   * Where to land the person: the first workspace the invitation actually
-   * let them into, or null when it only made them a member of the
-   * organization — an owner or admin, who lands on the hub and sees
-   * everything the organization holds.
-   */
-  workspaceSlug: string | null;
+  workspaceSlug: string;
 }
 
 /**

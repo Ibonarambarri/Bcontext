@@ -1,60 +1,68 @@
 /**
  * How a workspace is named when it has to travel as one string.
  *
- * A workspace slug is unique inside its organization, not across the
- * product: two companies both get to call a workspace `docs`. So anything
- * that names one — a URL, an MCP argument, a REST path segment — has to
- * carry the organization too.
+ * A workspace is the top-level thing in Bcontext, and its slug is unique
+ * across the instance: `/w/<slug>` in the web, `/mcp/<slug>` for agents,
+ * `?workspace=<slug>` and `/api/workspaces/<slug>` in the REST API.
  *
- * Two spellings, one meaning:
- *   `<org>/<workspace>`  — for humans and for JSON arguments (MCP tools,
- *                          the web's own /w/<org>/<workspace> URLs)
- *   `<org>~<workspace>`  — the same pair inside a single REST path segment,
- *                          because a slash would split it
+ * Two older spellings are still read, because they were written into
+ * `.mcp.json` files, bookmarks and agent prompts while workspaces lived
+ * inside organizations:
+ *   `<org>/<workspace>`  — URLs, MCP arguments, the `X-Bcontext-Workspace` header
+ *   `<org>~<workspace>`  — the same pair inside one REST path segment
  *
- * `parseWorkspaceRef` accepts either, so a caller never has to think about
- * which one it is holding. A bare slug is deliberately NOT accepted: it is
- * the ambiguity this module exists to remove, and guessing an organization
- * on the caller's behalf is how someone ends up writing into the wrong one.
+ * `parseWorkspaceRef` returns those as `legacy`, never as a slug: the
+ * migration that removed organizations (0100) had to rename a workspace whose
+ * slug collided with another organization's, so the second half of an old
+ * pair is not always the workspace's slug today. The API resolves a legacy
+ * pair through `workspace_legacy_refs`, which records every pair that existed.
+ *
+ * Shared by the API (resolution) and the web (legacy URL redirects). Must not
+ * break: every spelling that was valid before keeps parsing to something.
  */
 
-export interface WorkspaceRef {
+/** The shape every workspace slug has: lowercase, digits and dashes, ≤ 80. */
+export const WORKSPACE_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/;
+
+/** An old `<org>/<workspace>` pair, as it was written before 0100. */
+export interface LegacyWorkspaceRef {
   org: string;
   workspace: string;
 }
 
-const SEGMENT = /^[a-z0-9][a-z0-9-]{0,79}$/;
+/** What a workspace reference turned out to be. */
+export type WorkspaceRef =
+  | { kind: "slug"; slug: string }
+  | { kind: "legacy"; legacy: LegacyWorkspaceRef; name: string };
 
-/** `<org>~<workspace>` — one REST path segment. */
-export function workspaceRefPath(org: string, workspace: string): string {
-  return `${org}~${workspace}`;
-}
-
-/** `<org>/<workspace>` — what a person reads and what MCP arguments carry. */
-export function workspaceRefName(org: string, workspace: string): string {
-  return `${org}/${workspace}`;
+/** True when the value is shaped like a workspace slug. */
+export function isWorkspaceSlug(raw: string | null | undefined): boolean {
+  return WORKSPACE_SLUG_PATTERN.test((raw ?? "").trim().toLowerCase());
 }
 
 /**
- * Read either spelling. Returns null for anything that is not a well-formed
- * pair — including a bare slug, which callers must reject with a message
- * that names the organizations the person could have meant.
+ * `<org>/<workspace>` — the key `workspace_legacy_refs` stores a pair under.
+ * Only for resolving old addresses; nothing new is ever named this way.
  */
-export function parseWorkspaceRef(raw: string): WorkspaceRef | null {
+export function legacyRefName(org: string, workspace: string): string {
+  return `${org.toLowerCase()}/${workspace.toLowerCase()}`;
+}
+
+/**
+ * Read a workspace reference: a slug, or one of the two legacy pair
+ * spellings. Null for anything else (empty, three segments, bad characters).
+ */
+export function parseWorkspaceRef(raw: string | null | undefined): WorkspaceRef | null {
   const value = (raw ?? "").trim().toLowerCase();
   if (!value) return null;
   const sep = value.includes("~") ? "~" : value.includes("/") ? "/" : null;
-  if (!sep) return null;
+  if (!sep) {
+    return WORKSPACE_SLUG_PATTERN.test(value) ? { kind: "slug", slug: value } : null;
+  }
   const parts = value.split(sep);
   if (parts.length !== 2) return null;
   const org = parts[0] ?? "";
   const workspace = parts[1] ?? "";
-  if (!SEGMENT.test(org) || !SEGMENT.test(workspace)) return null;
-  return { org, workspace };
-}
-
-/** True when the value names a workspace without saying whose it is. */
-export function isBareSlug(raw: string): boolean {
-  const value = (raw ?? "").trim().toLowerCase();
-  return SEGMENT.test(value);
+  if (!WORKSPACE_SLUG_PATTERN.test(org) || !WORKSPACE_SLUG_PATTERN.test(workspace)) return null;
+  return { kind: "legacy", legacy: { org, workspace }, name: legacyRefName(org, workspace) };
 }

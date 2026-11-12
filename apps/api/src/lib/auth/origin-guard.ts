@@ -31,7 +31,8 @@ export function assertSameOrigin(req: Request): Response | null {
   try {
     const pathname = new URL(req.url).pathname;
     if (BEARER_ONLY_PATHS.has(pathname)) return null;
-    // The per-workspace MCP endpoint (`/mcp/<org>/<workspace>`) is the same
+    // The per-workspace MCP endpoint (`/mcp/<slug>`, and its legacy
+    // `/mcp/<org>/<workspace>` alias) is the same
     // bearer-only surface under a longer path: an MCP client's first POST
     // there carries neither token nor Origin and must reach the 401 that
     // advertises OAuth discovery.

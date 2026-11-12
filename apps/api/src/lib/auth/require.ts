@@ -15,10 +15,7 @@
  * a valid token must not be told it is invalid because PostgREST is down.
  */
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import {
-  parseWorkspaceRef,
-  workspaceRefName,
-} from "@bcontext-dev/contract/workspace-ref";
+import { findWorkspaceByRef } from "@/lib/workspaces/resolve";
 import { getSupabaseForRequest } from "@/lib/supabase/request";
 import { TokenLookupUnavailableError, verifyToken } from "./tokens";
 import { type Scope, hasScope } from "@bcontext-dev/contract/auth/scopes";
@@ -401,12 +398,12 @@ async function resolveImplicitWorkspace(
   const query = agentId
     ? admin
         .from("agent_workspace_access")
-        .select("workspaces:workspace_id (id, slug, organization:organizations(slug))")
+        .select("workspaces:workspace_id (id, slug)")
         .eq("agent_id", agentId)
         .is("revoked_at", null)
     : admin
         .from("memberships")
-        .select("workspaces:workspace_id (id, slug, organization:organizations(slug))")
+        .select("workspaces:workspace_id (id, slug)")
         .eq("user_id", userId);
   const { data, error } = await query;
   if (error) {
@@ -416,24 +413,11 @@ async function resolveImplicitWorkspace(
     );
   }
 
-  // Candidates are named the way the caller has to name them back:
-  // `<org>/<workspace>`, because the slug alone no longer picks one out.
+  // Candidates are named the way the caller has to name them back: by slug.
   const rows = ((data ?? []) as Array<{
-    workspaces:
-      | { id: string; slug: string; organization?: { slug: string } | null }
-      | null;
+    workspaces: { id: string; slug: string } | null;
   }>).flatMap((row) =>
-    row.workspaces
-      ? [
-          {
-            id: row.workspaces.id,
-            slug: workspaceRefName(
-              row.workspaces.organization?.slug ?? "",
-              row.workspaces.slug,
-            ),
-          },
-        ]
-      : [],
+    row.workspaces ? [{ id: row.workspaces.id, slug: row.workspaces.slug }] : [],
   );
   rows.sort((a, b) => a.slug.localeCompare(b.slug));
 
@@ -456,7 +440,7 @@ async function resolveImplicitWorkspace(
       message:
         `this token can reach ${rows.length} workspaces (${rows
           .map((w) => w.slug)
-          .join(", ")}). Pass X-Bcontext-Workspace: <organization>/<workspace> (or ?workspace=) to choose one.`,
+          .join(", ")}). Pass X-Bcontext-Workspace: <workspace> (or ?workspace=) to choose one.`,
       workspaces: rows.map((w) => w.slug),
     },
     { status: 400 },
@@ -468,8 +452,8 @@ async function resolveImplicitWorkspace(
  *
  *   - `agent` (workspace-scoped token): returns the token's workspaceId
  *     and slug. No header required. When the request names a workspace
- *     (`options.workspaceRef`, from a `/mcp/<org>/<workspace>` path) it has
- *     to be the token's own; any other pair is a 404, never a 403 — a
+ *     (`options.workspaceRef`, from a `/mcp/<slug>` path) it has
+ *     to be the token's own; any other name is a 404, never a 403 — a
  *     token holder must not learn that a workspace it cannot touch exists.
  *   - `agent_user` (user-scoped token): reads `options.workspaceRef`, else
  *     `X-Bcontext-Workspace` (or `?workspace=<slug>`), resolves the
@@ -497,17 +481,16 @@ export async function resolveAgentWorkspaceOr401(
   const named = options.workspaceRef?.trim() || "";
   if (actor.kind === "agent") {
     const admin = getSupabaseAdmin();
-    // The organization slug is only needed to compare against a named
-    // workspace; the plain lookup stays a single-column read otherwise.
     const { data } = await admin
       .from("workspaces")
-      .select(named ? "slug, organization:organizations!inner(slug)" : "slug")
+      .select("slug")
       .eq("id", actor.workspaceId)
       .maybeSingle();
     if (named) {
-      const ref = parseWorkspaceRef(named);
-      const org = (data?.organization as { slug?: string } | null | undefined)?.slug;
-      const own = ref && data && org === ref.org && data.slug === ref.workspace;
+      // Resolved rather than compared as text, so the legacy
+      // `<org>/<workspace>` alias of the token's own workspace still matches.
+      const namedRow = await findWorkspaceByRef(named, "id");
+      const own = data && namedRow && namedRow.id === actor.workspaceId;
       if (!own) {
         return Response.json(
           { error: "workspace_not_found", message: `workspace "${named}" not found` },
@@ -564,27 +547,9 @@ export async function resolveAgentWorkspaceOr401(
     return resolveImplicitWorkspace(admin, actor.userId, actor.agentId ?? null);
   }
 
-  // A workspace is named `<organization>/<workspace>`. A bare slug is
-  // refused rather than resolved to whichever organization happens to
-  // match first: writing into the wrong company's workspace is not a
-  // failure anyone would notice in time.
-  const ref = parseWorkspaceRef(asked);
-  if (!ref) {
-    return Response.json(
-      {
-        error: "workspace_required",
-        message: `name the workspace as "<organization>/<workspace>" — "${asked}" does not say which organization it belongs to.`,
-      },
-      { status: 400 },
-    );
-  }
-
-  const { data: ws } = await admin
-    .from("workspaces")
-    .select("id, slug, organization:organizations!inner(slug)")
-    .eq("slug", ref.workspace)
-    .eq("organization.slug", ref.org)
-    .maybeSingle();
+  // A slug, an id or a legacy `<org>/<workspace>` pair; anything that is
+  // none of those is simply a workspace that does not exist.
+  const ws = await findWorkspaceByRef(asked, "id, slug");
   if (!ws) {
     return Response.json(
       {

@@ -3,28 +3,28 @@
 /**
  * The two forms of `/start`, in the auth pages' paper language.
  *
- * `SignupForm` takes the account and the organization's name together, so a
+ * `SignupForm` takes the account and the workspace's name together, so a
  * person who needs no email confirmation lands in their first workspace in
- * one submit. When the instance does send a confirmation, the organization
- * is created after the link: the name typed here is kept in this browser
- * (`localStorage`, a convenience only) and `OrganizationForm` offers it back.
+ * one submit. When the instance does send a confirmation, the workspace is
+ * created after the link: the name typed here is kept in this browser
+ * (`localStorage`, a convenience only) and `WorkspaceForm` offers it back.
  */
 import { useActionState, useEffect, useState } from "react";
 import { MIN_PASSWORD_LENGTH, MAX_NAME_LENGTH } from "@bcontext-dev/contract/me";
-import { ORG_NAME_MAX } from "@bcontext-dev/contract/organizations";
+import { WORKSPACE_NAME_MAX } from "@bcontext-dev/contract/workspaces";
 import {
-  createOrganizationAction,
+  createWorkspaceAction,
   signupAction,
-  type OrganizationState,
   type SignupState,
+  type WorkspaceState,
 } from "./actions";
 
-/** Where the organization's name waits while the person confirms their email. */
-const PENDING_ORG_KEY = "bcontext.start.organization";
+/** Where the workspace's name waits while the person confirms their email. */
+const PENDING_WORKSPACE_KEY = "bcontext.start.workspace";
 
 function remember(name: string) {
   try {
-    localStorage.setItem(PENDING_ORG_KEY, name);
+    localStorage.setItem(PENDING_WORKSPACE_KEY, name);
   } catch {
     /* storage unavailable: the person types the name again */
   }
@@ -32,7 +32,7 @@ function remember(name: string) {
 
 function recall(): string {
   try {
-    return localStorage.getItem(PENDING_ORG_KEY) ?? "";
+    return localStorage.getItem(PENDING_WORKSPACE_KEY) ?? "";
   } catch {
     return "";
   }
@@ -40,7 +40,7 @@ function recall(): string {
 
 function forget() {
   try {
-    localStorage.removeItem(PENDING_ORG_KEY);
+    localStorage.removeItem(PENDING_WORKSPACE_KEY);
   } catch {
     /* nothing to clean */
   }
@@ -50,7 +50,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
   const [state, action, pending] = useActionState<SignupState, FormData>(signupAction, {});
 
   useEffect(() => {
-    if (state.sent) remember(state.sent.organization);
+    if (state.sent) remember(state.sent.workspace);
   }, [state.sent]);
 
   if (state.sent) return <CheckInbox email={state.sent.email} />;
@@ -59,9 +59,9 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
     <div>
       <div className="pa-kicker">Start</div>
       <h1 className="pa-title">
-        Create your <em>organization.</em>
+        Create your <em>workspace.</em>
       </h1>
-      <p className="pa-sub">Your account and your organization, in one step.</p>
+      <p className="pa-sub">Your account and your first workspace, in one step.</p>
 
       <form action={action} className="pa-form">
         <div className="pa-row-2">
@@ -150,7 +150,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
           </div>
         </div>
 
-        <OrganizationNameField pending={pending} />
+        <WorkspaceNameField pending={pending} />
 
         {state.error ? (
           <p role="alert" className="pa-alert pa-alert-danger">
@@ -159,7 +159,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
         ) : null}
 
         <button type="submit" className="pa-submit" disabled={pending}>
-          {pending ? "Creating…" : "Create account and organization"}
+          {pending ? "Creating…" : "Create account and workspace"}
         </button>
 
         <p className="pa-foot">
@@ -173,9 +173,9 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
   );
 }
 
-export function OrganizationForm({ initialError }: { initialError?: string }) {
-  const [state, action, pending] = useActionState<OrganizationState, FormData>(
-    createOrganizationAction,
+export function WorkspaceForm({ initialError }: { initialError?: string }) {
+  const [state, action, pending] = useActionState<WorkspaceState, FormData>(
+    createWorkspaceAction,
     { error: initialError },
   );
   const [name, setName] = useState("");
@@ -190,14 +190,14 @@ export function OrganizationForm({ initialError }: { initialError?: string }) {
     <div>
       <div className="pa-kicker">One last thing</div>
       <h1 className="pa-title">
-        Name your <em>organization.</em>
+        Name your <em>workspace.</em>
       </h1>
       <p className="pa-sub">
-        You&apos;ll be its owner, with a first workspace ready inside it.
+        You&apos;ll be its owner, free to invite people and connect agents.
       </p>
 
       <form action={action} onSubmit={forget} className="pa-form">
-        <OrganizationNameField pending={pending} value={name} onChange={setName} />
+        <WorkspaceNameField pending={pending} value={name} onChange={setName} />
 
         {state.error ? (
           <p role="alert" className="pa-alert pa-alert-danger">
@@ -206,14 +206,14 @@ export function OrganizationForm({ initialError }: { initialError?: string }) {
         ) : null}
 
         <button type="submit" className="pa-submit" disabled={pending}>
-          {pending ? "Creating…" : "Create organization"}
+          {pending ? "Creating…" : "Create workspace"}
         </button>
       </form>
     </div>
   );
 }
 
-function OrganizationNameField({
+function WorkspaceNameField({
   pending,
   value,
   onChange,
@@ -224,15 +224,17 @@ function OrganizationNameField({
 }) {
   return (
     <div className="pa-field">
-      <label className="pa-label" htmlFor="organization_name">
-        Organization name
+      <label className="pa-label" htmlFor="workspace_name">
+        Workspace name
       </label>
       <input
-        id="organization_name"
-        name="organization_name"
+        id="workspace_name"
+        name="workspace_name"
         className="pa-input"
-        autoComplete="organization"
-        maxLength={ORG_NAME_MAX}
+        // A workspace is named for the work, not the company: the browser's
+        // saved company name would be a wrong guess more often than a help.
+        autoComplete="off"
+        maxLength={WORKSPACE_NAME_MAX}
         placeholder="Acme"
         required
         disabled={pending}
@@ -251,7 +253,7 @@ function CheckInbox({ email }: { email: string }) {
       </h1>
       <p className="pa-sub">
         We sent a link to <strong>{email}</strong>. Open it and you&apos;ll
-        create your organization right after.
+        create your workspace right after.
       </p>
       <p className="pa-alert">Nothing in your inbox? Look in your spam folder.</p>
       <a className="pa-alt-link" href="/login">

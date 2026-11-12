@@ -1,6 +1,6 @@
 /**
  * GET /api/me — who the session belongs to, what they are called, whether
- * they are a platform admin and whether they may create an organization.
+ * they are a platform admin and whether they may create a workspace.
  * PATCH /api/me — the person edits their own name.
  *
  * The web lives in another repo and cannot import the admin allowlist, so
@@ -13,7 +13,7 @@ import { gate } from "@/lib/auth/require";
 import { getSupabaseForRequest } from "@/lib/supabase/request";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/admin/access";
-import { mayCreateOrganization } from "@/lib/organizations/create";
+import { mayCreateWorkspace } from "@/lib/workspaces/registry";
 import { readJsonBody } from "@/lib/parse-json";
 import { withRoute } from "@/lib/route";
 import { hasPasswordIdentity, meUserFrom, nameMetadata } from "@/lib/auth/profile";
@@ -32,7 +32,7 @@ export const GET = withRoute(async (req: Request) => {
     user: meUserFrom(gated.userId, user),
     is_admin: isAdminEmail(user?.email ?? null),
     has_password: hasPasswordIdentity(user),
-    can_create_organization: mayCreateOrganization(user?.email ?? null),
+    can_create_workspace: mayCreateWorkspace(user?.email ?? null),
   };
   return Response.json(me);
 });
@@ -104,7 +104,7 @@ export const PATCH = withRoute(async (req: Request) => {
     user: meUserFrom(gated.userId, user),
     is_admin: isAdminEmail(user?.email ?? null),
     has_password: hasPasswordIdentity(user),
-    can_create_organization: mayCreateOrganization(user?.email ?? null),
+    can_create_workspace: mayCreateWorkspace(user?.email ?? null),
   };
   return Response.json(me);
 });

@@ -21,7 +21,7 @@ export default function SkeletonGalleryPage() {
     <main className="mx-auto max-w-6xl space-y-10 px-6 py-10 text-[13px]">
       <h1 className="text-xl font-semibold">Skeleton system — dev gallery</h1>
 
-      <Section title="DashboardSkeleton (/w/[org]/[ws] overview)">
+      <Section title="DashboardSkeleton (/w/[ws] overview)">
         <div className="h-[760px] overflow-hidden rounded-xl border border-[var(--line)]">
           <DashboardSkeleton />
         </div>

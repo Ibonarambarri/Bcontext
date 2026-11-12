@@ -6,7 +6,7 @@ import { getSession } from "@/web/session";
 import { apiJson } from "@/web/api-client";
 import { whoami } from "@/web/me";
 import { AuthShell } from "@/components/auth/AuthShell";
-import { SignupForm, OrganizationForm } from "./start-form";
+import { SignupForm, WorkspaceForm } from "./start-form";
 
 export const dynamic = "force-dynamic";
 
@@ -21,15 +21,16 @@ interface Props {
 
 /**
  * `/start` — where "Start now" lands, and where a signed-in person with no
- * organization is sent to create one.
+ * workspace is sent to create one.
  *
- * Signed out: one form, account plus organization name (`SignupForm`). On an
- * instance whose organizations are created by its administrators the API
- * refuses the signup and the form says so.
+ * Signed out: one form, account plus workspace name (`SignupForm`). On an
+ * instance where only its administrators create workspaces
+ * (`WORKSPACE_CREATION=admin`) the API refuses the signup
+ * (`403 signup_closed`) and the form says so.
  *
- * Signed in: somebody who already belongs to an organization has nothing to
+ * Signed in: somebody who already belongs to a workspace has nothing to
  * start and goes to the hub; somebody with none names one here
- * (`OrganizationForm`) when they may, which is also where the confirmation
+ * (`WorkspaceForm`) when they may, which is also where the confirmation
  * email ends up (via `/workspaces`). Rendering a signup form to a person
  * with a session is how one human ends up with two accounts.
  *
@@ -43,16 +44,16 @@ export default async function StartPage({ searchParams }: Props) {
   const { data } = await (await getSession()).auth.getUser();
 
   if (data.user) {
-    const { organizations, workspaces } =
-      await apiJson<WorkspacesResponse>("/api/workspaces");
-    if (organizations.length > 0 || workspaces.length > 0) {
-      redirect("/workspaces" as Route);
-    }
+    const { workspaces } = await apiJson<WorkspacesResponse>("/api/workspaces");
+    if (workspaces.length > 0) redirect("/workspaces" as Route);
+    // Asked of `/api/me`, the same answer the hub reads before sending a
+    // person here: two pages deciding from two sources could bounce somebody
+    // between them forever.
     const me = await whoami();
-    if (!me?.can_create_organization) redirect("/workspaces" as Route);
+    if (!me?.can_create_workspace) redirect("/workspaces" as Route);
     return (
       <AuthShell>
-        <OrganizationForm initialError={error || undefined} />
+        <WorkspaceForm initialError={error || undefined} />
       </AuthShell>
     );
   }

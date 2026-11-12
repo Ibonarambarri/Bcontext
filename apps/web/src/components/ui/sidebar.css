@@ -3,7 +3,7 @@
 
    Imported by app/globals.css into the components layer, as HeroUI's own
    styles are: a utility class at a call site beats these defaults, and
-   the unlayered rules in globals.css (`.org-panel .sidebar…`) beat both.
+   the unlayered rules in globals.css (`.workspace-panel .sidebar…`) beat both.
 
    Colours are HeroUI tokens (--background, --default, --muted…), so the
    rail follows the theme switch with no rules of its own.

@@ -20,9 +20,9 @@
  *     mints the scoped token and the last step reveals it once, embedded in
  *     the provider config.
  *
- * The endpoint shown is this workspace's, `<current origin>/mcp/<org>/<ws>`
+ * The endpoint shown is this workspace's, `<current origin>/mcp/<slug>`
  * (`@/lib/mcp-endpoint`), which this app proxies to the API, so the
- * snippets work as pasted; the server is filed as `bcontext-<org>-<ws>` so a
+ * snippets work as pasted; the server is filed as `bcontext-<slug>` so a
  * project folder can carry its own `.mcp.json` per workspace.
  *
  * Both Connect steps end with the same guide (`AgentGuide`): wiring the MCP

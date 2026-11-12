@@ -24,12 +24,9 @@ select is((select count(*) from pg_policies where schemaname='public' and tablen
 select ok((select with_check like '%SELECT auth.uid()%' from pg_policies where schemaname='public' and tablename='node_tags' and policyname='node_tags_contributor_insert'), 'assignment insert initializes auth.uid once per statement');
 select ok((select qual like '%SELECT auth.uid()%' from pg_policies where schemaname='public' and tablename='node_tags' and policyname='node_tags_contributor_delete'), 'assignment delete initializes auth.uid once per statement');
 
-insert into public.organizations(id, slug, name)
-values ('36000000-0000-4000-8000-000000000001', 'uix-01-test', 'UIX-01 test');
-insert into public.workspaces(id, organization_id, slug, name)
+insert into public.workspaces(id, slug, name)
 values (
   '36000000-0000-4000-8000-000000000002',
-  '36000000-0000-4000-8000-000000000001',
   'uix-01-test',
   'UIX-01 test'
 );
@@ -40,12 +37,9 @@ select is(
   'new workspaces seed only domain tags'
 );
 
-insert into public.organizations(id, slug, name)
-values ('36000000-0000-4000-8000-000000000020', 'uix-01-other', 'UIX-01 other');
-insert into public.workspaces(id, organization_id, slug, name)
+insert into public.workspaces(id, slug, name)
 values (
   '36000000-0000-4000-8000-000000000021',
-  '36000000-0000-4000-8000-000000000020',
   'uix-01-other',
   'UIX-01 other'
 );

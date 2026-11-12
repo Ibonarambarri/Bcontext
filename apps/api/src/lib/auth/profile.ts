@@ -4,7 +4,7 @@
  * There is no `profiles` table and this is why: the two strings a person
  * types into their profile already have a home in `auth.users.user_metadata`,
  * the auth server keeps them, and every surface that resolves a user id
- * (member rosters, org admin, activity) already goes through the admin API to
+ * (member rosters, instance admin, activity) already goes through the admin API to
  * read the email. A table would add a migration, a trigger, and a second
  * source of truth for `first_name`.
  *

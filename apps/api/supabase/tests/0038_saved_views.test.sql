@@ -10,12 +10,9 @@ select ok(not has_function_privilege('authenticated', 'public.seed_workspace_sys
 select ok(exists(select 1 from pg_policies where schemaname='public' and tablename='saved_views' and policyname='saved_views_member_read'), 'member read policy exists');
 select ok(exists(select 1 from pg_policies where schemaname='public' and tablename='saved_views' and policyname='saved_views_owner_update' and qual like '%kind%custom%'), 'system views are excluded from update policy');
 
-insert into public.organizations(id, slug, name) values
-  ('38000000-0000-4000-8000-000000000001', 'uix-02-test', 'UIX-02 test'),
-  ('38000000-0000-4000-8000-000000000002', 'uix-02-other', 'UIX-02 other');
-insert into public.workspaces(id, organization_id, slug, name) values
-  ('38000000-0000-4000-8000-000000000003', '38000000-0000-4000-8000-000000000001', 'uix-02-test', 'UIX-02 test'),
-  ('38000000-0000-4000-8000-000000000004', '38000000-0000-4000-8000-000000000002', 'uix-02-other', 'UIX-02 other');
+insert into public.workspaces(id, slug, name) values
+  ('38000000-0000-4000-8000-000000000003', 'uix-02-test', 'UIX-02 test'),
+  ('38000000-0000-4000-8000-000000000004', 'uix-02-other', 'UIX-02 other');
 
 select is((select count(*) from public.saved_views where workspace_id='38000000-0000-4000-8000-000000000003' and kind='system'), 8::bigint, 'new workspace gets eight system views');
 select is((select array_agg(name order by position) from public.saved_views where workspace_id='38000000-0000-4000-8000-000000000003'), array['Overview','Graph','Tasks','Roadmap','Decisions','Changes','Tags','Agents']::text[], 'system view seed order is canonical');

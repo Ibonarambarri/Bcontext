@@ -4,13 +4,13 @@
  *
  * Its own route, and a POST the admin has to ask for by name, because this
  * is the only step in the flow that cannot be undone: the link can be
- * revoked, the org renamed, the role changed — an email that left cannot be
+ * revoked, the workspace renamed, the role changed — an email that left cannot be
  * recalled. The outcome is written back on the invitation so a failed send
  * is visible in the panel instead of assumed.
  */
 import { z } from "zod";
 import { gateAdmin } from "@/lib/admin/access";
-import { AdminOrgError, sendInviteEmail } from "@/lib/admin/orgs";
+import { AdminWorkspaceError, sendAdminInviteEmail } from "@/lib/admin/workspaces";
 import { withRoute } from "@/lib/route";
 
 export const POST = withRoute(async (
@@ -24,14 +24,14 @@ export const POST = withRoute(async (
     return Response.json({ error: "invalid_id" }, { status: 400 });
   }
   try {
-    const invite = await sendInviteEmail(id);
+    const invite = await sendAdminInviteEmail(id);
     return Response.json({
       status: invite.email_status ?? "error",
       error: invite.email_error,
       invite,
     });
   } catch (err) {
-    if (err instanceof AdminOrgError) {
+    if (err instanceof AdminWorkspaceError) {
       return Response.json({ error: err.code, message: err.message }, { status: err.status });
     }
     throw err;

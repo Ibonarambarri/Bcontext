@@ -3,11 +3,12 @@
  * an agent asks first (MCP has `list_workspaces`).
  *
  *   GET  /api/workspaces[?stats=1]   what `gate` lets this principal see
- *   POST /api/workspaces             { organization, name, description? }
+ *   POST /api/workspaces             { name, description? } → 201 { workspace }
  *
- * `gate` accepts a session or a bearer token; creating is delegated to
- * `createWorkspaceForUser`, which decides whether the person may create inside that organization.
- * Without Supabase both read from the in-memory demo store.
+ * `gate` accepts a session or a bearer token; creating needs a session and
+ * is delegated to `createWorkspaceForUser`, which applies the instance's
+ * `WORKSPACE_CREATION` policy (403 `workspace_creation_restricted`). Without
+ * Supabase both read from the in-memory demo store.
  */
 import { z } from "zod";
 import { record as recordActivity } from "@/lib/activity";
@@ -16,25 +17,27 @@ import { gate } from "@/lib/auth/require";
 import {
   createWorkspaceForUser,
   listWorkspacesForUser,
+  mayCreateWorkspace,
+  WorkspaceCreateError,
 } from "@/lib/workspaces/registry";
 import { withRoute } from "@/lib/route";
 import { isSupabaseConfigured } from "@bcontext-dev/contract/env";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseForRequest } from "@/lib/supabase/request";
 import { listNodes as demoListNodes } from "@/lib/demo-store";
 import type { Workspace } from "@bcontext-dev/contract/types";
-import type {
-  OrganizationCard,
-  WorkspaceCard,
-  WorkspaceOrgRef,
-  WorkspaceRole,
+import {
+  WORKSPACE_NAME_MAX,
+  type WorkspaceCard,
+  type WorkspaceRole,
+  type WorkspacesResponse,
 } from "@bcontext-dev/contract/workspaces";
-import type { InviteRole } from "@bcontext-dev/contract/workspaces";
-import { WorkspaceCreateError } from "@/lib/workspaces/registry";
 
 /**
  * `?stats=1` returns each workspace as a hub card: the caller's role and the
- * counts the card shows. Opt-in, because it is four more queries that an
- * agent discovering its slug has no use for.
+ * counts the card shows, plus whether they may create another. Opt-in,
+ * because it is four more queries that an agent discovering its slug has no
+ * use for.
  */
 export const GET = withRoute(async (req: Request) => {
   const gated = await gate(req);
@@ -44,76 +47,24 @@ export const GET = withRoute(async (req: Request) => {
   if (new URL(req.url).searchParams.get("stats") !== "1") {
     return Response.json({ workspaces });
   }
-  // The hub groups by organization, so it needs the organizations too — and
-  // it needs the ones the caller belongs to even when they hold no workspace
-  // yet, or a freshly created company would render as an empty page with no
-  // way to put anything in it.
-  const [cards, organizations] = await Promise.all([
-    withStats(workspaces, userId),
-    listOrganizationsForUser(userId, workspaces),
-  ]);
-  return Response.json({ workspaces: cards, organizations });
+  const cards = await withStats(workspaces, userId);
+  const body: WorkspacesResponse = {
+    workspaces: cards,
+    can_create_workspace: await callerMayCreate(req, userId),
+  };
+  return Response.json(body);
 });
 
-/** The organizations the caller belongs to, with what they may do in each. */
-async function listOrganizationsForUser(
-  userId: string | null,
-  workspaces: Workspace[],
-): Promise<OrganizationCard[]> {
-  if (!isSupabaseConfigured() || !userId) {
-    // Demo store has no organizations; the hub renders one implicit group.
-    const orgIds = [...new Set(workspaces.map((w) => w.organization_id))];
-    return orgIds.map((id) => ({
-      id,
-      slug: "demo",
-      name: "Demo",
-      role: "owner" as InviteRole,
-      workspace_count: workspaces.filter((w) => w.organization_id === id).length,
-      member_count: 1,
-      can_create_workspace: true,
-      can_manage: true,
-    }));
-  }
-  const admin = getSupabaseAdmin();
-  const { data: memberships } = await admin
-    .from("organization_memberships")
-    .select("organization_id, role")
-    .eq("user_id", userId);
-  const rows = (memberships ?? []) as Array<{ organization_id: string; role: InviteRole }>;
-  if (rows.length === 0) return [];
-  const orgIds = rows.map((r) => r.organization_id);
-
-  const [{ data: orgs }, { data: allMembers }, { data: allWorkspaces }] = await Promise.all([
-    admin.from("organizations").select("id, slug, name").in("id", orgIds),
-    admin.from("organization_memberships").select("organization_id").in("organization_id", orgIds),
-    admin.from("workspaces").select("id, organization_id").in("organization_id", orgIds),
-  ]);
-  const byId = new Map(
-    ((orgs ?? []) as Array<{ id: string; slug: string; name: string }>).map((o) => [o.id, o]),
-  );
-  const countIn = (rowsIn: unknown, key: string): number =>
-    ((rowsIn ?? []) as Array<{ organization_id: string }>).filter(
-      (r) => r.organization_id === key,
-    ).length;
-
-  return rows
-    .map((m) => {
-      const org = byId.get(m.organization_id);
-      if (!org) return null;
-      const manages = m.role === "owner" || m.role === "admin";
-      return {
-        id: org.id,
-        slug: org.slug,
-        name: org.name,
-        role: m.role,
-        workspace_count: countIn(allWorkspaces, org.id),
-        member_count: countIn(allMembers, org.id),
-        can_create_workspace: manages,
-        can_manage: manages,
-      } satisfies OrganizationCard;
-    })
-    .filter((o): o is OrganizationCard => o !== null)
-    .sort((a, b) => a.name.localeCompare(b.name));
+/**
+ * The instance-admin allowlist is by email, which only the auth server can
+ * vouch for — so it is asked only when the policy is not simply `open`.
+ */
+async function callerMayCreate(req: Request, userId: string | null): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true;
+  if (!userId) return false;
+  if (mayCreateWorkspace(null)) return true;
+  const { data } = await getSupabaseForRequest(req).auth.getUser();
+  return mayCreateWorkspace(data.user?.email ?? null);
 }
 
 async function withStats(workspaces: Workspace[], userId: string | null): Promise<WorkspaceCard[]> {
@@ -125,12 +76,6 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
       return {
         ...w,
         role: "owner",
-        organization: {
-          id: w.organization_id,
-          slug: "demo",
-          name: "Demo",
-          role: "owner" as InviteRole,
-        },
         member_count: 1,
         open_task_count: nodes.filter((n) => n.kind === "task" && n.status !== "done").length,
         node_count: nodes.length,
@@ -141,7 +86,6 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
 
   const admin = getSupabaseAdmin();
   const ids = workspaces.map((w) => w.id);
-  const orgIds = [...new Set(workspaces.map((w) => w.organization_id))];
   // Mutually independent, so issued together rather than one after another.
   const [
     { data: mine },
@@ -149,26 +93,18 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
     { data: openTasks },
     { data: nodes },
     { data: activity },
-    { data: orgs },
-    { data: orgRoles },
   ] = await Promise.all([
-      admin.from("memberships").select("workspace_id, role").eq("user_id", userId).in("workspace_id", ids),
-      admin.from("memberships").select("workspace_id").in("workspace_id", ids),
-      admin.from("nodes").select("workspace_id").in("workspace_id", ids).eq("kind", "task").neq("status", "done"),
-      admin.from("nodes").select("workspace_id").in("workspace_id", ids),
-      admin
-        .from("activity")
-        .select("workspace_id, created_at")
-        .in("workspace_id", ids)
-        .order("created_at", { ascending: false })
-        .limit(200),
-      admin.from("organizations").select("id, slug, name").in("id", orgIds),
-      admin
-        .from("organization_memberships")
-        .select("organization_id, role")
-        .eq("user_id", userId)
-        .in("organization_id", orgIds),
-    ]);
+    admin.from("memberships").select("workspace_id, role").eq("user_id", userId).in("workspace_id", ids),
+    admin.from("memberships").select("workspace_id").in("workspace_id", ids).neq("role", "agent"),
+    admin.from("nodes").select("workspace_id").in("workspace_id", ids).eq("kind", "task").neq("status", "done"),
+    admin.from("nodes").select("workspace_id").in("workspace_id", ids),
+    admin
+      .from("activity")
+      .select("workspace_id, created_at")
+      .in("workspace_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
 
   const count = (rows: unknown): Map<string, number> => {
     const out = new Map<string, number>();
@@ -188,31 +124,9 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
     if (!lastActivity.has(a.workspace_id)) lastActivity.set(a.workspace_id, a.created_at);
   }
 
-  const orgById = new Map(
-    ((orgs ?? []) as Array<{ id: string; slug: string; name: string }>).map((o) => [o.id, o]),
-  );
-  const orgRole = new Map(
-    ((orgRoles ?? []) as Array<{ organization_id: string; role: InviteRole }>).map((m) => [
-      m.organization_id,
-      m.role,
-    ]),
-  );
-  const orgRef = (w: Workspace): WorkspaceOrgRef => {
-    const org = orgById.get(w.organization_id);
-    return {
-      id: w.organization_id,
-      slug: org?.slug ?? "",
-      name: org?.name ?? "",
-      role: orgRole.get(w.organization_id) ?? null,
-    };
-  };
-
   return workspaces.map((w) => ({
     ...w,
-    // Administering the organization is a role in every workspace it holds,
-    // even the ones this person never joined — same rule `resolveGrant` applies.
-    role: role.get(w.id) ?? orgRole.get(w.organization_id) ?? "viewer",
-    organization: orgRef(w),
+    role: role.get(w.id) ?? "viewer",
     member_count: memberCount.get(w.id) ?? 1,
     open_task_count: taskCount.get(w.id) ?? 0,
     node_count: nodeCount.get(w.id) ?? 0,
@@ -221,13 +135,11 @@ async function withStats(workspaces: Workspace[], userId: string | null): Promis
 }
 
 /**
- * The organization is required and the slug is not accepted: a workspace is
- * created inside a company by someone who administers it, and its address is
- * derived from its name (see `@/lib/slugs`).
+ * The slug is not accepted: a workspace's address is derived from its name
+ * (see `@/lib/slugs`).
  */
 const CreateSchema = z.object({
-  organization: z.string().trim().min(1).max(80),
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1, "The workspace needs a name.").max(WORKSPACE_NAME_MAX),
   description: z.string().max(280).optional(),
 });
 
@@ -239,13 +151,22 @@ export const POST = withRoute(async (req: Request) => {
   const parsed = CreateSchema.safeParse(body.data);
   if (!parsed.success) {
     return Response.json(
-      { error: parsed.error.flatten() },
+      { error: "invalid_body", message: parsed.error.issues[0]?.message ?? "invalid body" },
       { status: 400 },
+    );
+  }
+  if (isSupabaseConfigured() && gated.kind !== "user") {
+    return Response.json(
+      { error: "user_session_required", message: "Sign in to create a workspace." },
+      { status: 401 },
     );
   }
   try {
     const userId = gated.kind === "user" ? gated.userId : null;
-    const ws = await createWorkspaceForUser(userId, parsed.data);
+    const email = userId && isSupabaseConfigured()
+      ? (await getSupabaseForRequest(req).auth.getUser()).data.user?.email ?? null
+      : null;
+    const ws = await createWorkspaceForUser({ id: userId, email }, parsed.data);
     recordActivity(ws.id, "workspace", null, ws.name, "created");
     return Response.json({ workspace: ws }, { status: 201 });
   } catch (err) {
@@ -255,6 +176,8 @@ export const POST = withRoute(async (req: Request) => {
         { status: err.status },
       );
     }
+    // The demo store refuses a name whose slug is taken by throwing; that is
+    // a conflict, not a server error.
     return Response.json(
       { error: err instanceof Error ? err.message : "create failed" },
       { status: 409 },

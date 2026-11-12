@@ -4,7 +4,7 @@
  * The `@` mention menu of the TipTap editor (`editor.tsx` registers it as an
  * extension). Typing `@` opens a floating list of the workspace's nodes,
  * ranked by the contract's `searchMentions`; picking one inserts the node's
- * title as a link to `/w/<org>/<ws>/n/<id>` — a mention IS a link, which is
+ * title as a link to `/w/<ws>/n/<id>` — a mention IS a link, which is
  * what the backlink index reads. Candidates come from the editor's props
  * (`getCandidates`), not from a fetch, so the menu is instant.
  *
@@ -144,7 +144,7 @@ export const MentionMenu = Extension.create<MentionMenuOptions>({
   name: "mentionMenu",
   addOptions() {
     return {
-      workspace: { org: "", slug: "" },
+      workspace: { slug: "" },
       getCandidates: () => [],
     };
   },

@@ -11,54 +11,32 @@
  * the list and answers 404 on the tree; the page turns either into
  * `notFound()` and never has to know why.
  *
- * Everything here is addressed by the `<org>/<workspace>` pair the URL
- * carries — a bare slug names a workspace in every organization that chose
- * the same name, so the API resolves nothing from one.
+ * Everything here is addressed by the workspace slug the URL carries, which
+ * is unique across the instance.
  */
 import { cache } from "react";
 import { apiJson, apiJsonOrNull } from "@/web/api-client";
 import { workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
 import type { KnowledgeNode, NodeSummary } from "@bcontext-dev/contract/types";
-import type {
-  OrganizationCard,
-  WorkspaceCard,
-  WorkspacesResponse,
-} from "@bcontext-dev/contract/workspaces";
+import type { WorkspaceCard, WorkspacesResponse } from "@bcontext-dev/contract/workspaces";
 
 /**
- * The workspaces the signed-in person belongs to (every seeded one in demo).
- *
- * `?stats=1` is what carries the organization each workspace lives in, and a
- * slug means nothing without it: the shell has to tell `acme/docs` apart from
- * `globex/docs` both to pick the current one and to link to either.
+ * The workspaces the signed-in person belongs to (every seeded one in demo),
+ * with the card figures (`?stats=1`) the switcher and the hub show.
  */
 const listWorkspaceHub = cache(async (): Promise<WorkspacesResponse> => {
-  const body = await apiJson<WorkspacesResponse>("/api/workspaces?stats=1");
-  return { workspaces: body.workspaces, organizations: body.organizations ?? [] };
+  return apiJson<WorkspacesResponse>("/api/workspaces?stats=1");
 });
 
-/** The workspaces the signed-in person can open, across every organization. */
+/** The workspaces the signed-in person can open. */
 export async function listWorkspaces(): Promise<WorkspaceCard[]> {
   return (await listWorkspaceHub()).workspaces;
-}
-
-/**
- * The organizations behind those workspaces, with their workspace and member
- * counts. The shell reads them for one reason only: to decide whether the
- * organization level is worth showing at all (`@/lib/org-layer`).
- */
-export async function listOrganizations(): Promise<OrganizationCard[]> {
-  return (await listWorkspaceHub()).organizations;
 }
 
 /** The current workspace, or null when it is not one of the caller's. */
 export async function findWorkspace(ws: WorkspaceAddress): Promise<WorkspaceCard | null> {
   const workspaces = await listWorkspaces();
-  return (
-    workspaces.find(
-      (item) => item.slug === ws.slug && item.organization.slug === ws.org,
-    ) ?? null
-  );
+  return workspaces.find((item) => item.slug === ws.slug) ?? null;
 }
 
 /**
@@ -75,10 +53,10 @@ export function getNode(ws: WorkspaceAddress, nodeId: string): Promise<Knowledge
 }
 
 /*
- * The memoised reads take the `<org>~<workspace>` ref rather than the pair,
+ * The memoised reads take the slug string rather than the address object,
  * because `React.cache` keys on argument identity: the layout and the page
- * each build their own `{ org, slug }` for the same workspace, and two
- * objects that are equal but not identical would be two fetches.
+ * each build their own `{ slug }` for the same workspace, and two objects
+ * that are equal but not identical would be two fetches.
  */
 
 const summariesByRef = cache(async (ref: string): Promise<NodeSummary[] | null> => {

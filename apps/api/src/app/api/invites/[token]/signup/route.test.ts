@@ -16,7 +16,7 @@ const state: {
 vi.mock("@/lib/auth/require", () => ({
   gate: async () => ({ kind: "demo" }),
 }));
-vi.mock("@/lib/workspaces/orgs", () => ({
+vi.mock("@/lib/workspaces/members", () => ({
   findInviteByToken: async () => state.invite,
 }));
 vi.mock("@/lib/supabase/admin", () => ({

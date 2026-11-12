@@ -10,14 +10,12 @@ import { Resend } from "resend";
 import { log } from "@bcontext-dev/contract/log";
 import { appBaseUrl } from "@/lib/app-url";
 import { emailFooter, emailFrom } from "@/lib/emails/sender";
-import { workspaceRefFor } from "@/lib/workspaces/ref";
 
 export interface DigestEmailInput {
   to: string[];
   workspaceName: string;
+  /** The `/w/<slug>/n/<id>` link is built from it. */
   workspaceSlug: string;
-  /** Needed to build the `/w/<org>/<ws>/n/<id>` link; falls back to the slug. */
-  organizationId?: string;
   nodeId: string;
   title: string;
   markdown: string;
@@ -139,15 +137,12 @@ export async function sendDigestEmail(input: DigestEmailInput): Promise<DigestEm
   if (input.to.length === 0) return { status: "skipped", error: "no recipients", messageId: null };
 
   const base = appBaseUrl();
-  const ref = input.organizationId
-    ? await workspaceRefFor({ organization_id: input.organizationId, slug: input.workspaceSlug })
-    : input.workspaceSlug;
-  const url = `${base}/w/${ref}/n/${input.nodeId}`;
+  const url = `${base}/w/${input.workspaceSlug}/n/${input.nodeId}`;
   const html = renderHtml({
     title: input.title,
     workspaceName: input.workspaceName,
     url,
-    body: digestMarkdownToHtml(input.markdown, `${base}/w/${ref}`),
+    body: digestMarkdownToHtml(input.markdown, `${base}/w/${input.workspaceSlug}`),
   });
   const text = `${input.title}\n\n${input.markdown}\n\n${url}`;
 

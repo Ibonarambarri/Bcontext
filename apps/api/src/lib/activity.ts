@@ -7,7 +7,7 @@
  */
 
 import { correlationId } from "@bcontext-dev/contract/correlation";
-import { parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
+import { findWorkspaceByRef } from "@/lib/workspaces/resolve";
 import {
   CHANGE_RETENTION_DAYS,
   decodeChangeCursor,
@@ -444,31 +444,14 @@ export function list(workspace: string, limit = 50, kinds?: ActivityKind[]): Act
 
 /**
  * The workspace an entry belongs to, from however the caller named it: an
- * id, or `<org>/<workspace>`. A bare slug is resolved only when exactly one
- * workspace answers to it — with organizations holding many workspaces the
- * same name lives in several, and attributing someone's activity to another
- * company's project is not a mistake anyone would catch by reading a feed.
+ * id, a slug, or a legacy `<org>/<workspace>` pair (`findWorkspaceByRef`).
  */
-async function resolveWorkspaceId(
-  admin: ReturnType<typeof getSupabaseAdmin>,
-  named: string,
-): Promise<string | null> {
+async function resolveWorkspaceId(named: string): Promise<string | null> {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(named)) {
     return named;
   }
-  const ref = parseWorkspaceRef(named);
-  if (ref) {
-    const { data } = await admin
-      .from("workspaces")
-      .select("id, organization:organizations!inner(slug)")
-      .eq("slug", ref.workspace)
-      .eq("organization.slug", ref.org)
-      .maybeSingle();
-    return (data?.id as string | undefined) ?? null;
-  }
-  const { data } = await admin.from("workspaces").select("id").eq("slug", named).limit(2);
-  const rows = (data ?? []) as Array<{ id: string }>;
-  return rows.length === 1 ? (rows[0]?.id ?? null) : null;
+  const row = await findWorkspaceByRef(named, "id");
+  return (row?.id as string | undefined) ?? null;
 }
 
 async function persistToSupabase(args: {
@@ -480,7 +463,7 @@ async function persistToSupabase(args: {
   actor: ActivityActor;
 }): Promise<void> {
   const admin = getSupabaseAdmin();
-  const workspace = await resolveWorkspaceId(admin, args.slug);
+  const workspace = await resolveWorkspaceId(args.slug);
   if (!workspace) return;
   const payload = redactChangeValue({
     ...(args.actor.payload ?? {}),

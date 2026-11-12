@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Accepting needs a person — the grant is born with a principal to attach it
- * to — and the answer names the workspace slug the hub understands, not only
- * the org slug the accept helper returns.
+ * to — and the answer names the one workspace the invitation was for, which
+ * is where the page lands the person.
  */
 const state: {
   gate: unknown;
@@ -21,7 +21,7 @@ vi.mock("@/lib/auth/invitations", () => ({
     return state.result;
   },
 }));
-vi.mock("@/lib/workspaces/orgs", () => ({
+vi.mock("@/lib/workspaces/members", () => ({
   findInviteByToken: async () => state.invite,
 }));
 vi.mock("@/lib/supabase/request", () => ({
@@ -29,18 +29,6 @@ vi.mock("@/lib/supabase/request", () => ({
     auth: { getUser: async () => ({ data: { user: { id: "u1", email: "ana@example.com" } } }) },
   }),
 }));
-// The lookup is `select → eq → in → order → limit → maybeSingle`: the
-// invitation names the workspaces, so the query filters by them.
-vi.mock("@/lib/supabase/admin", () => {
-  const single = { maybeSingle: async () => ({ data: { slug: "acme" } }) };
-  const chain: Record<string, unknown> = {};
-  chain.select = () => chain;
-  chain.eq = () => chain;
-  chain.in = () => chain;
-  chain.order = () => chain;
-  chain.limit = () => single;
-  return { getSupabaseAdmin: () => ({ from: () => chain }) };
-});
 
 import { POST } from "./route";
 
@@ -55,8 +43,8 @@ const post = (token: string) =>
 
 afterEach(() => {
   state.gate = { kind: "user", userId: "u1" };
-  state.invite = { organization_id: "org-1" };
-  state.result = { orgSlug: "acme-x1" };
+  state.invite = { workspace_id: "ws-1", workspace_slug: "acme" };
+  state.result = { workspaceSlug: "acme" };
   state.accepted = [];
 });
 
@@ -76,29 +64,14 @@ describe("POST /api/invites/:token/accept", () => {
 
   it("accepts as the signed-in person and lands them in the workspace they were invited to", async () => {
     state.gate = { kind: "user", userId: "u1" };
-    state.invite = { organization_id: "org-1", workspace_ids: ["ws-1"] };
-    state.result = { orgSlug: "acme-x1" };
     const res = await post("tok");
     expect(res.status).toBe(200);
     expect(state.accepted).toEqual([["tok", { id: "u1", email: "ana@example.com" }]]);
-    expect(await res.json()).toEqual({ orgSlug: "acme-x1", workspaceSlug: "acme" });
-  });
-
-  it("lands an organization-only invitation on the hub, not in a workspace", async () => {
-    // An owner or admin is invited to the company, not to a list of
-    // projects: their role reaches every workspace it holds, so there is no
-    // single one to drop them into.
-    state.gate = { kind: "user", userId: "u1" };
-    state.invite = { organization_id: "org-1", workspace_ids: null };
-    state.result = { orgSlug: "acme-x1" };
-    const res = await post("tok");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ orgSlug: "acme-x1", workspaceSlug: null });
+    expect(await res.json()).toEqual({ workspaceSlug: "acme" });
   });
 
   it("surfaces a refusal as a 400 with the reason", async () => {
     state.gate = { kind: "user", userId: "u1" };
-    state.invite = { organization_id: "org-1" };
     state.result = { error: "This invitation was sent to bob@example.com. Sign in with that email to accept." };
     const res = await post("tok");
     expect(res.status).toBe(400);

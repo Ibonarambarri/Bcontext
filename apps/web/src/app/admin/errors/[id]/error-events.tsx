@@ -140,7 +140,6 @@ function EventRow({
             items={[
               ["actor", event.actor_type],
               ["user", event.user_id],
-              ["organization", event.organization_id],
               ["workspace", event.workspace_id],
               ["token", event.token_id],
             ]}

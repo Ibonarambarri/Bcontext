@@ -574,8 +574,8 @@ export function DataNodeView({
 }: DataNodeViewProps) {
   const toast = useToast();
   const { nodes, patchNodeSummary } = useWorkspace();
-  const { org, slug } = workspace;
-  const address = useMemo<WorkspaceAddress>(() => ({ org, slug }), [org, slug]);
+  const { slug } = workspace;
+  const address = useMemo<WorkspaceAddress>(() => ({ slug }), [slug]);
 
   const seeded = useMemo(() => datasetFromNodeData(initialData), [initialData]);
   const [stage, setStage] = useState<Stage>(() =>

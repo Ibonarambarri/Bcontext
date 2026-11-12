@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { isSupabaseConfigured } from "@bcontext-dev/contract/env";
 import { ApiError, apiJson, apiJsonOrNull } from "@/web/api-client";
 import { getSession } from "@/web/session";
+import { workspacePath } from "@/web/workspace-url";
 import { AuthShell } from "@/components/auth/AuthShell";
 import type { InviteAccepted, InvitePreview } from "@bcontext-dev/contract/workspaces";
 import { InviteAuthForm } from "./invite-auth-form";
@@ -66,14 +67,9 @@ export default async function InvitePage({ params }: Props) {
         <div>
           <div className="pa-kicker">Invitation</div>
           <h1 className="pa-title">
-            Join <em>{invite.organization_name}.</em>
+            You&apos;ve been invited to <em>{invite.workspace_name}.</em>
           </h1>
-          <InviteAuthForm
-            token={token}
-            invitedEmail={invite.email}
-            organizationName={invite.organization_name}
-            role={invite.role}
-          />
+          <InviteAuthForm token={token} invitedEmail={invite.email} role={invite.role} />
         </div>
       </AuthShell>
     );
@@ -114,10 +110,9 @@ export default async function InvitePage({ params }: Props) {
     if (!(err instanceof ApiError)) throw err;
     failure = err.message;
   }
-  // Outside the try: Next implements `redirect` by throwing.
-  if (accepted) {
-    redirect(`/workspaces?ws=${accepted.workspaceSlug ?? accepted.orgSlug}` as Route);
-  }
+  // Outside the try: Next implements `redirect` by throwing. Every invitation
+  // is to one workspace, so there is always one to land in.
+  if (accepted) redirect(workspacePath(accepted.workspaceSlug) as Route);
 
   return (
     <Message

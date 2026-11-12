@@ -12,8 +12,9 @@ worker | errors`). The web app is `apps/web`; the types both share are
 
 ## What's inside
 
-- **MCP server** at `/mcp` and, per workspace, `/mcp/<org>/<workspace>`
-  (Streamable HTTP, stateless): 25 tools —
+- **MCP server** at `/mcp` and, per workspace, `/mcp/<workspace>`
+  (Streamable HTTP, stateless; the pre-0100 `/mcp/<org>/<workspace>` path is
+  still served as an alias): 25 tools —
   `brief`, `nodes` / `nodes_write`, `subtasks` / `subtasks_write`, `goals` /
   `goals_write`, `data` / `data_write`, `tags` / `tags_write`, `views` /
   `views_write`, `links_write`, `ingest` / `ingest_write`, `skills` /
@@ -35,14 +36,17 @@ worker | errors`). The web app is `apps/web`; the types both share are
   RLS is not evaluated at runtime — the grant model is the authorisation.
   Agent tokens (`bctx_live_…`) or OAuth 2.1 with PKCE, dynamic client
   registration and resource indicators (RFC 8707): a grant made through
-  `/mcp/<org>/<workspace>` is that workspace's alone.
-- **Organizations and accounts**: a signed-in person creates an
-  organization with its first workspace (`POST /api/organizations`) and
-  becomes its owner; others join by invitation. `ORG_CREATION=open` (default)
-  also allows self-service signup (`POST /api/signup`); `admin` keeps both to
-  the instance admins (`ADMIN_EMAILS`), who create organizations and invite
-  their owners. No plans, quotas or billing: usage is counted per
-  organization for administrators to read, never enforced.
+  `/mcp/<workspace>` is that workspace's alone.
+- **Workspaces and accounts**: the workspace is the only top-level entity —
+  members with a role (`owner`, `admin`, `editor`, `viewer`), agents,
+  invitations and usage all belong to one, and its slug is unique across the
+  instance. A signed-in person creates a workspace (`POST /api/workspaces`)
+  and becomes its owner; others join by invitation.
+  `WORKSPACE_CREATION=open` (default) also allows self-service signup
+  (`POST /api/signup`); `admin` keeps both to the instance admins
+  (`ADMIN_EMAILS`), who create workspaces and invite their owners. No plans,
+  quotas or billing: usage is counted per workspace for administrators to
+  read, never enforced.
 - **Knowledge graph**: docs, tasks (with subtasks), decisions, meetings, bugs,
   ADRs, goals, datasets, skills, credentials as typed nodes; H2 headings
   become addressable blocks (`/n/<id>#<slug>`); typed edges (`blocked_by`,
@@ -112,7 +116,7 @@ ones that matter first:
 | `REALTIME_SECRET` | api, worker | `POST /realtime/broadcast` for a process without `DATABASE_URL` |
 | `ERRORS_INGEST_URL`, `ERRORS_INGEST_KEY`, `ERRORS_*` | all | the error collector; unset = reporting is a no-op |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `INSTANCE_NAME` | api, worker | email: no sender default, so without both nothing is sent |
-| `ORG_CREATION` (`open` \| `admin`) | api | who may sign up and create organizations (`admin` = only `ADMIN_EMAILS`) |
+| `WORKSPACE_CREATION` (`open` \| `admin`) | api | who may sign up and create workspaces (`admin` = only `ADMIN_EMAILS`). The pre-0100 name `ORG_CREATION` is still read when this is unset |
 
 ## Repo layout
 
@@ -168,7 +172,7 @@ for uptime.
 
 ## Agents, in one paragraph
 
-Connect an MCP host to `https://<your domain>/mcp/<org>/<workspace>` with a
+Connect an MCP host to `https://<your domain>/mcp/<workspace>` with a
 workspace agent token (`bctx_live_…`, created in the web app under Agents) or
 through OAuth 2.1 — the per-workspace URL is the one for a project's own
 `.mcp.json`, and OAuth through it yields a token bound to that workspace.

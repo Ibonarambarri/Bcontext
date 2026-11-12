@@ -1,6 +1,6 @@
 /**
  * Client-bundle budgets for the two routes that matter: the workspace shell
- * (`/w/[org]/[ws]`) and the node editor (`/w/[org]/[ws]/n/[nodeId]`).
+ * (`/w/[ws]`) and the node editor (`/w/[ws]/n/[nodeId]`).
  *
  * Reads the client-reference manifests `next build` writes, sums the gzip size
  * of every chunk loaded synchronously on first paint (async chunks are the
@@ -12,8 +12,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const shellManifest = join(process.cwd(), ".next", "server", "app", "w", "[org]", "[ws]", "page_client-reference-manifest.js");
-const editorManifest = join(process.cwd(), ".next", "server", "app", "w", "[org]", "[ws]", "n", "[nodeId]", "page_client-reference-manifest.js");
+const shellManifest = join(process.cwd(), ".next", "server", "app", "w", "[ws]", "page_client-reference-manifest.js");
+const editorManifest = join(process.cwd(), ".next", "server", "app", "w", "[ws]", "n", "[nodeId]", "page_client-reference-manifest.js");
 if (!existsSync(shellManifest) || !existsSync(editorManifest)) throw new Error("run `npm run build` before perf:budget");
 
 const shellBytes = gzipBytes(initialChunks(shellManifest));

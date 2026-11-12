@@ -47,7 +47,8 @@ import * as tokenModule from "@/app/api/tokens/[id]/route";
 import * as userTokens from "@/app/api/tokens/user/route";
 import * as userTokenModule from "@/app/api/tokens/user/[id]/route";
 import * as mcp from "@/app/mcp/route";
-import * as mcpWorkspaceModule from "@/app/mcp/[org]/[workspace]/route";
+import * as mcpWorkspaceModule from "@/app/mcp/[workspace]/route";
+import * as mcpLegacyModule from "@/app/mcp/[org]/[workspace]/route";
 
 // Dynamic-segment modules type their params as `Promise<{ id: string }>`, narrower
 // than the adapter's `Record<string, string>`; the generated table casts for the
@@ -56,6 +57,7 @@ const connection = connectionModule as unknown as RouteModule;
 const token = tokenModule as unknown as RouteModule;
 const userToken = userTokenModule as unknown as RouteModule;
 const mcpWorkspace = mcpWorkspaceModule as unknown as RouteModule;
+const mcpLegacy = mcpLegacyModule as unknown as RouteModule;
 
 /** The seeded demo workspace `bcontext`; `getStorageById` falls back to it without Supabase. */
 const DEMO_WORKSPACE_ID = "00000000-0000-0000-0000-000000000010";
@@ -87,19 +89,35 @@ vi.mock("@/lib/auth/tokens", async (importOriginal) => {
 
 vi.mock("@/lib/supabase/admin", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/supabase/admin")>();
-  // The only query a workspace token triggers before reaching the transport is
-  // `resolveAgentWorkspaceOr401`'s slug lookup (with the organization joined
-  // in when the path names the workspace). Anything else would be a change in
-  // the route worth knowing about, so the stub answers that and nothing more.
-  const workspaces = {
-    select: () => workspaces,
-    eq: () => workspaces,
-    maybeSingle: async () => ({ data: { slug: "bcontext", organization: { slug: "acme" } }, error: null }),
+  // The only queries a workspace token triggers before reaching the transport
+  // are `resolveAgentWorkspaceOr401`'s: the token's workspace, and — when the
+  // path names one — that name resolved (by slug, or through the legacy pair
+  // table for the `/mcp/<org>/<workspace>` alias). Anything else would be a
+  // change in the route worth knowing about, so the stub answers those and
+  // nothing more.
+  const rowsFor = (table: string): Array<Record<string, unknown>> => {
+    if (table === "workspaces") return [{ id: DEMO_WORKSPACE_ID, slug: "bcontext" }];
+    if (table === "workspace_legacy_refs") {
+      return [{ legacy_ref: "acme/bcontext", workspace_id: DEMO_WORKSPACE_ID }];
+    }
+    throw new Error(`parity stub: unexpected query on ${table}`);
   };
   const admin = {
     from: (table: string) => {
-      if (table !== "workspaces") throw new Error(`parity stub: unexpected query on ${table}`);
-      return workspaces;
+      const rows = rowsFor(table);
+      const where: Array<[string, unknown]> = [];
+      const q = {
+        select: () => q,
+        eq: (col: string, val: unknown) => {
+          where.push([col, val]);
+          return q;
+        },
+        maybeSingle: async () => ({
+          data: rows.find((r) => where.every(([c, v]) => r[c] === v)) ?? null,
+          error: null,
+        }),
+      };
+      return q;
     },
   };
   return { ...actual, getSupabaseAdmin: () => (stubs.mcp ? admin : actual.getSupabaseAdmin()) };
@@ -409,22 +427,22 @@ describe("parity: mcp (unauthenticated)", () => {
 });
 
 describe("parity: mcp per workspace (unauthenticated)", () => {
-  const params = { org: "acme", workspace: "bcontext" };
-  it("GET /mcp/:org/:workspace", () =>
-    assertParity(app, mcpWorkspace, { method: "GET", path: "/mcp/acme/bcontext", params }));
-  it("POST /mcp/:org/:workspace", () =>
+  const params = { workspace: "bcontext" };
+  it("GET /mcp/:workspace", () =>
+    assertParity(app, mcpWorkspace, { method: "GET", path: "/mcp/bcontext", params }));
+  it("POST /mcp/:workspace", () =>
     assertParity(app, mcpWorkspace, {
       method: "POST",
-      path: "/mcp/acme/bcontext",
+      path: "/mcp/bcontext",
       params,
       headers: MCP_ACCEPT,
       body: { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
     }));
-  it("POST /mcp/:org/:workspace (malformed pair)", () =>
+  it("POST /mcp/:workspace (malformed slug)", () =>
     assertParity(app, mcpWorkspace, {
       method: "POST",
-      path: "/mcp/Acme%20Inc/bcontext",
-      params: { org: "Acme Inc", workspace: "bcontext" },
+      path: "/mcp/Acme%20Inc",
+      params: { workspace: "Acme Inc" },
       headers: MCP_ACCEPT,
       body: {},
     }));
@@ -433,12 +451,33 @@ describe("parity: mcp per workspace (unauthenticated)", () => {
     for (const method of ["GET", "POST"] as const) {
       const value = await assertHeaderParity(
         mcpWorkspace,
-        { method, path: "/mcp/acme/bcontext", params, body: method === "POST" ? {} : undefined },
+        { method, path: "/mcp/bcontext", params, body: method === "POST" ? {} : undefined },
         "www-authenticate",
       );
       expect(value).toContain('resource_metadata="');
-      expect(value).toContain("/.well-known/oauth-protected-resource/mcp/acme/bcontext");
+      expect(value).toContain("/.well-known/oauth-protected-resource/mcp/bcontext\"");
     }
+  });
+
+  // The pre-0100 alias is served, not redirected, and its 401 keeps pointing
+  // at its own document: a client configured with the old URL validates that
+  // the resource it is told about is the one it called.
+  const legacy = { org: "acme", workspace: "bcontext" };
+  it("POST /mcp/:org/:workspace (legacy alias)", () =>
+    assertParity(app, mcpLegacy, {
+      method: "POST",
+      path: "/mcp/acme/bcontext",
+      params: legacy,
+      headers: MCP_ACCEPT,
+      body: { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+    }));
+  it("the legacy alias advertises its own resource_metadata", async () => {
+    const value = await assertHeaderParity(
+      mcpLegacy,
+      { method: "POST", path: "/mcp/acme/bcontext", params: legacy, body: {} },
+      "www-authenticate",
+    );
+    expect(value).toContain("/.well-known/oauth-protected-resource/mcp/acme/bcontext");
   });
 });
 
@@ -497,8 +536,19 @@ describe("parity: mcp (JSON-RPC over the route)", () => {
     expect(value).toContain('resource_metadata="');
   });
 
-  it("POST /mcp/:org/:workspace tools/call ping on the token's own workspace", async () => {
+  it("POST /mcp/:workspace tools/call ping on the token's own workspace", async () => {
     const direct = await assertParity(app, mcpWorkspace, {
+      method: "POST",
+      path: "/mcp/bcontext",
+      params: { workspace: "bcontext" },
+      headers: authed,
+      body: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "ping", arguments: {} } },
+    });
+    expect(direct.status).toBe(200);
+    expect(JSON.stringify(direct.body)).toContain("pong (workspace=bcontext)");
+  });
+  it("POST /mcp/:org/:workspace (legacy alias) answers as the same workspace", async () => {
+    const direct = await assertParity(app, mcpLegacy, {
       method: "POST",
       path: "/mcp/acme/bcontext",
       params: { org: "acme", workspace: "bcontext" },
@@ -508,11 +558,11 @@ describe("parity: mcp (JSON-RPC over the route)", () => {
     expect(direct.status).toBe(200);
     expect(JSON.stringify(direct.body)).toContain("pong (workspace=bcontext)");
   });
-  it("POST /mcp/:org/:workspace on another workspace: 404, not 403", async () => {
+  it("POST /mcp/:workspace on another workspace: 404, not 403", async () => {
     const direct = await assertParity(app, mcpWorkspace, {
       method: "POST",
-      path: "/mcp/acme/other",
-      params: { org: "acme", workspace: "other" },
+      path: "/mcp/other",
+      params: { workspace: "other" },
       headers: authed,
       body: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "ping", arguments: {} } },
     });

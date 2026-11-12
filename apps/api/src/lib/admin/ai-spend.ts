@@ -1,34 +1,34 @@
 /**
- * What each organization's AI calls cost, read from the usage ledger.
+ * What each workspace's AI calls cost, read from the usage ledger.
  *
- * Called by the admin organizations list and detail (`src/lib/admin/orgs.ts`)
+ * Called by the admin workspaces list and detail (`src/lib/admin/workspaces.ts`)
  * and by the usage dashboard (`src/lib/admin/metrics.ts`). Everything runs on
  * the service-role client, so every caller must have gone through
  * `gateAdmin` first.
  *
  * The source is `ai_usage_events.cost_usd`, one row per model call, summed
- * in Postgres by `admin_ai_spend` (migration 0093): the events grow by
+ * in Postgres by `admin_ai_spend` (migrations 0093, 0100): the events grow by
  * thousands a month, and paging them into TypeScript to add them up is the
- * query that gets worse with every organization.
+ * query that gets worse with every workspace.
  *
  * Do not break: a failed read degrades to `null`/zero with a warning, never
- * to a 500 — the customer list and the dashboard are still worth drawing
+ * to a 500 — the workspace list and the dashboard are still worth drawing
  * without this column.
  */
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { log } from "@bcontext-dev/contract/log";
 
 /**
- * The spend figures that ride on an organization row in the admin panel.
+ * The spend figures that ride on a workspace row in the admin panel.
  * Amounts are USD, rounded to the ledger's own precision (six decimals), so
  * a cheap month of embeddings does not vanish to $0.00 before the panel
  * decides how to print it.
  */
-export interface AdminOrgAiSpend {
-  /** Every AI call this organization's workspaces ever made. */
+export interface AdminWorkspaceAiSpend {
+  /** Every AI call this workspace ever made. */
   total_usd: number;
   total_events: number;
-  /** The rolling window the operator actually compares customers on. */
+  /** The rolling window the operator actually compares workspaces on. */
   last_30d_usd: number;
   last_30d_events: number;
   /**
@@ -42,7 +42,7 @@ export interface AdminOrgAiSpend {
 const DAY_MS = 86_400_000;
 
 interface SpendRow {
-  organization_id: string;
+  workspace_id: string;
   events: number | string | null;
   cost_usd: number | string | null;
   unpriced_events: number | string | null;
@@ -66,12 +66,12 @@ function round6(n: number): number {
 async function readSpend(args: {
   since?: Date | null;
   until?: Date | null;
-  organizationIds?: string[] | null;
+  workspaceIds?: string[] | null;
 }): Promise<SpendRow[] | null> {
   const { data, error } = await getSupabaseAdmin().rpc("admin_ai_spend", {
     p_since: args.since?.toISOString() ?? null,
     p_until: args.until?.toISOString() ?? null,
-    p_organization_ids: args.organizationIds ?? null,
+    p_workspace_ids: args.workspaceIds ?? null,
   });
   if (error) {
     log.warn("admin.ai_spend.read_failed", { error: { message: error.message } });
@@ -81,29 +81,29 @@ async function readSpend(args: {
 }
 
 /**
- * Spend per organization, total and over the last 30 days, for the
- * organizations on the page — two reads whatever the page size.
+ * Spend per workspace, total and over the last 30 days, for the workspaces
+ * on the page — two reads whatever the page size.
  *
- * Organizations with no events are simply absent from the map; the caller
+ * Workspaces with no events are simply absent from the map; the caller
  * prints zero for them. When the ledger cannot be read the map is empty and
  * `available` is false, so the panel can say "unavailable" rather than "$0".
  */
-export async function fetchOrgAiSpend(
-  organizationIds: string[],
+export async function fetchWorkspaceAiSpend(
+  workspaceIds: string[],
   now: Date = new Date(),
-): Promise<{ available: boolean; byOrg: Map<string, AdminOrgAiSpend> }> {
-  const byOrg = new Map<string, AdminOrgAiSpend>();
-  if (organizationIds.length === 0) return { available: true, byOrg };
+): Promise<{ available: boolean; byWorkspace: Map<string, AdminWorkspaceAiSpend> }> {
+  const byWorkspace = new Map<string, AdminWorkspaceAiSpend>();
+  if (workspaceIds.length === 0) return { available: true, byWorkspace };
 
   const since = new Date(now.getTime() - 30 * DAY_MS);
   const [total, recent] = await Promise.all([
-    readSpend({ organizationIds }),
-    readSpend({ since, organizationIds }),
+    readSpend({ workspaceIds }),
+    readSpend({ since, workspaceIds }),
   ]);
-  if (total === null || recent === null) return { available: false, byOrg };
+  if (total === null || recent === null) return { available: false, byWorkspace };
 
   for (const row of total) {
-    byOrg.set(row.organization_id, {
+    byWorkspace.set(row.workspace_id, {
       total_usd: round6(num(row.cost_usd)),
       total_events: num(row.events),
       last_30d_usd: 0,
@@ -112,7 +112,7 @@ export async function fetchOrgAiSpend(
     });
   }
   for (const row of recent) {
-    const entry = byOrg.get(row.organization_id);
+    const entry = byWorkspace.get(row.workspace_id);
     // A row in the window without one in the total cannot happen — the
     // window is a subset — but a missing entry is safer printed as zero
     // than as a crash.
@@ -120,11 +120,11 @@ export async function fetchOrgAiSpend(
     entry.last_30d_usd = round6(num(row.cost_usd));
     entry.last_30d_events = num(row.events);
   }
-  return { available: true, byOrg };
+  return { available: true, byWorkspace };
 }
 
-/** The row printed for an organization that never made a call. */
-export const NO_AI_SPEND: AdminOrgAiSpend = {
+/** The row printed for a workspace that never made a call. */
+export const NO_AI_SPEND: AdminWorkspaceAiSpend = {
   total_usd: 0,
   total_events: 0,
   last_30d_usd: 0,

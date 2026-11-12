@@ -2,14 +2,13 @@
  * POST /api/nodes/:id/autofix — the editor's "tidy this up" button: an LLM
  * rewrite of the body, returned for review, never written here.
  *
- * Read verb via `openWorkspace` (scope `chat:run` for tokens); metered
- * against the organization's AI-query budget like chat. See the handler's
+ * Read verb via `openWorkspace` (scope `chat:run` for tokens); the model
+ * call lands in the AI usage ledger like every other. See the handler's
  * JSDoc for the contract.
  */
 import { z } from "zod";
 import { actingUserId } from "@/lib/auth/require";
 import { openWorkspace } from "@/lib/auth/workspace";
-import { recordUsage } from "@/lib/organizations/meters";
 import { autofixBody, AutofixError } from "@/lib/autofix";
 import { readJsonBody } from "@/lib/parse-json";
 import { withRoute } from "@/lib/route";
@@ -24,7 +23,7 @@ const BodySchema = z.object({
  * preserving all information, and return it for the CLIENT to review as
  * a diff. Nothing is written to the node here; applying the rewrite goes
  * through the normal PATCH /api/nodes/:id save path after the user
- * accepts. Counted on the organization's `ai_queries` meter.
+ * accepts. Recorded in `ai_usage_events` like every model call.
  */
 export const POST = withRoute(async (
   req: Request,
@@ -52,10 +51,6 @@ export const POST = withRoute(async (
   const node = await storage.getNode(id);
   if (!node) {
     return Response.json({ error: "not found" }, { status: 404 });
-  }
-
-  if (storage.backend === "supabase") {
-    void recordUsage(storage.workspace.organization_id, actingUserId(gated), "ai_queries");
   }
 
   try {

@@ -8,7 +8,7 @@ import { cn } from "@bcontext-dev/contract/utils";
  * A person, as a face: a blobatar drawn from their account id.
  *
  * Used wherever a person is shown next to their name — the account row in
- * the sidebar and the hub, the account modal, the org roster and the
+ * the sidebar and the hub, the account modal, the workspace roster and the
  * presence chips in the editor and the inspector — so one person is the
  * same creature everywhere and two colleagues are told apart before either
  * name is read.

@@ -8,7 +8,7 @@ import { NodeLink, useOpenNodeInPanel } from "./node-open-link";
 import type { NodeKind } from "@bcontext-dev/contract/types";
 
 /**
- * Rows and chips of the workspace overview (`w/[org]/[ws]/page.tsx`, a
+ * Rows and chips of the workspace overview (`w/[ws]/page.tsx`, a
  * Server Component — this is its one client island for opening nodes).
  *
  * A node on the dashboard opens where every other node in the workspace

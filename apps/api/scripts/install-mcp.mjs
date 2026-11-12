@@ -12,7 +12,7 @@
  *
  * Usage:
  *   node install-mcp.mjs [--token bctx_live_xxx]
- *                       [--workspace <org>/<workspace>]
+ *                       [--workspace <workspace>]
  *                       [--url https://host/mcp]
  *                       [--name bcontext]
  *                       [--client claude-desktop|cursor|cline|claude-code|all]
@@ -27,7 +27,7 @@
  * from `--url` or `BCONTEXT_MCP_URL`.
  *
  * `--workspace` points the entry at that workspace's own endpoint
- * (`/mcp/<org>/<workspace>`) and names it `bcontext-<org>-<workspace>`, so a
+ * (`/mcp/<workspace>`) and names it `bcontext-<workspace>`, so a
  * host that serves several projects keeps one entry per workspace; `--url`
  * and `--name` still override either.
  *
@@ -50,8 +50,8 @@ const SERVED_URL = "__BCONTEXT_MCP_URL__";
 const DEFAULT_URL = process.env.BCONTEXT_MCP_URL || (SERVED_URL.includes("://") ? SERVED_URL : null);
 const DEFAULT_NAME = "bcontext";
 const TOKEN_RE = /^bctx_live_[A-Za-z0-9_-]{20,}$/;
-// `<org>/<workspace>`: two slugs, the same shape the API accepts.
-const WORKSPACE_RE = /^([a-z0-9][a-z0-9-]{0,79})\/([a-z0-9][a-z0-9-]{0,79})$/;
+// A workspace slug, the shape the API accepts.
+const WORKSPACE_RE = /^([a-z0-9][a-z0-9-]{0,79})$/;
 
 const HELP = `Bcontext MCP installer
 
@@ -60,8 +60,8 @@ Usage:
 
 Options:
   --token <bctx_live_...>        Bearer token (or set BCTX_TOKEN env var, or be prompted)
-  --workspace <org>/<workspace>  Use that workspace's endpoint (${DEFAULT_URL ?? "<url>"}/<org>/<workspace>)
-                                 and name the entry bcontext-<org>-<workspace>
+  --workspace <workspace>        Use that workspace's endpoint (${DEFAULT_URL ?? "<url>"}/<workspace>)
+                                 and name the entry bcontext-<workspace>
   --url <https://host/mcp>       MCP endpoint URL (default: ${DEFAULT_URL ?? "BCONTEXT_MCP_URL, or the server that served this script"}; overrides --workspace)
   --name <serverKey>             Key under mcpServers (default: ${DEFAULT_NAME}; overrides --workspace)
   --client <name>                One of: claude-desktop, cursor, cline, claude-code, all
@@ -117,10 +117,10 @@ function parseArgs(argv) {
   // The workspace decides the defaults; an explicit --url or --name wins.
   if (args.workspace !== null) {
     const m = WORKSPACE_RE.exec(args.workspace.trim().toLowerCase());
-    if (!m) die(`--workspace must be <org>/<workspace> (two slugs), got: ${args.workspace}`);
-    const [, org, workspace] = m;
-    if (DEFAULT_URL) args.url ??= `${DEFAULT_URL}/${org}/${workspace}`;
-    args.name ??= `${DEFAULT_NAME}-${org}-${workspace}`;
+    if (!m) die(`--workspace must be a workspace slug, got: ${args.workspace}`);
+    const [, workspace] = m;
+    if (DEFAULT_URL) args.url ??= `${DEFAULT_URL}/${workspace}`;
+    args.name ??= `${DEFAULT_NAME}-${workspace}`;
   }
   args.url ??= DEFAULT_URL;
   args.name ??= DEFAULT_NAME;

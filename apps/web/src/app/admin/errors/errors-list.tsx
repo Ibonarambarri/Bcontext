@@ -274,7 +274,7 @@ export function ErrorsList({ page }: { page: AdminErrorPage }) {
 
 /**
  * Search and the three narrowings, permanently above the table — the same bar
- * as the organizations and users screens, so the control is learned
+ * as the workspaces and users screens, so the control is learned
  * once.
  *
  * Nothing collapses: a filter you have to remember to open is a filter nobody

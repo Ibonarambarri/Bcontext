@@ -2,6 +2,7 @@
  * Storage adapter over the in-memory `demo-store`. Methods are async to
  * satisfy the interface, but operations resolve synchronously.
  */
+import { parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 import {
   type KnowledgeNode,
   type NodeSummary,
@@ -543,7 +544,11 @@ function toSummary(node: KnowledgeNode): NodeSummary {
 }
 
 export function resolveDemoStorage(workspaceSlug: string): Storage | null {
-  const ws = demoGetWorkspace(workspaceSlug);
+  // A legacy `<org>/<workspace>` pair names its workspace half here: the
+  // demo store has a flat list of slugs, so there is nothing to look up.
+  const ref = parseWorkspaceRef(workspaceSlug);
+  const slug = ref?.kind === "legacy" ? ref.legacy.workspace : ref?.slug ?? workspaceSlug;
+  const ws = demoGetWorkspace(slug);
   if (!ws) return null;
   return new DemoStorage(ws);
 }

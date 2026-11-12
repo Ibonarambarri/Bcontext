@@ -4,7 +4,7 @@
  * Everybody with an account, one table row each.
  *
  * The rows arrive already narrowed and already ordered: `/api/admin/users`
- * applies the search, the organization, the role and the state to every
+ * applies the search, the workspace, the role and the state to every
  * account it reaches before it cuts the page. A predicate re-applied here
  * could only hide rows the API already chose to send, and a sort could only
  * order fifty rows against each other rather than against the platform.
@@ -28,7 +28,7 @@ import {
   type AdminUserPage,
   type AdminUserRow,
   type AdminUserState,
-} from "@bcontext-dev/contract/admin-orgs";
+} from "@bcontext-dev/contract/admin-workspaces";
 import type { InviteRole } from "@bcontext-dev/contract/workspaces";
 import {
   ClearFilters,
@@ -94,25 +94,25 @@ export function UsersList({ page }: { page: AdminUserPage }) {
   const search = useSearchParams();
   const go = useListNav();
   const q = search.get("q") ?? "";
-  const org = search.get("organization") ?? "";
+  const workspace = search.get("workspace") ?? "";
   const role = search.get("role") ?? "";
   const state = search.get("state") ?? "";
-  const filtered = q !== "" || org !== "" || role !== "" || state !== "";
+  const filtered = q !== "" || workspace !== "" || role !== "" || state !== "";
 
-  // The companies on this page, named. The API offers no index of
-  // organizations that costs less than the organizations screen itself, so
-  // the picker offers what the rows in hand can name — and when one is
-  // chosen every row belongs to it, so the choice always names itself back.
-  const orgs = useMemo(() => {
+  // The workspaces on this page, named. The API offers no index of
+  // workspaces that costs less than the workspaces screen itself, so the
+  // picker offers what the rows in hand can name — and when one is chosen
+  // every row belongs to it, so the choice always names itself back.
+  const workspaces = useMemo(() => {
     const seen = new Map<string, string>();
     for (const user of page.items) {
-      for (const o of user.orgs) seen.set(o.id, o.name);
+      for (const ws of user.workspaces) seen.set(ws.id, ws.name);
     }
     return [...seen].sort((a, b) => a[1].localeCompare(b[1]));
   }, [page.items]);
 
   const clear = useCallback(
-    () => go({ q: "", organization: "", role: "", state: "" }),
+    () => go({ q: "", workspace: "", role: "", state: "" }),
     [go],
   );
 
@@ -120,10 +120,10 @@ export function UsersList({ page }: { page: AdminUserPage }) {
     <div>
       <UserFiltersBar
         q={q}
-        org={org}
+        workspace={workspace}
         role={role}
         state={state}
-        orgs={orgs}
+        workspaces={workspaces}
         go={go}
         clear={clear}
         filtered={filtered}
@@ -156,7 +156,7 @@ export function UsersList({ page }: { page: AdminUserPage }) {
               >
                 <Table.Header>
                   <Table.Column isRowHeader>Email</Table.Column>
-                  <Table.Column>Organizations</Table.Column>
+                  <Table.Column>Workspaces</Table.Column>
                   <Table.Column>Status</Table.Column>
                   <Table.Column>Joined</Table.Column>
                   <Table.Column>Last seen</Table.Column>
@@ -175,20 +175,20 @@ export function UsersList({ page }: { page: AdminUserPage }) {
                         </Table.Cell>
 
                         <Table.Cell>
-                          {user.orgs.length === 0 ? (
+                          {user.workspaces.length === 0 ? (
                             <span className="text-[var(--ink-mute)]">
                               none — nothing to sign in to
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5">
-                              {user.orgs.map((o) => (
+                              {user.workspaces.map((ws) => (
                                 <Link
-                                  key={o.id}
-                                  href={`/admin/orgs/${o.id}` as Route}
+                                  key={ws.id}
+                                  href={`/admin/workspaces/${ws.id}` as Route}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <Chip size="sm" variant="secondary">
-                                    {o.name} · {o.role}
+                                    {ws.name} · {ws.role}
                                   </Chip>
                                 </Link>
                               ))}
@@ -233,7 +233,7 @@ export function UsersList({ page }: { page: AdminUserPage }) {
 
 /**
  * Search and the three narrowings, permanently above the table — the same bar
- * as the organizations screen, so the control is learned once.
+ * as the workspaces screen, so the control is learned once.
  *
  * Nothing collapses: a filter you have to remember to open is a filter nobody
  * uses, and one hidden inside a drawer can silently be hiding rows. Every
@@ -242,20 +242,20 @@ export function UsersList({ page }: { page: AdminUserPage }) {
  */
 function UserFiltersBar({
   q,
-  org,
+  workspace,
   role,
   state,
-  orgs,
+  workspaces,
   go,
   clear,
   filtered,
   page,
 }: {
   q: string;
-  org: string;
+  workspace: string;
   role: string;
   state: string;
-  orgs: Array<readonly [string, string]>;
+  workspaces: Array<readonly [string, string]>;
   go: ListNav;
   clear: () => void;
   filtered: boolean;
@@ -273,12 +273,12 @@ function UserFiltersBar({
       />
 
       <ListFilter
-        label="Organization"
-        value={org}
-        onChange={(value) => go({ organization: value })}
+        label="Workspace"
+        value={workspace}
+        onChange={(value) => go({ workspace: value })}
         items={[
-          { id: "", label: "All organizations" },
-          ...orgs.map(([id, name]) => ({ id, label: name })),
+          { id: "", label: "All workspaces" },
+          ...workspaces.map(([id, name]) => ({ id, label: name })),
         ]}
       />
       <ListFilter

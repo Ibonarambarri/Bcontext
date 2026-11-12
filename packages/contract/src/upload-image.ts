@@ -126,7 +126,6 @@ export interface UploadDeps {
   /** When true, hit `/api/upload`; when false, fall back to a data URL. */
   supabaseEnabled: boolean;
   /** Workspace slug used for permission resolution by the API route. */
-  /** `<org>/<workspace>` — what the API resolves a workspace by. */
   workspace: string;
   /** Node id — becomes the second path segment in the bucket key. */
   nodeId: string;

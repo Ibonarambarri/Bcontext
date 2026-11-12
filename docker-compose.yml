@@ -207,7 +207,7 @@ services:
       # Accounts are created by the API (POST /api/signup, invitations) with
       # the service role, which works with public signup off. Off by default so
       # GoTrue's own /signup (reachable with the public anon key) cannot
-      # sidestep ORG_CREATION and the API's rate limits.
+      # sidestep WORKSPACE_CREATION and the API's rate limits.
       GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-true}
       GOTRUE_JWT_ADMIN_ROLES: service_role
       GOTRUE_JWT_AUD: authenticated

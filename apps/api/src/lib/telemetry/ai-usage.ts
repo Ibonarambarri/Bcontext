@@ -158,7 +158,7 @@ function fallbackCostUsd(model: string, tokens: Required<AiUsageTokens>): number
 
 /**
  * What a call would cost at market price: the gateway's figure when it
- * reported one, else the table. For calls billed elsewhere (an org's own
+ * reported one, else the table. For calls billed elsewhere (a caller's own
  * key) that are recorded at cost 0 but still count against a budget.
  */
 export function estimateCostUsd(

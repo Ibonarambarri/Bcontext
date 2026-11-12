@@ -23,11 +23,11 @@ describe("guide steps", () => {
   });
 
   it("sends each step to the page its control lives on", () => {
-    const ws = { org: "acme", slug: "core" };
+    const ws = { slug: "core" };
     expect(guideStep("connect_agent").anchor).toBe("agents-add");
     expect(guideStep("first_agent_write").view).toBe("overview");
-    expect(guideViewHref(ws, "agents")).toBe("/w/acme/core/v/agents");
-    expect(guideViewHref(ws, "overview")).toBe("/w/acme/core");
+    expect(guideViewHref(ws, "agents")).toBe("/w/core/v/agents");
+    expect(guideViewHref(ws, "overview")).toBe("/w/core");
   });
 
   it("opens the tour on the first pending step, or the first when all are done", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The chrome around every `/w/<org>/<ws>/**` page, mounted by that route's
+ * The chrome around every `/w/<ws>/**` page, mounted by that route's
  * `layout.tsx` (a Server Component that fetches the workspace, its siblings
  * and the node list through the API and passes them in as props).
  *
@@ -12,10 +12,11 @@
  *
  * The context must sit below realtime because it broadcasts and subscribes.
  * Everything heavy that is not visible on first paint (command palette, node
- * panel, settings, create dialog) is a `next/dynamic` import.
+ * panel, settings, workspace panel, create dialog) is a `next/dynamic` import.
  */
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { WorkspaceProvider, useWorkspace, type CurrentUser } from "./workspace-context";
 import { Sidebar, activeViewMeta, useSidebarWidth } from "./sidebar";
 import { Breadcrumbs } from "@heroui/react";
@@ -29,6 +30,9 @@ import type { WorkspaceCard } from "@bcontext-dev/contract/workspaces";
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette));
 const CreateNodeDialogHost = dynamic(() => import("./create-node-dialog-host").then((m) => m.CreateNodeDialogHost));
 const SettingsDialog = dynamic(() => import("./settings-dialog").then((m) => m.SettingsDialog));
+const WorkspaceAdminModal = dynamic(() =>
+  import("@/app/workspaces/workspace-admin/workspace-admin-modal").then((m) => m.WorkspaceAdminModal),
+);
 const NodeFloatingPanel = dynamic(() => import("./node-floating-panel").then((m) => m.NodeFloatingPanel));
 // The guide asks the API whether it is wanted before it shows anything, so
 // nothing about it belongs in the first paint. If an element of the sidebar
@@ -36,21 +40,16 @@ const NodeFloatingPanel = dynamic(() => import("./node-floating-panel").then((m)
 const GettingStarted = dynamic(() => import("./onboarding/getting-started").then((m) => m.GettingStarted));
 
 export function WorkspaceShell({
-  org,
   workspaceSlug,
   workspace,
   workspaces,
-  orgLayer,
   nodes,
   currentUser,
   children,
 }: {
-  org: string;
   workspaceSlug: string;
   workspace: WorkspaceCard | null;
   workspaces: WorkspaceCard[];
-  /** Is the organization level worth showing? See `@/lib/org-layer`. */
-  orgLayer: boolean;
   nodes: KnowledgeNode[];
   currentUser: CurrentUser;
   children: React.ReactNode;
@@ -64,11 +63,9 @@ export function WorkspaceShell({
       initialPageId={null}
     >
       <WorkspaceProvider
-        org={org}
         workspaceSlug={workspaceSlug}
         workspace={workspace}
         workspaces={workspaces}
-        orgLayer={orgLayer}
         nodes={nodes}
         currentUser={currentUser}
       >
@@ -158,8 +155,36 @@ function ShellBody({ children }: { children: React.ReactNode }) {
       <CommandPalette />
       <CreateNodeDialogHost workspace={address} />
       <SettingsDialog />
+      <WorkspacePanelHost />
       <ToastBridge />
     </div>
+  );
+}
+
+/**
+ * The workspace panel, opened from inside the workspace (settings dialog,
+ * account menu) — the same dialog the hub opens from a card, so letting
+ * somebody in never means leaving the workspace. Closing refreshes the
+ * layout's reads: a rename changes the switcher and the tab title.
+ */
+function WorkspacePanelHost() {
+  const { workspacePanel, closeWorkspacePanel, workspace, workspaceSlug } = useWorkspace();
+  const router = useRouter();
+  if (!workspacePanel) return null;
+  return (
+    <WorkspaceAdminModal
+      workspace={{
+        slug: workspaceSlug,
+        name: workspace?.name ?? workspaceSlug,
+        metadata: workspace?.metadata ?? null,
+        role: workspace?.role ?? "viewer",
+      }}
+      initialSection={workspacePanel}
+      onClose={() => {
+        closeWorkspacePanel();
+        router.refresh();
+      }}
+    />
   );
 }
 

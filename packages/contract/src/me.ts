@@ -32,17 +32,17 @@ export interface Me {
    */
   has_password: boolean;
   /**
-   * Whether this person may create an organization (`POST /api/organizations`):
-   * always on an `ORG_CREATION=open` instance, only for instance admins on an
-   * `admin` one.
+   * Whether this person may create a workspace (`POST /api/workspaces`):
+   * always on a `WORKSPACE_CREATION=open` instance, only for instance admins
+   * on an `admin` one.
    */
-  can_create_organization: boolean;
+  can_create_workspace: boolean;
 }
 
 /**
  * `POST /api/signup` — an account on an instance that allows self-service
- * (`ORG_CREATION=open`; `403 signup_closed` otherwise, where accounts arrive
- * by invitation). Anonymous by definition.
+ * (`WORKSPACE_CREATION=open`; `403 signup_closed` otherwise, where accounts
+ * arrive by invitation). Anonymous by definition.
  */
 export interface SignupBody {
   email: string;
