@@ -3,11 +3,11 @@
  * every admin list.
  *
  * One place, because the three lists are read as one screen: an operator who
- * learns that `?limit=` means fifty rows on the organizations list would be
+ * learns that `?limit=` means fifty rows on the workspaces list would be
  * right to expect it to mean fifty on the queue, and a second definition is
  * how the two stop agreeing.
  */
-import type { AdminListQuery } from "@bcontext-dev/contract/admin-orgs";
+import type { AdminListQuery } from "@bcontext-dev/contract/admin-workspaces";
 
 const ADMIN_LIST_LIMIT = 50;
 /**

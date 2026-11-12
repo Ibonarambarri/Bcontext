@@ -4,7 +4,7 @@
  * The vocabulary (`AgentProvider`, `AgentRole`, `ROLE_SCOPES`) lives in
  * `@bcontext-dev/contract/agents/connections` because the web app renders it
  * in the browser; anything reaching for `supabase/admin` or the grant mirror
- * cannot live there. Callers: the agent connection, organization agent, OAuth
+ * cannot live there. Callers: the agent connection, OAuth
  * authorize and user token routes.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

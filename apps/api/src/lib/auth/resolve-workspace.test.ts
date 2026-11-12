@@ -4,13 +4,14 @@
  * Two rules meet here. MCP clients authenticate over OAuth and cannot attach
  * a custom header, so a request with no `X-Bcontext-Workspace` must still
  * resolve when the caller reaches exactly one workspace. And a workspace is
- * named `<organization>/<workspace>`: a bare slug is refused rather than
- * resolved, because it names one workspace per organization that chose it.
+ * named by its slug — or, from configs written before organizations were
+ * removed, by an `<org>/<workspace>` pair that resolves through
+ * `workspace_legacy_refs`.
  *
- * The per-workspace endpoint (`/mcp/<org>/<workspace>`) hands the pair in as
- * `workspaceRef`. For a user token it is the selector; for a workspace token
- * it has to be the token's own workspace, and anything else is a 404 that
- * does not say whether the workspace exists.
+ * The per-workspace endpoint (`/mcp/<slug>`, or its legacy alias) hands the
+ * name in as `workspaceRef`. For a user token it is the selector; for a
+ * workspace token it has to be the token's own workspace, and anything else
+ * is a 404 that does not say whether the workspace exists.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -20,10 +21,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const tableRows: Record<string, unknown[]> = {};
 function makeAdmin() {
   const builder = (table: string) => {
-    const rows = () => tableRows[table] ?? [];
+    // Lookups by slug, id or legacy pair honour their filter, so a name that
+    // does not resolve really resolves to nothing; every other read returns
+    // the table as seeded.
+    const keyed = new Set(["slug", "id", "legacy_ref"]);
+    const where: Array<[string, unknown]> = [];
+    const rows = () =>
+      ((tableRows[table] ?? []) as Array<Record<string, unknown>>).filter((r) =>
+        where.every(([c, v]) => !keyed.has(c) || r[c] === v),
+      );
     const b: Record<string, unknown> = {};
     b.select = () => b;
-    b.eq = () => b;
+    b.eq = (c: string, v: unknown) => {
+      where.push([c, v]);
+      return b;
+    };
     b.is = () => b;
     b.maybeSingle = async () => ({ data: rows()[0] ?? null, error: null });
     b.then = (resolve: (v: unknown) => unknown) =>
@@ -78,34 +90,24 @@ describe("resolveAgentWorkspaceOr401 — no workspace selector", () => {
   });
 
   it("resolves the single workspace an agent connection can reach", async () => {
-    tableRows.agent_workspace_access = [
-      {
-        workspaces: {
-          id: "ws-1",
-          slug: "bcontext",
-          organization: { slug: "acme" },
-        },
-      },
-    ];
+    tableRows.agent_workspace_access = [{ workspaces: { id: "ws-1", slug: "bcontext" } }];
     const out = await resolveAgentWorkspaceOr401(
       bareRequest(),
       agentUser("agent-1"),
     );
-    expect(out).toEqual({ workspaceId: "ws-1", slug: "acme/bcontext" });
+    expect(out).toEqual({ workspaceId: "ws-1", slug: "bcontext" });
   });
 
   it("falls back to memberships for legacy tokens with no agent", async () => {
-    tableRows.memberships = [
-      { workspaces: { id: "ws-9", slug: "solo", organization: { slug: "acme" } } },
-    ];
+    tableRows.memberships = [{ workspaces: { id: "ws-9", slug: "solo" } }];
     const out = await resolveAgentWorkspaceOr401(bareRequest(), agentUser(null));
-    expect(out).toEqual({ workspaceId: "ws-9", slug: "acme/solo" });
+    expect(out).toEqual({ workspaceId: "ws-9", slug: "solo" });
   });
 
   it("still demands a selector when the caller is ambiguous, naming the candidates", async () => {
     tableRows.agent_workspace_access = [
-      { workspaces: { id: "ws-2", slug: "zeta", organization: { slug: "acme" } } },
-      { workspaces: { id: "ws-1", slug: "alpha", organization: { slug: "acme" } } },
+      { workspaces: { id: "ws-2", slug: "zeta" } },
+      { workspaces: { id: "ws-1", slug: "alpha" } },
     ];
     const out = await resolveAgentWorkspaceOr401(
       bareRequest(),
@@ -116,8 +118,8 @@ describe("resolveAgentWorkspaceOr401 — no workspace selector", () => {
     expect(res.status).toBe(400);
     const payload = await body(res);
     expect(payload.error).toBe("workspace_required");
-    expect(payload.workspaces).toEqual(["acme/alpha", "acme/zeta"]);
-    expect(String(payload.message)).toContain("acme/alpha, acme/zeta");
+    expect(payload.workspaces).toEqual(["alpha", "zeta"]);
+    expect(String(payload.message)).toContain("alpha, zeta");
   });
 
   it("403s when the connection has no workspace access left", async () => {
@@ -133,31 +135,39 @@ describe("resolveAgentWorkspaceOr401 — no workspace selector", () => {
   });
 
   it("prefers an explicit ?workspace= selector over the fallback", async () => {
-    tableRows.workspaces = [
-      { id: "ws-2", slug: "other", organization: { slug: "acme" } },
-    ];
+    tableRows.workspaces = [{ id: "ws-2", slug: "other" }];
     tableRows.agent_workspace_access = [{ agent_id: "agent-1" }];
     const out = await resolveAgentWorkspaceOr401(
-      bareRequest(`${MCP_URL}?workspace=acme/other`),
+      bareRequest(`${MCP_URL}?workspace=other`),
       agentUser("agent-1"),
     );
     expect(out).toEqual({ workspaceId: "ws-2", slug: "other" });
   });
 
-  it("refuses a bare slug rather than picking an organization for you", async () => {
+  it("still reads a legacy <org>/<workspace> selector, through the legacy table", async () => {
+    // Renamed by 0100 because another organization used `docs` too: the old
+    // pair must land on the renamed workspace, not on whoever has `docs` now.
     tableRows.workspaces = [
-      { id: "ws-2", slug: "other", organization: { slug: "acme" } },
+      { id: "ws-a", slug: "docs" },
+      { id: "ws-b", slug: "globex-docs" },
     ];
+    tableRows.workspace_legacy_refs = [{ legacy_ref: "globex/docs", workspace_id: "ws-b" }];
+    tableRows.agent_workspace_access = [{ agent_id: "agent-1" }];
     const out = await resolveAgentWorkspaceOr401(
-      bareRequest(`${MCP_URL}?workspace=other`),
+      bareRequest(`${MCP_URL}?workspace=globex/docs`),
+      agentUser("agent-1"),
+    );
+    expect(out).toEqual({ workspaceId: "ws-b", slug: "globex-docs" });
+  });
+
+  it("404s a selector that names no workspace", async () => {
+    tableRows.workspaces = [{ id: "ws-2", slug: "other" }];
+    const out = await resolveAgentWorkspaceOr401(
+      bareRequest(`${MCP_URL}?workspace=nope`),
       agentUser("agent-1"),
     );
     expect(out).toBeInstanceOf(Response);
-    const res = out as Response;
-    expect(res.status).toBe(400);
-    const payload = await body(res);
-    expect(payload.error).toBe("workspace_required");
-    expect(String(payload.message)).toContain("<organization>/<workspace>");
+    expect((out as Response).status).toBe(404);
   });
 });
 
@@ -167,46 +177,52 @@ describe("resolveAgentWorkspaceOr401 — workspace named by the path", () => {
   });
 
   it("resolves a user token by the path, checking membership as for a header", async () => {
-    tableRows.workspaces = [{ id: "ws-2", slug: "docs", organization: { slug: "acme" } }];
+    tableRows.workspaces = [{ id: "ws-2", slug: "docs" }];
     tableRows.memberships = [{ user_id: "u1" }];
-    const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/acme/docs`), agentUser(null), {
-      workspaceRef: "acme/docs",
+    const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/docs`), agentUser(null), {
+      workspaceRef: "docs",
     });
     expect(out).toEqual({ workspaceId: "ws-2", slug: "docs" });
   });
 
   it("lets the path win over a header that names another workspace", async () => {
-    tableRows.workspaces = [{ id: "ws-2", slug: "docs", organization: { slug: "acme" } }];
+    tableRows.workspaces = [{ id: "ws-2", slug: "docs" }];
     tableRows.agent_workspace_access = [{ agent_id: "agent-1" }];
-    const req = new Request(`${MCP_URL}/acme/docs`, {
+    const req = new Request(`${MCP_URL}/docs`, {
       method: "POST",
-      headers: { "x-bcontext-workspace": "acme/other" },
+      headers: { "x-bcontext-workspace": "other" },
     });
-    const out = await resolveAgentWorkspaceOr401(req, agentUser("agent-1"), { workspaceRef: "acme/docs" });
+    const out = await resolveAgentWorkspaceOr401(req, agentUser("agent-1"), { workspaceRef: "docs" });
     expect(out).toEqual({ workspaceId: "ws-2", slug: "docs" });
   });
 
   it("403s a user token whose person is not a member of the named workspace", async () => {
-    tableRows.workspaces = [{ id: "ws-2", slug: "docs", organization: { slug: "acme" } }];
+    tableRows.workspaces = [{ id: "ws-2", slug: "docs" }];
     tableRows.memberships = [];
-    const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/acme/docs`), agentUser(null), {
-      workspaceRef: "acme/docs",
+    const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/docs`), agentUser(null), {
+      workspaceRef: "docs",
     });
     expect(out).toBeInstanceOf(Response);
     expect((out as Response).status).toBe(403);
   });
 
-  it("accepts a workspace token on its own workspace's path", async () => {
-    tableRows.workspaces = [{ id: "ws-1", slug: "docs", organization: { slug: "acme" } }];
-    const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/acme/docs`), workspaceToken, {
-      workspaceRef: "acme/docs",
-    });
-    expect(out).toEqual({ workspaceId: "ws-1", slug: "docs" });
+  it("accepts a workspace token on its own workspace's path, new or legacy", async () => {
+    tableRows.workspaces = [{ id: "ws-1", slug: "docs" }];
+    tableRows.workspace_legacy_refs = [{ legacy_ref: "acme/docs", workspace_id: "ws-1" }];
+    for (const ref of ["docs", "acme/docs"]) {
+      const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/${ref}`), workspaceToken, {
+        workspaceRef: ref,
+      });
+      expect(out).toEqual({ workspaceId: "ws-1", slug: "docs" });
+    }
   });
 
   it("404s a workspace token on any other path, never a 403", async () => {
-    tableRows.workspaces = [{ id: "ws-1", slug: "docs", organization: { slug: "acme" } }];
-    for (const ref of ["acme/other", "other/docs"]) {
+    tableRows.workspaces = [
+      { id: "ws-1", slug: "docs" },
+      { id: "ws-2", slug: "other" },
+    ];
+    for (const ref of ["other", "nowhere", "acme/other"]) {
       const out = await resolveAgentWorkspaceOr401(bareRequest(`${MCP_URL}/${ref}`), workspaceToken, {
         workspaceRef: ref,
       });

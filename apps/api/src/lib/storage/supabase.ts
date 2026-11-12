@@ -8,7 +8,6 @@
  * id explicitly so a wrong-workspace fetch never escapes.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseWorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { KnowledgeNode, NodeSummary, TagRelation, Workspace, WorkspaceTag } from "@bcontext-dev/contract/types";
 import { slugify } from "@bcontext-dev/contract/utils";
@@ -979,7 +978,6 @@ function throwTagError(
 function rowToWorkspace(row: Record<string, unknown>): Workspace {
   return {
     id: row.id as string,
-    organization_id: row.organization_id as string,
     slug: row.slug as string,
     name: row.name as string,
     description: (row.description as string | null) ?? null,
@@ -990,14 +988,9 @@ function rowToWorkspace(row: Record<string, unknown>): Workspace {
 }
 
 /**
- * Resolve a workspace named as `<org>/<workspace>` or `<org>~<workspace>`.
- *
- * A workspace slug is unique only inside its organization, so a bare slug
- * does not identify one — it identifies as many as there are organizations
- * that chose the same name. This used to work by accident: every workspace
- * had an organization to itself. Now that organizations really hold several,
- * the pair is required, and a bare slug resolves to nothing rather than to
- * whichever row the database happened to return first.
+ * Resolve a workspace by slug, id or a legacy `<org>/<workspace>` pair —
+ * all spellings go through `findWorkspaceByRef`, so storage, routes and the
+ * MCP endpoint agree on what a name means.
  */
 export async function resolveSupabaseStorage(
   workspaceRef: string,
@@ -1008,16 +1001,9 @@ export async function resolveSupabaseStorage(
   } catch {
     return null;
   }
-  const ref = parseWorkspaceRef(workspaceRef);
-  if (!ref) return null;
-
-  const { data, error } = await client
-    .from("workspaces")
-    .select("*, organization:organizations!inner(slug)")
-    .eq("slug", ref.workspace)
-    .eq("organization.slug", ref.org)
-    .maybeSingle();
-  if (error || !data) return null;
+  const { findWorkspaceByRef } = await import("@/lib/workspaces/resolve");
+  const data = await findWorkspaceByRef(workspaceRef, "*");
+  if (!data) return null;
   return new SupabaseStorage(rowToWorkspace(data), client);
 }
 

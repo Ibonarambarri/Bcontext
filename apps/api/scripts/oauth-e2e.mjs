@@ -15,7 +15,7 @@
  * issues USER-scoped grants — no TTL, no refresh token, workspace chosen per
  * request via X-Bcontext-Workspace — so refresh rotation is not on this
  * path; it is covered for workspace-scoped grants (the ones a
- * `/mcp/<org>/<workspace>` resource yields) in src/lib/auth/oauth.test.ts.
+ * `/mcp/<workspace>` resource yields) in src/lib/auth/oauth.test.ts.
  * Every step
  * asserts; the script exits non-zero on the first thing that is not as the
  * spec says. Run it against both BASEs and the flow-level parity is the diff.

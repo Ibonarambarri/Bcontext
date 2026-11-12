@@ -1,8 +1,13 @@
 /**
  * The MCP server as an OAuth protected resource (RFC 9728, RFC 8707).
  *
- * There is one MCP endpoint per workspace, `/mcp/<org>/<workspace>`, next to
- * the root `/mcp` that picks the workspace from the token or a header. Every
+ * There is one MCP endpoint per workspace, `/mcp/<slug>`, next to the root
+ * `/mcp` that picks the workspace from the token or a header. The pre-0100
+ * `/mcp/<org>/<workspace>` path is still served as an alias of the same
+ * workspace, and its documents keep naming that path as the resource: an MCP
+ * client checks that the resource it is told about is the URL it was
+ * configured with, so answering an old URL with the new one would break the
+ * very clients the alias exists for. Every
  * piece of the product that has to name one of them as a URL — the 401 that
  * tells a client where discovery lives, the protected-resource document, the
  * `resource` parameter an MCP client sends to the authorize and token
@@ -14,7 +19,7 @@
  * where the answer is not a leak.
  */
 import { appUrl as configuredAppUrl } from "@/lib/env";
-import { parseWorkspaceRef, workspaceRefName, type WorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
+import { parseWorkspaceRef, type WorkspaceRef } from "@bcontext-dev/contract/workspace-ref";
 
 /**
  * The origin the server names itself by: the configured app URL when there
@@ -40,7 +45,10 @@ function acceptedBases(req: Request): string[] {
   return configured && configured !== own ? [configured, own] : [own];
 }
 
-/** `<base>/mcp` for the root endpoint, `<base>/mcp/<org>/<workspace>` for a workspace's. */
+/**
+ * `<base>/mcp` for the root endpoint, `<base>/mcp/<path>` for a workspace's,
+ * where `path` is the slug or, on the legacy alias, `<org>/<workspace>`.
+ */
 export function mcpResourceUrl(base: string, workspaceRef?: string | null): string {
   return workspaceRef ? `${base}/mcp/${workspaceRef}` : `${base}/mcp`;
 }
@@ -48,7 +56,7 @@ export function mcpResourceUrl(base: string, workspaceRef?: string | null): stri
 /**
  * Where the protected-resource metadata of an endpoint lives. RFC 9728 §3.1:
  * the resource's path is appended to the well-known path, so a client that
- * only knows `/mcp/acme/docs` can find the document without guessing.
+ * only knows `/mcp/docs` can find the document without guessing.
  */
 export function protectedResourceMetadataUrl(base: string, workspaceRef?: string | null): string {
   const wellKnown = `${base}/.well-known/oauth-protected-resource`;
@@ -66,7 +74,11 @@ export function protectedResourceMetadata(base: string, workspaceRef?: string | 
   };
 }
 
-/** What a `resource` parameter names once it has been read. */
+/**
+ * What a `resource` parameter names once it has been read. `name` is the
+ * path tail exactly as the client spelled it (slug or legacy pair); which
+ * workspace it is gets decided by `findWorkspaceByRef` where it matters.
+ */
 export type McpResource =
   | { kind: "root" }
   | { kind: "workspace"; ref: WorkspaceRef; name: string };
@@ -74,7 +86,7 @@ export type McpResource =
 /**
  * Read the `resource` an MCP client sent (RFC 8707). A trailing slash, a
  * query string or a fragment are tolerated; a different host, a different
- * path or a malformed workspace pair are not, and come back as null so the
+ * path or a malformed workspace name are not, and come back as null so the
  * caller answers `invalid_target`. An absent parameter comes back as
  * undefined and binds nothing: clients that predate resource indicators
  * keep working unchanged.
@@ -96,7 +108,8 @@ export function parseMcpResource(
   const path = url.pathname.replace(/\/+$/, "");
   if (path === "/mcp") return { kind: "root" };
   if (!path.startsWith("/mcp/")) return null;
-  const ref = parseWorkspaceRef(path.slice("/mcp/".length));
+  const tail = path.slice("/mcp/".length).toLowerCase();
+  const ref = parseWorkspaceRef(tail);
   if (!ref) return null;
-  return { kind: "workspace", ref, name: workspaceRefName(ref.org, ref.workspace) };
+  return { kind: "workspace", ref, name: ref.kind === "slug" ? ref.slug : ref.name };
 }

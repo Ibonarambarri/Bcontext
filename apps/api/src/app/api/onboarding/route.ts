@@ -1,5 +1,5 @@
 /**
- * GET /api/onboarding?workspace=<org>/<ws> — the "Getting started" checklist
+ * GET /api/onboarding?workspace=<slug> — the "Getting started" checklist
  * for the person asking, derived from the workspace on every read (see
  * `@bcontext-dev/contract/onboarding`). The dismissal comes from the
  * person's own auth metadata, so it follows them across workspaces.
@@ -53,7 +53,7 @@ export const GET = withRoute(async (req: Request) => {
 
   const steps = onboardingSteps(facts);
   const body: Onboarding = {
-    workspace: workspace!,
+    workspace: opened.storage.workspace.slug,
     steps,
     completed: onboardingCompleted(steps),
     dismissed_at: dismissedAt,

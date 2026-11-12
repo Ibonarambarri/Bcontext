@@ -29,7 +29,7 @@ export const GET = withRoute(async (req: Request) => {
         // One endpoint per workspace, for a project's own config: the path
         // fixes the workspace and an OAuth grant made through it is bound to
         // it. `url` alone takes the workspace from the token.
-        workspace_url_template: `${origin}/mcp/{org}/{workspace}`,
+        workspace_url_template: `${origin}/mcp/{workspace}`,
         transport: "streamable-http",
         audience: "agents",
         recommendation:

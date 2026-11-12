@@ -114,7 +114,7 @@ export const POST = withRoute(async (req: Request) => {
     return Response.json(
       {
         error: "invalid_target",
-        error_description: "resource must be this server's /mcp or /mcp/<organization>/<workspace> URL",
+        error_description: "resource must be this server's /mcp or /mcp/<workspace> URL",
       },
       { status: 400 },
     );

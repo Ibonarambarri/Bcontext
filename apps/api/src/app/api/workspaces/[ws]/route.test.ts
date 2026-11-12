@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The workspace PATCH is where the settings drawer's writes landed when the
- * page stopped holding an admin client. What matters: the gate is the
- * workspace's admin verb held by a person, the accent merges into metadata
- * instead of replacing it, and a taken slug is a 409 the form can show.
+ * The workspace PATCH is where the settings panel's writes land. What
+ * matters: the gate is the workspace's admin verb held by a person, the
+ * accent merges into metadata instead of replacing it, and the slug — the
+ * workspace's address — is not something a PATCH can move.
  */
 const state: {
   ctx: unknown;
@@ -14,12 +14,6 @@ const state: {
 
 vi.mock("@/lib/auth/workspace", () => ({
   openWorkspace: async () => state.ctx,
-}));
-vi.mock("@/lib/workspaces/registry", () => ({
-  listWorkspacesForUser: async () => [
-    { id: "ws-1", slug: "acme" },
-    { id: "ws-2", slug: "personal-abc" },
-  ],
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   getSupabaseAdmin: () => ({
@@ -42,7 +36,6 @@ import { PATCH } from "./route";
 
 const workspace = {
   id: "ws-1",
-  organization_id: "org-1",
   slug: "acme",
   name: "Acme",
   metadata: { accent_gradient: "aurora", something_else: true },
@@ -105,34 +98,18 @@ describe("PATCH /api/workspaces/:ws", () => {
     });
   });
 
-  it("renames the hidden org along with the workspace", async () => {
+  it("renames the workspace and nothing else", async () => {
     state.ctx = userCtx();
     await patch({ name: "Acme Corp" });
-    expect(state.updates.map((u) => u.table)).toEqual(["workspaces", "organizations"]);
-    expect(state.updates[1]).toMatchObject({ id: "org-1", patch: { name: "Acme Corp" } });
+    expect(state.updates).toEqual([
+      { table: "workspaces", id: "ws-1", patch: { name: "Acme Corp" } },
+    ]);
   });
 
-  it("does not write when nothing changes", async () => {
+  it("never moves the slug: it is the workspace's address", async () => {
     state.ctx = userCtx();
-    const res = await patch({ slug: "acme" });
+    const res = await patch({ slug: "elsewhere" });
     expect(res.status).toBe(200);
     expect(state.updates).toEqual([]);
-  });
-
-  it("will not let a workspace shadow another the person can reach", async () => {
-    // Unique per org in the database, and each workspace is its own org, so
-    // only the route can see this clash.
-    state.ctx = userCtx();
-    const res = await patch({ slug: "personal-abc" });
-    expect(res.status).toBe(409);
-    expect(state.updates).toEqual([]);
-  });
-
-  it("answers a taken slug with 409 and a message the form can show", async () => {
-    state.ctx = userCtx();
-    state.updateError = { code: "23505", message: "duplicate key" };
-    const res = await patch({ slug: "taken" });
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "slug_taken" });
   });
 });

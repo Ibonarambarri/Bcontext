@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { gateAdmin } from "@/lib/admin/access";
-import { AdminOrgError, getAdminUserDetail } from "@/lib/admin/orgs";
+import { AdminWorkspaceError, getAdminUserDetail } from "@/lib/admin/workspaces";
 import { withRoute } from "@/lib/route";
 
 export const GET = withRoute(async (
@@ -23,7 +23,7 @@ export const GET = withRoute(async (
   try {
     return Response.json(await getAdminUserDetail(id));
   } catch (err) {
-    if (err instanceof AdminOrgError) {
+    if (err instanceof AdminWorkspaceError) {
       return Response.json({ error: err.code, message: err.message }, { status: err.status });
     }
     throw err;

@@ -50,9 +50,9 @@ afterEach(() => {
 
 describe("POST /api/oauth/token — resource", () => {
   it("hands the grant the parsed endpoint", async () => {
-    const res = await post({ ...CODE, resource: "http://localhost/mcp/acme/docs" });
+    const res = await post({ ...CODE, resource: "http://localhost/mcp/docs" });
     expect(res.status).toBe(200);
-    expect(calls[0]!.resource).toEqual({ kind: "workspace", ref: { org: "acme", workspace: "docs" }, name: "acme/docs" });
+    expect(calls[0]!.resource).toEqual({ kind: "workspace", ref: { kind: "slug", slug: "docs" }, name: "docs" });
   });
 
   it("binds nothing when the client sends no resource", async () => {
@@ -63,7 +63,7 @@ describe("POST /api/oauth/token — resource", () => {
 
   it("refuses a resource that is not this server's MCP, on both grants, before credentials", async () => {
     for (const body of [CODE, { grant_type: "refresh_token", refresh_token: "r", client_id: "client-1", client_secret: "s" }]) {
-      const res = await post({ ...body, resource: "https://elsewhere.test/mcp/acme/docs" });
+      const res = await post({ ...body, resource: "https://elsewhere.test/mcp/docs" });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ error: "invalid_target" });
     }

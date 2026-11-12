@@ -41,8 +41,8 @@ const OPAQUE_SEGMENT = /^[A-Za-z0-9_-]{21,}$/;
  *
  * This works on the pathname because that is all a framework-neutral handler
  * gets — there is no route object to ask. The consequence is a known limit:
- * a *slug* segment (`/api/organizations/acme`) is indistinguishable from a
- * literal (`/api/organizations/health`) and is left alone. That is the right
+ * a *slug* segment (`/api/admin/workspaces/acme`) is indistinguishable from a
+ * literal (`/api/admin/workspaces/health`) and is left alone. That is the right
  * failure: an over-split group is annoying, a wrongly-merged one is wrong.
  */
 export function routePattern(pathname: string): string {

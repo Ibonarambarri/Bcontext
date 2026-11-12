@@ -46,7 +46,7 @@ describe("node PATCH optimistic concurrency", () => {
   });
 
   it("edits parent and order as semantic hierarchy properties", async () => {
-    const workspace = createWorkspace({ name: "Node organization", slug: `node-organization-${Date.now()}-${Math.random()}` });
+    const workspace = createWorkspace({ name: "Node ownership", slug: `node-ownership-${Date.now()}-${Math.random()}` });
     const storage = resolveDemoStorage(workspace.slug)!;
     const parent = await storage.createNode({ title: "Project", kind: "doc", parent_id: null });
     const doc = await storage.createNode({ title: "Doc", kind: "doc", parent_id: null });

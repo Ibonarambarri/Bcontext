@@ -105,7 +105,6 @@ import {
   TagRelationError,
   type Storage,
 } from "@/lib/storage";
-import { recordUsage } from "@/lib/organizations/meters";
 import { recordMcpToolCall } from "@/lib/mcp/usage";
 import { annotateRequest } from "@bcontext-dev/contract/correlation";
 import { actorFields, reportApiError } from "@/lib/errors/report";
@@ -159,7 +158,7 @@ export interface McpContext {
   workspaceId: string;
   scopes: Scope[];
   tokenId: string;
-  /** `<org>/<workspace>` — the full name of the workspace this token belongs to. */
+  /** The slug of the workspace this token belongs to — its whole name. */
   workspaceRef: string;
   /** Resolved storage instance bound to the workspace. */
   storage: Storage;
@@ -1282,14 +1281,7 @@ export function buildMcpServer(ctx: McpContext): Server {
     // `recordMcpToolCall` only touches an in-process buffer and never throws,
     // so a read pays no round-trip for being measured and a broken counter can
     // never break a tool. See src/lib/mcp/usage.ts.
-    //
-    // The organization and the token's creator ride along because the same
-    // flush feeds the organization's meter: reads are what an agent actually
-    // does, and an administrator needs to see which agent is doing them.
-    recordMcpToolCall(ctx.workspaceId, name, {
-      organizationId: ctx.storage.workspace.organization_id,
-      userId: ctx.subjectUserId,
-    });
+    recordMcpToolCall(ctx.workspaceId, name);
     // The counter says how much; the request log says what. `tool` and `op`
     // land on the transport's `request.completed` line (no-op outside an HTTP
     // request, e.g. the in-memory transport in tests), so "which tools do
@@ -1314,7 +1306,7 @@ export function buildMcpServer(ctx: McpContext): Server {
             token_scope: ctx.tokenScope,
             hint:
               ctx.tokenScope === "user"
-                ? "Pass X-Bcontext-Workspace: <org>/<workspace> on each request to switch workspace, or connect to /mcp/<org>/<workspace> to fix it per project."
+                ? "Pass X-Bcontext-Workspace: <workspace> on each request to switch workspace, or connect to /mcp/<workspace> to fix it per project."
                 : "This token is bound to one workspace; the active slug is fixed.",
           });
         }
@@ -2703,12 +2695,6 @@ export function buildMcpServer(ctx: McpContext): Server {
         case "ask_rag": {
           ensureScope(ctx, "chat:run");
           const { query, k, synthesize, scope } = AskRagInput.parse(rawArgs);
-          // Counted against the organization that owns the workspace and
-          // attributed to the token's creator, so an administrator can see
-          // which agent is asking the model the most.
-          if (ctx.storage.backend === "supabase") {
-            void recordUsage(ctx.storage.workspace.organization_id, ctx.subjectUserId, "ai_queries");
-          }
           const retrieval = await retrieveScoped(ctx.workspaceRef, query, {
             k,
             scope,
@@ -3084,7 +3070,6 @@ export function buildMcpServer(ctx: McpContext): Server {
         ...actorFields({
           actorType: ctx.tokenScope === "user" ? "user" : "agent_token",
           userId: ctx.subjectUserId,
-          organizationId: ctx.storage.workspace.organization_id,
           workspaceId: ctx.workspaceId,
           tokenId: ctx.tokenId,
         }),

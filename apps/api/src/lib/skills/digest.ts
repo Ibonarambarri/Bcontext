@@ -483,7 +483,7 @@ export async function publishWeeklyDigest(
         ]);
         const to = await listWorkspaceAdminEmails(storage.workspace.id);
         if (to.length) {
-          const sent = await sendDigestEmail({ to, workspaceName: storage.workspace.name, workspaceSlug: storage.workspace.slug, organizationId: storage.workspace.organization_id, nodeId: node.id, title: node.title, markdown: content_md });
+          const sent = await sendDigestEmail({ to, workspaceName: storage.workspace.name, workspaceSlug: storage.workspace.slug, nodeId: node.id, title: node.title, markdown: content_md });
           delivered.email = sent.status === "sent" ? to.length : 0;
         }
       } catch (err) {

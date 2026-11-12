@@ -60,7 +60,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export interface ActorInput {
   actorType?: ErrorActorType;
   userId?: string | null;
-  organizationId?: string | null;
   workspaceId?: string | null;
   /** The token's id. Never the token — see the redaction note in the contract. */
   tokenId?: string | null;
@@ -70,7 +69,7 @@ export interface ActorInput {
  * The actor half of a report, with anything that is not a UUID dropped.
  *
  * Callers hand us whatever they happen to hold, and in this codebase a
- * "workspace" is sometimes a slug (`acme/product`) and sometimes a UUID. The
+ * "workspace" is sometimes a slug (`product`) and sometimes a UUID. The
  * collector's schema only accepts the second, and it rejects the whole event
  * rather than the offending field, so filtering here is the difference between
  * a partial report and no report.
@@ -79,9 +78,6 @@ export function actorFields(actor: ActorInput): Partial<ReportInput> {
   const out: Partial<ReportInput> = {};
   if (actor.actorType) out.actor_type = actor.actorType;
   if (actor.userId && UUID.test(actor.userId)) out.user_id = actor.userId;
-  if (actor.organizationId && UUID.test(actor.organizationId)) {
-    out.organization_id = actor.organizationId;
-  }
   if (actor.workspaceId && UUID.test(actor.workspaceId)) out.workspace_id = actor.workspaceId;
   if (actor.tokenId) out.token_id = String(actor.tokenId).slice(0, 120);
   return out;

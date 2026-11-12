@@ -18,7 +18,7 @@
  * server they must be that server's names (`llama3.1`, `nomic-embed-text`).
  *
  * Callers resolve the instance's own models here. A key someone brings for
- * one call (an organization's BYOK gateway key, a per-request header) still
+ * one call (a bring-your-own gateway key, a per-request header) still
  * builds its own `createGateway` at the call site: that is their account,
  * not the instance's.
  *

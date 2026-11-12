@@ -52,7 +52,7 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.RESEND_API_KEY;
   delete process.env.EMAIL_FROM;
-  delete process.env.ORG_CREATION;
+  delete process.env.WORKSPACE_CREATION;
 });
 
 describe("signUp", () => {

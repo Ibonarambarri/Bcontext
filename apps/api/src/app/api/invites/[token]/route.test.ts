@@ -13,7 +13,7 @@ vi.mock("@/lib/auth/require", () => ({
     return { kind: "demo" };
   },
 }));
-vi.mock("@/lib/workspaces/orgs", () => ({
+vi.mock("@/lib/workspaces/members", () => ({
   findInviteByToken: async () => state.invite,
 }));
 
@@ -49,9 +49,9 @@ describe("GET /api/invites/:token", () => {
       expires_at: "2030-01-01T00:00:00.000Z",
       accepted_at: null,
       created_at: "2026-01-01T00:00:00.000Z",
-      organization_id: "org-1",
-      organization_slug: "acme-x1",
-      organization_name: "Acme",
+      workspace_id: "ws-1",
+      workspace_slug: "acme",
+      workspace_name: "Acme",
     };
     const res = await get("tok");
     expect(res.status).toBe(200);
@@ -59,8 +59,8 @@ describe("GET /api/invites/:token", () => {
       invite: {
         email: "ana@example.com",
         role: "editor",
-        organization_name: "Acme",
-        organization_slug: "acme-x1",
+        workspace_name: "Acme",
+        workspace_slug: "acme",
         expires_at: "2030-01-01T00:00:00.000Z",
       },
     });

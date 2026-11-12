@@ -1,6 +1,6 @@
 /**
  * POST /api/onboarding/create
- *   { name: string, organization: string, template?: string, description?: string }
+ *   { name: string, template?: string, description?: string }
  *
  * One-shot onboarding: creates a Supabase workspace owned by the current
  * user, applies the chosen ICP template and returns what the UI needs to
@@ -23,10 +23,10 @@ import { applyTemplateById } from "@/lib/templates/apply";
 import { listTemplates } from "@bcontext-dev/contract/templates/workspaces";
 import { getStorageById } from "@/lib/storage";
 import { withRoute } from "@/lib/route";
+import { getSupabaseForRequest } from "@/lib/supabase/request";
 
 const Body = z.object({
   name: z.string().trim().min(1).max(80),
-  organization: z.string().trim().min(1).max(80),
   template: z.string().min(1).max(64).optional(),
   description: z.string().max(280).optional(),
 });
@@ -54,11 +54,12 @@ export const POST = withRoute(async (req: Request) => {
   // 1. Create the workspace and its reusable starter tags.
   let workspace;
   try {
-    workspace = await createWorkspaceForUser(gated.userId, {
-      name: body.data.name,
-      organization: body.data.organization,
-      description: body.data.description,
-    });
+    // The creation policy is by email, which only the auth server vouches for.
+    const { data } = await getSupabaseForRequest(req).auth.getUser();
+    workspace = await createWorkspaceForUser(
+      { id: gated.userId, email: data.user?.email ?? null },
+      { name: body.data.name, description: body.data.description },
+    );
   } catch (err) {
     if (err instanceof WorkspaceCreateError) {
       return Response.json(
@@ -74,7 +75,7 @@ export const POST = withRoute(async (req: Request) => {
   if (body.data.template) {
     const valid = listTemplates().some((t) => t.id === body.data.template);
     if (valid) {
-      // Addressed by id: a slug is only unique inside its organization.
+      // Addressed by id: it is what the create just returned.
       const storage = await getStorageById(workspace.id);
       if (storage) {
         templateResult = await applyTemplateById(storage, body.data.template);

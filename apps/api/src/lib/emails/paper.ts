@@ -2,7 +2,7 @@
  * The one email Bcontext writes, with different words in it.
  *
  * Every message that leaves the product — an invitation, "confirm your
- * address", "your organization is ready" — is the same page: the brand's
+ * address", "your workspace is ready" — is the same page: the brand's
  * paper palette, a kicker in small caps, a headline whose last word is a
  * serif italic, a black pill for the one thing to do, and the same link
  * printed underneath for the clients that eat buttons. Inlined because email
@@ -35,7 +35,7 @@ export function escapeHtml(value: string): string {
 }
 
 export interface PaperEmail {
-  /** Small caps above the headline: "bcontext · your organization". */
+  /** Small caps above the headline: "bcontext · your workspace". */
   kicker: string;
   /** The headline, split so the last part can be the serif italic. */
   headlineLead: string;

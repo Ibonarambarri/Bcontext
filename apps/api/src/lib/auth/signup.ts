@@ -1,6 +1,6 @@
 /**
  * Self-service accounts: `POST /api/signup` on an instance with
- * `ORG_CREATION=open`. On an `admin` instance accounts arrive only by
+ * `WORKSPACE_CREATION=open`. On an `admin` instance accounts arrive only by
  * invitation (`/api/invites/:token/signup`), so this refuses.
  *
  * The account is created through the service role (`generateLink`), which
@@ -23,7 +23,7 @@ import { supabaseConfigured } from "@/lib/env";
 import { appBaseUrl } from "@/lib/app-url";
 import { emailFrom, instanceName } from "@/lib/emails/sender";
 import { nameMetadata } from "@/lib/auth/profile";
-import { orgCreationPolicy } from "@/lib/organizations/create";
+import { workspaceCreationPolicy } from "@/lib/workspaces/registry";
 import {
   escapeHtml,
   renderPaperHtml,
@@ -56,7 +56,7 @@ async function accountStateFor(
   return { userId: row?.user_id ?? null, emailConfirmed: row?.email_confirmed === true };
 }
 
-/** `/auth/confirm` turns GoTrue's fragment into a session, then the hub offers to create an organization. */
+/** `/auth/confirm` turns GoTrue's fragment into a session, then the hub, which sends somebody with no workspace on to `/start`. */
 function confirmRedirect(): string {
   return `${appBaseUrl()}/auth/confirm?next=${encodeURIComponent("/workspaces")}`;
 }
@@ -112,7 +112,7 @@ function confirmEmail(confirmUrl: string, firstName: string): PaperEmail {
     headlineLead: "One click and",
     headlineAccent: "you're in.",
     paragraphs: [
-      `${escapeHtml(firstName)}, confirm this address to finish creating your account. Then sign in and create your organization.`,
+      `${escapeHtml(firstName)}, confirm this address to finish creating your account. Then sign in and create your workspace.`,
     ],
     cta: { label: "Confirm my email →", url: confirmUrl },
     footnotes: [
@@ -159,7 +159,7 @@ export async function signUp(input: {
   firstName: string;
   lastName?: string | null;
 }): Promise<SignupResult> {
-  if (orgCreationPolicy() !== "open") {
+  if (workspaceCreationPolicy() !== "open") {
     throw new SignupError(403, "signup_closed", "Accounts on this instance are by invitation.");
   }
   if (!supabaseConfigured()) {
