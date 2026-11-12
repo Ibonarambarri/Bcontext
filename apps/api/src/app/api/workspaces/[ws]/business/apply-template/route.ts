@@ -2,10 +2,15 @@
  * The business template of a workspace: the record types and views a b2b,
  * b2c or marketplace workspace starts with.
  *
- *   GET  /api/workspaces/:ws/business/template[?business_model=…]
- *        → what applying would create and skip, without writing (read)
- *   POST /api/workspaces/:ws/business/template  { business_model? }  ({} for the workspace's own)
- *        → apply it (admin); `business_model` defaults to the workspace's own
+ *   GET  /api/workspaces/:ws/business/apply-template[?business_model=…]
+ *        → BusinessTemplatePlan: what applying would create and skip (read)
+ *   POST /api/workspaces/:ws/business/apply-template  [{ business_model? }]
+ *        → BusinessTemplateResult, 201 when it created something, else 200 (admin)
+ *
+ * The POST body is optional, and so is `business_model` in it: without one
+ * the workspace's current model is applied. The web's Business settings and
+ * workspace creation call it after `PATCH …/business`. Shapes are the
+ * contract's (`business/templates.ts`).
  *
  * Applying is additive and idempotent (`applyBusinessTemplate`): existing
  * record type keys and template views are skipped, nothing is overwritten or
@@ -14,19 +19,18 @@
  */
 import { z } from "zod";
 import { BUSINESS_MODELS, type BusinessModel } from "@bcontext-dev/contract/business/record-types";
-import { planBusinessTemplate } from "@bcontext-dev/contract/business/templates";
+import { ApplyBusinessTemplateBodySchema, planBusinessTemplate } from "@bcontext-dev/contract/business/templates";
 import { openWorkspace } from "@/lib/auth/workspace";
 import { businessErrorResponse } from "@/lib/business/http";
 import { getBusinessSettings, listRecordTypes } from "@/lib/business/record-types";
 import { applyBusinessTemplate } from "@/lib/business/templates";
-import { readJsonBody } from "@/lib/parse-json";
 import { withRoute } from "@/lib/route";
 import { viewPrincipal } from "@/lib/views/access";
 import { listViews } from "@/lib/views/store";
 
 type Params = { params: Promise<{ ws: string }> };
 
-const Body = z.object({ business_model: z.enum(BUSINESS_MODELS).optional() }).strict();
+const MAX_BODY_BYTES = 1_000;
 
 export const GET = withRoute(async (req: Request, { params }: Params) => {
   const { ws } = await params;
@@ -41,11 +45,23 @@ export const GET = withRoute(async (req: Request, { params }: Params) => {
   return Response.json(planBusinessTemplate(model, { record_type_keys: types.map((type) => type.key), views }));
 });
 
+/** The body, or `{}` when there is none: "apply my model" needs no JSON. */
+async function readOptionalBody(req: Request): Promise<{ ok: true; data: unknown } | { ok: false; response: Response }> {
+  const raw = await req.text().catch(() => "");
+  if (raw.length > MAX_BODY_BYTES) return { ok: false, response: Response.json({ error: `request body exceeds ${MAX_BODY_BYTES} bytes` }, { status: 413 }) };
+  if (raw.trim() === "") return { ok: true, data: {} };
+  try {
+    return { ok: true, data: JSON.parse(raw) };
+  } catch {
+    return { ok: false, response: Response.json({ error: "invalid_request", message: "body must be JSON: {} or { business_model }" }, { status: 400 }) };
+  }
+}
+
 export const POST = withRoute(async (req: Request, { params }: Params) => {
   const { ws } = await params;
-  const body = await readJsonBody(req);
+  const body = await readOptionalBody(req);
   if (!body.ok) return body.response;
-  const parsed = Body.safeParse(body.data);
+  const parsed = ApplyBusinessTemplateBodySchema.safeParse(body.data);
   if (!parsed.success) return Response.json({ error: "invalid_request", message: parsed.error.issues.map((i) => i.message).join("; ") }, { status: 400 });
   const ctx = await openWorkspace(req, ws, "admin");
   if (ctx instanceof Response) return ctx;

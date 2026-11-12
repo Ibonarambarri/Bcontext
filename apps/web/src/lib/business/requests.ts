@@ -2,7 +2,7 @@
  * The business renderers' calls to the API, browser-side (`fetch("/api/…")`,
  * proxied to the API like every client component's): resolve a view with its
  * business payload, the one light edit a record board makes (a field patch),
- * "Convert to node" on a dataset row, and a subject's event timeline.
+ * and "Convert to node" on a dataset row.
  *
  * Callers: `components/business/*`. Must not break: a failed edit reports a
  * status the caller turns into a rollback + toast; a promote endpoint that
@@ -11,7 +11,6 @@
  * of offering a button that can never work.
  */
 import type { BusinessResolveExtras } from "@bcontext-dev/contract/views/business";
-import type { BusinessTimelineResponse } from "@bcontext-dev/contract/business/timeline";
 import type { RecordFieldValue } from "@bcontext-dev/contract/business/record-types";
 import type { ResolvedViewQuery, SavedView } from "@bcontext-dev/contract/views/types";
 import { workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
@@ -107,22 +106,5 @@ export async function promoteRow(
     return { status: "failed", message: await readError(response) };
   } catch {
     return { status: "failed", message: "The row could not be converted." };
-  }
-}
-
-export async function loadTimeline(
-  workspace: WorkspaceAddress,
-  subject: { type?: string | null; id: string },
-  limit = 50,
-  request: typeof fetch = fetch,
-): Promise<Loaded<BusinessTimelineResponse>> {
-  const params = new URLSearchParams({ subject_id: subject.id, limit: String(limit) });
-  if (subject.type) params.set("subject_type", subject.type);
-  try {
-    const response = await request(`/api/workspaces/${encodeURIComponent(workspaceApiRef(workspace))}/timeline?${params}`);
-    if (!response.ok) return { ok: false, status: response.status, message: await readError(response) };
-    return { ok: true, data: (await response.json()) as BusinessTimelineResponse };
-  } catch {
-    return { ok: false, status: 0, message: "The timeline could not be loaded." };
   }
 }

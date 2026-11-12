@@ -4,9 +4,12 @@
  * today's workspace.
  *
  * Who uses it: the API's `applyBusinessTemplate` (REST
- * `POST /api/workspaces/:ws/business/template`, `admin_write(op=apply_business_template)`,
- * and workspace creation with a business model) asks `planBusinessTemplate`
- * what is missing and creates exactly that.
+ * `POST /api/workspaces/:ws/business/apply-template`, which the web's
+ * Business settings and workspace creation call;
+ * `admin_write(op=apply_business_template)`; and `POST /api/workspaces` with
+ * a business model) asks `planBusinessTemplate` what is missing and creates
+ * exactly that. `ApplyBusinessTemplateBody` / `BusinessTemplateResult` are
+ * that route's request and response.
  *
  * The rule that makes it safe to run twice, or after a person has edited
  * things: templates are DEFAULTS, applying is ADDITIVE. A record type whose
@@ -22,7 +25,8 @@
  * `templates.test.ts` checks both, so a template can't ship that its own
  * apply would refuse.
  */
-import type { RecordFieldDef, RecordStorage, BusinessModel } from "./record-types.js";
+import { z } from "zod";
+import { BUSINESS_MODELS, type RecordFieldDef, type RecordStorage, type BusinessModel } from "./record-types.js";
 import type { ViewPresentation, ViewQuery } from "../views/schema.js";
 
 export interface TemplateRecordType {
@@ -65,7 +69,13 @@ const REQUEST_STATUSES = ["requested", "planned", "in_progress", "shipped", "dec
 const INCIDENT_STATUSES = ["open", "investigating", "mitigated", "resolved"];
 const SEVERITIES = ["low", "medium", "high", "critical"];
 
-function request(target: string, relationLabel: string): TemplateRecordType {
+/**
+ * `audience` is the select a request is grouped by on the business overview
+ * (the web's `requestsBySegment` looks for `segment`/`side`/`audience`…): a
+ * b2b request is grouped by company size, a marketplace one by the side of
+ * the market that asked. b2c requests point at segment nodes instead.
+ */
+function request(target: string, relationLabel: string, audience?: RecordFieldDef): TemplateRecordType {
   return {
     key: "request",
     label: "Request",
@@ -77,6 +87,7 @@ function request(target: string, relationLabel: string): TemplateRecordType {
       { key: "status", label: "Status", type: "select", options: REQUEST_STATUSES, required: true, description: "requested → planned → in_progress → shipped (or declined)." },
       { key: "weight", label: "Weight", type: "number", description: "How much it matters: requesters, MRR behind it, or a score. Higher ranks first." },
       { key: target === "account" ? "accounts" : "segments", label: relationLabel, type: "relation", target, multiple: true, description: `Which ${relationLabel.toLowerCase()} asked for it.` },
+      ...(audience ? [audience] : []),
       { key: "source", label: "Source", type: "select", options: ["sales", "support", "interview", "agent", "other"] },
     ],
   };
@@ -214,7 +225,7 @@ const B2B: BusinessTemplate = {
         { key: "owner", label: "Owner", type: "person" },
       ],
     },
-    request("account", "Accounts"),
+    request("account", "Accounts", { key: "segment", label: "Segment", type: "select", options: ["smb", "mid_market", "enterprise"] }),
   ],
   views: [
     {
@@ -362,11 +373,14 @@ const MARKETPLACE: BusinessTemplate = {
         { key: "zone_code", label: "Code", type: "text", description: "The value bookings carry in properties.zone." },
         { key: "region", label: "Region", type: "text" },
         { key: "status", label: "Status", type: "select", options: ["launching", "live", "paused"] },
-        { key: "target_suppliers", label: "Target suppliers", type: "number" },
+        // The overview ranks zones by demand per active supplier; an agent
+        // (or the app) keeps both current.
+        { key: "demand", label: "Demand", type: "number", description: "Recent demand in the zone: bookings or searches over the last 4 weeks." },
+        { key: "active_suppliers", label: "Active suppliers", type: "number", description: "Suppliers with availability in the zone now." },
       ],
     },
     incident([{ key: "zone", label: "Zone", type: "relation", target: "zone" }]),
-    request("segment", "Segments"),
+    request("segment", "Segments", { key: "side", label: "Side", type: "select", options: ["supplier", "buyer", "both"], description: "Which side of the market asked." }),
     {
       key: "supplier",
       label: "Supplier",
@@ -557,4 +571,34 @@ export function planBusinessTemplate(model: BusinessModel, existing: ExistingWor
 /** A template view's presentation with its marker, ready for `createView`. */
 export function templateViewPresentation(model: BusinessModel, view: TemplateView): TemplateView["presentation"] {
   return { ...view.presentation, layout: { ...(view.presentation.layout ?? {}), template: templateViewMarker(model, view.key) } };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The apply-template route                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /api/workspaces/:ws/business/apply-template` body. Optional, and so
+ * is the body itself: without a model the workspace's current one is
+ * applied.
+ */
+export const ApplyBusinessTemplateBodySchema = z.object({
+  business_model: z.enum(BUSINESS_MODELS).optional(),
+}).strict();
+export type ApplyBusinessTemplateBody = z.infer<typeof ApplyBusinessTemplateBodySchema>;
+
+/**
+ * What applying did: `201` when it created something, `200` when there was
+ * nothing left to create (a re-apply). `GET` on the same path answers the
+ * `BusinessTemplatePlan` without writing.
+ */
+export interface BusinessTemplateResult {
+  model: BusinessModel;
+  created: {
+    record_types: string[];
+    /** The `data` nodes behind dataset-backed types; `reused` when an earlier run made it. */
+    datasets: Array<{ record_type: string; node_id: string; reused: boolean }>;
+    views: Array<{ key: string; id: string; name: string }>;
+  };
+  skipped: BusinessTemplatePlan["skipped"];
 }

@@ -12,6 +12,7 @@
  */
 import type { Workspace } from "./types.js";
 import type { BusinessModel } from "./business/record-types.js";
+import type { BusinessTemplateResult } from "./business/templates.js";
 
 export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer" | "agent";
 
@@ -57,11 +58,7 @@ export interface CreateWorkspaceBody {
 export interface CreateWorkspaceResult {
   workspace: Workspace;
   /** When a business model was chosen: what its template created and skipped. */
-  business_template?: {
-    model: BusinessModel;
-    created: { record_types: string[]; views: Array<{ key: string; id: string; name: string }> };
-    skipped: Array<{ what: "record_type" | "view"; key: string; reason: string }>;
-  };
+  business_template?: BusinessTemplateResult;
 }
 
 /* -------------------------------------------------------------------------- */

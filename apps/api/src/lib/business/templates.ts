@@ -3,7 +3,7 @@
  * the record types, the datasets behind dataset-backed ones, and the views
  * the template lists — only what is missing.
  *
- * Callers: `POST /api/workspaces/:ws/business/template`,
+ * Callers: `POST /api/workspaces/:ws/business/apply-template`,
  * `admin_write(op=apply_business_template)` over MCP, and workspace creation
  * with a `business_model` (`POST /api/workspaces`). All three hold the admin
  * verb before calling.
@@ -24,7 +24,7 @@ import { datasetColumnTypeFor, type BusinessModel } from "@bcontext-dev/contract
 import {
   planBusinessTemplate,
   templateViewPresentation,
-  type BusinessTemplatePlan,
+  type BusinessTemplateResult,
   type TemplateRecordType,
 } from "@bcontext-dev/contract/business/templates";
 import type { ViewPrincipal } from "@bcontext-dev/contract/views/types";
@@ -33,15 +33,7 @@ import { createDataset, describeDatasetNode } from "@/lib/datasets";
 import { createView, listViews } from "@/lib/views/store";
 import { createRecordType, listRecordTypes } from "./record-types";
 
-export interface BusinessTemplateResult {
-  model: BusinessModel;
-  created: {
-    record_types: string[];
-    datasets: Array<{ record_type: string; node_id: string; reused: boolean }>;
-    views: Array<{ key: string; id: string; name: string }>;
-  };
-  skipped: BusinessTemplatePlan["skipped"];
-}
+export type { BusinessTemplateResult };
 
 function failure(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

@@ -102,9 +102,9 @@ same, so an agent quotes the numbers the team sees.
 
 | Model | Record types | Views |
 |---|---|---|
-| `b2b` | `account` (status, plan, mrr, health, renewal_date, owner, seats, website), `contact` (account, role, email, decision_maker), `deal` (stage lead → demo → proposal → negotiation → won/lost, amount, probability, account, close_date, owner), `request` (status requested → planned → in_progress → shipped/declined, weight, accounts, source) | Pipeline, Accounts, Renewals, Requests, Metrics, Expenses |
+| `b2b` | `account` (status, plan, mrr, health, renewal_date, owner, seats, website), `contact` (account, role, email, decision_maker), `deal` (stage lead → demo → proposal → negotiation → won/lost, amount, probability, account, close_date, owner), `request` (status requested → planned → in_progress → shipped/declined, weight, accounts, segment, source) | Pipeline, Accounts, Renewals, Requests, Metrics, Expenses |
 | `b2c` | `segment`, `request` (→ segments), `incident` (→ segments), dataset-backed `customer` (name, email, plan, status, mrr, signup_date, country) | Customers, Requests, Metrics, Expenses |
-| `marketplace` | `segment`, `zone`, `incident` (→ zone), `request`, dataset-backed `supplier` and `buyer` | Marketplace metrics (YoY), Supply vs demand (zone × week heatmap), Suppliers, Incidents, Requests, Expenses |
+| `marketplace` | `segment`, `zone` (zone_code, region, status, demand, active_suppliers), `incident` (→ zone), `request` (→ segments, side), dataset-backed `supplier` and `buyer` | Marketplace metrics (YoY), Supply vs demand (zone × week heatmap), Suppliers, Incidents, Requests, Expenses |
 | `product` | none | none |
 
 Templates are defaults. Rename `supplier` to "Instructors" and `buyer` to
@@ -123,9 +123,9 @@ There are three ways to apply a template:
 
 ```bash
 # Preview: what would be created and what would be skipped (read)
-curl "$BCONTEXT/api/workspaces/denak/business/template?business_model=b2b" -H "Cookie: <session>"
-# Apply (admin); with {} it applies the workspace's own model
-curl -X POST "$BCONTEXT/api/workspaces/denak/business/template" \
+curl "$BCONTEXT/api/workspaces/denak/business/apply-template?business_model=b2b" -H "Cookie: <session>"
+# Apply (admin); with no body it applies the workspace's own model
+curl -X POST "$BCONTEXT/api/workspaces/denak/business/apply-template" \
   -H "Cookie: <session>" -H "Content-Type: application/json" -d '{"business_model":"b2b"}'
 ```
 
@@ -135,15 +135,5 @@ curl -X POST "$BCONTEXT/api/workspaces/denak/business/template" \
 
 ## Timeline of one subject
 
-```bash
-curl "$BCONTEXT/api/workspaces/denak/timeline?subject_id=acme&subject_type=account&limit=50" -H "Cookie: <session>"
-```
-
-This returns the subject's events, newest first, as
-`{ subject_type, subject_id, events[], more }`. `subject_id` is the id your
-product sends events with, not a node id. A supplier's timeline also
-includes the bookings that name it in `properties.supplier_id`. The web
-renders it with `BusinessTimeline`
-(`apps/web/src/components/business/business-timeline.tsx`), one line per
-event, such as "Plan changed to €450/mo". It needs the read verb, the same
-as the metrics summary.
+A subject's events are read with `GET /api/workspaces/:ws/events?subject_type=&subject_id=`
+([ingest-api.md](ingest-api.md)); the web's record 360 page draws them.

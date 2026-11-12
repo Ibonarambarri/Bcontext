@@ -97,7 +97,7 @@ import * as r92 from "@/app/api/workspaces/[ws]/route";
 import * as r93 from "@/app/api/workspaces/[ws]/agents-md/route";
 import * as r94 from "@/app/api/workspaces/[ws]/apply-template/route";
 import * as r95 from "@/app/api/workspaces/[ws]/business/route";
-import * as r96 from "@/app/api/workspaces/[ws]/business/template/route";
+import * as r96 from "@/app/api/workspaces/[ws]/business/apply-template/route";
 import * as r97 from "@/app/api/workspaces/[ws]/digest/route";
 import * as r98 from "@/app/api/workspaces/[ws]/events/route";
 import * as r99 from "@/app/api/workspaces/[ws]/export/route";
@@ -114,13 +114,12 @@ import * as r109 from "@/app/api/workspaces/[ws]/record-types/route";
 import * as r110 from "@/app/api/workspaces/[ws]/record-types/[key]/route";
 import * as r111 from "@/app/api/workspaces/[ws]/records/[type]/route";
 import * as r112 from "@/app/api/workspaces/[ws]/records/[type]/[external_id]/route";
-import * as r113 from "@/app/api/workspaces/[ws]/timeline/route";
-import * as r114 from "@/app/api/workspaces/[ws]/usage/route";
-import * as r115 from "@/app/install/mcp/route";
-import * as r116 from "@/app/llms.txt/route";
-import * as r117 from "@/app/mcp/route";
-import * as r118 from "@/app/mcp/[org]/[workspace]/route";
-import * as r119 from "@/app/mcp/[workspace]/route";
+import * as r113 from "@/app/api/workspaces/[ws]/usage/route";
+import * as r114 from "@/app/install/mcp/route";
+import * as r115 from "@/app/llms.txt/route";
+import * as r116 from "@/app/mcp/route";
+import * as r117 from "@/app/mcp/[org]/[workspace]/route";
+import * as r118 from "@/app/mcp/[workspace]/route";
 
 export const ROUTES: ReadonlyArray<{ path: string; methods: readonly string[]; module: RouteModule }> = [
   { path: "/.well-known/agents.json", methods: ["GET"], module: r0 as unknown as RouteModule },
@@ -219,7 +218,7 @@ export const ROUTES: ReadonlyArray<{ path: string; methods: readonly string[]; m
   { path: "/api/workspaces/:ws/agents-md", methods: ["GET"], module: r93 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/apply-template", methods: ["GET","POST"], module: r94 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/business", methods: ["GET","PATCH"], module: r95 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/business/template", methods: ["GET","POST"], module: r96 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/business/apply-template", methods: ["GET","POST"], module: r96 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/digest", methods: ["GET","POST","PUT"], module: r97 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/events", methods: ["POST"], module: r98 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/export", methods: ["GET"], module: r99 as unknown as RouteModule },
@@ -236,11 +235,10 @@ export const ROUTES: ReadonlyArray<{ path: string; methods: readonly string[]; m
   { path: "/api/workspaces/:ws/record-types/:key", methods: ["PATCH","DELETE"], module: r110 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/records/:type", methods: ["POST"], module: r111 as unknown as RouteModule },
   { path: "/api/workspaces/:ws/records/:type/:external_id", methods: ["PUT","DELETE"], module: r112 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/timeline", methods: ["GET"], module: r113 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/usage", methods: ["GET"], module: r114 as unknown as RouteModule },
-  { path: "/install/mcp", methods: ["GET"], module: r115 as unknown as RouteModule },
-  { path: "/llms.txt", methods: ["GET"], module: r116 as unknown as RouteModule },
-  { path: "/mcp", methods: ["GET","POST"], module: r117 as unknown as RouteModule },
-  { path: "/mcp/:org/:workspace", methods: ["GET","POST"], module: r118 as unknown as RouteModule },
-  { path: "/mcp/:workspace", methods: ["GET","POST"], module: r119 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/usage", methods: ["GET"], module: r113 as unknown as RouteModule },
+  { path: "/install/mcp", methods: ["GET"], module: r114 as unknown as RouteModule },
+  { path: "/llms.txt", methods: ["GET"], module: r115 as unknown as RouteModule },
+  { path: "/mcp", methods: ["GET","POST"], module: r116 as unknown as RouteModule },
+  { path: "/mcp/:org/:workspace", methods: ["GET","POST"], module: r117 as unknown as RouteModule },
+  { path: "/mcp/:workspace", methods: ["GET","POST"], module: r118 as unknown as RouteModule },
 ];
