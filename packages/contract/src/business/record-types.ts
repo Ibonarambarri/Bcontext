@@ -447,12 +447,15 @@ export function readRecordFields(data: unknown): RecordFields {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The filter language for record fields: deliberately four operators. It is
- * applied in memory over the listed nodes (the reach filter already is); the
- * full view filters and group-by on fields are the views work (PR3), which
- * gets this as its hook.
+ * The filter language for record fields: deliberately five operators. It is
+ * applied in memory over the listed nodes (the reach filter already is), by
+ * `nodes(op=list)` and by saved views (`query.field_filters`).
+ *
+ * `empty` takes a boolean: `true` keeps records with no value (missing, null,
+ * "" or []), `false` keeps the ones that have one — "deals without a close
+ * date" is a question a pipeline review asks every week.
  */
-export const RECORD_FIELD_OPERATORS = ["eq", "in", "gt", "lt"] as const;
+export const RECORD_FIELD_OPERATORS = ["eq", "in", "gt", "lt", "empty"] as const;
 export type RecordFieldOperator = (typeof RECORD_FIELD_OPERATORS)[number];
 
 export const RecordFieldFilterSchema = z.object({
@@ -480,6 +483,10 @@ function comparable(value: unknown): number | string | boolean | null {
 export function matchesFieldFilters(fields: RecordFields, filters: readonly RecordFieldFilter[]): boolean {
   return filters.every((filter) => {
     const raw = fields[filter.field];
+    if (filter.op === "empty") {
+      const isEmpty = raw === undefined || raw === null || raw === "" || (Array.isArray(raw) && raw.length === 0);
+      return filter.value === false ? !isEmpty : isEmpty;
+    }
     if (Array.isArray(raw)) {
       if (filter.op === "eq") return raw.includes(filter.value as string);
       if (filter.op === "in") return Array.isArray(filter.value) && raw.some((v) => (filter.value as unknown[]).includes(v));

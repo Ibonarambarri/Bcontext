@@ -33,8 +33,10 @@ import {
   Bookmark,
   Bot,
   BrainCircuit,
+  ChartLine,
   CheckSquare,
   Folder,
+  Grid3x3,
   Home,
   KeyRound,
   LayoutGrid,
@@ -74,6 +76,8 @@ const VIEW_RENDERER_ICONS: Record<ViewRenderer, typeof Home> = {
   browse: Folder,
   credentials: KeyRound,
   roadmap: Milestone,
+  metrics: ChartLine,
+  heatmap: Grid3x3,
 };
 
 const ADMIN_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Bot }[] = [

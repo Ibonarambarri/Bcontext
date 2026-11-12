@@ -16,6 +16,13 @@ Everything here is under `/api/workspaces/<slug>/…` on your instance (the
 same origin as the web app). For the full self-hosting setup see
 [self-hosting.md](self-hosting.md).
 
+Saved views over these records (pipeline boards with stage totals, tables,
+KPI dashboards with year-on-year charts, heatmaps), the templates each
+business model starts with, `POST …/business/apply-template` and
+`admin_write(op=apply_business_template)` are in
+[business-views.md](business-views.md). Field filters there and in
+`nodes(op=list)` also take `empty` (`true`: no value, `false`: has one).
+
 ## 1. Set the business model
 
 `product` (the default) is a software team with no business metrics. Set

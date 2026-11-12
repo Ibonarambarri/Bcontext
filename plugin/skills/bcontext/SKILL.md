@@ -56,7 +56,7 @@ Reads never mutate; `*_write` tools do. Pick the operation with `op`:
 | `skills` (list · get) | `skills_write` (import) · `skills_run` | skills as YOUR instructions (get renders the prompt, scopes and tools); run is for model-less automations |
 | `capabilities` (list · discover · status) | `capabilities_write` (connect · disconnect · grant · revoke) | connecting other MCPs and webhooks, and granting their tools — admin verb |
 | `capability_search` | `capability_call` (ref · args) | the external tools you were granted and the workspace's skills, found by search and called by ref |
-| `admin` (access · preview · held_invitations · business) | `admin_write` (grant · revoke · invite · release_invite · set_business · record_type · delete_record_type) | who can reach what, and what the workspace is (business model, record types) — needs the `admin` verb |
+| `admin` (access · preview · held_invitations · business) | `admin_write` (grant · revoke · invite · release_invite · set_business · record_type · delete_record_type · apply_business_template) | who can reach what, and what the workspace is (business model, record types) — needs the `admin` verb |
 | `ask_rag`, `list_changes`, `list_workspaces`, `ping` | | |
 
 `tools/list` is authoritative and per-principal: a tool you cannot use is not
@@ -289,8 +289,23 @@ parentheses, the stage field's options in `stages`).
   fix that field and retry; do not drop the value into the body instead.
 - **Filter on fields:** `nodes({ op: "list", kind: "account", fields: [{
   field: "stage", op: "eq", value: "customer" }, { field: "mrr", op: "gt",
-  value: 500 }] })` — `eq · in · gt · lt`; money compares on its amount; each
+  value: 500 }] })` — `eq · in · gt · lt · empty` (`empty` takes `true` for
+  "no value", `false` for "has one"); money compares on its amount; each
   hit carries its `fields`.
+- **Views over records:** a view query takes the same filters as
+  `field_filters`, and `field:<key>` wherever the presentation names a column
+  (`group_by`, `sort_by`, `columns`): `{ query: { schema_version: 1, kinds:
+  ["deal"] }, presentation: { schema_version: 1, renderer: "board", group_by:
+  "field:stage", columns: ["title", "field:amount"] } }` is a pipeline whose
+  columns are the stage options in order. `query.dataset_type: "customer"`
+  lists a dataset-backed type's rows instead of nodes. Renderers `metrics`
+  (KPI cards and charts, `layout.metrics`) and `heatmap` (x × y grid,
+  `layout.heatmap`) read business events or dataset rows; a field or type
+  the workspace does not have is refused naming the ones it does.
+  `views({ op: "resolve" })` returns what the web draws — `records` with
+  their `fields`, `dataset` rows, `metrics`, `heatmap` — so read numbers
+  there instead of recomputing them. A card moves by editing the record's
+  field (`nodes_write` update with `patch: { fields }`), never the view.
 - **People in a B2C business are rows, not nodes.** A type with `storage:
   "dataset"` (brief marks it) lives in a `data` node keyed by the product's
   id; `data_write({ op: "upsert_rows", node_id, key_column: "external_id",
@@ -309,7 +324,13 @@ parentheses, the stage field's options in `stages`).
 - Defining types and setting the model is an admin's: `admin_write({ op:
   "record_type", key, definition })`, `admin_write({ op: "set_business",
   business_model })`; `admin({ op: "business" })` returns the full
-  definitions.
+  definitions. `admin_write({ op: "apply_business_template" })` adds the
+  model's default record types (b2b: account, contact, deal, request; b2c:
+  segment, request, incident, dataset-backed customer; marketplace: segment,
+  zone, incident, request, dataset-backed supplier and buyer) and views
+  (Pipeline, Renewals, Metrics, Supply vs demand…) that are missing. It
+  never overwrites or deletes: a key that exists is the team's, even if it
+  differs from the template — so it is safe to run again.
 
 ## Credentials: one node, one credential — and you will never see the value
 

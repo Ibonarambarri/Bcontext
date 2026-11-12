@@ -206,6 +206,9 @@ import { BusinessBackendError } from "@/lib/business/events";
 import { getMetricsSummary } from "@/lib/business/summary";
 import { enqueueBusinessRollup } from "@/lib/business/rollup-job";
 import { assertViewKindsExist, ViewKindError } from "@/lib/views/kinds";
+import { assertViewAgainstWorkspace } from "@/lib/views/business-checks";
+import { buildBusinessExtras, readViewRecords } from "@/lib/views/business-payload";
+import { applyBusinessTemplate } from "@/lib/business/templates";
 import type { ViewPrincipal } from "@bcontext-dev/contract/views/types";
 import { VERBS, canGrant, type Grant, type Reach, type Verb } from "@/lib/auth/grants";
 import { listAccess, grantAccess, revokeAccess, GrantError } from "@/lib/auth/admin";
@@ -560,6 +563,9 @@ const AdminWriteInput = z.discriminatedUnion("op", [
   // definition schema would charge every admin turn for it.
   z.object({ op: z.literal("record_type"), key: z.string().min(2).max(40), definition: z.record(z.unknown()) }).strict(),
   z.object({ op: z.literal("delete_record_type"), key: z.string().min(2).max(40) }).strict(),
+  // Additive and idempotent: existing record type keys and template views
+  // are skipped. Defaults to the workspace's own business model.
+  z.object({ op: z.literal("apply_business_template"), business_model: z.enum(BUSINESS_MODELS).optional() }).strict(),
 ]);
 
 const SkillsInput = z.object({
@@ -1040,7 +1046,7 @@ export const TOOLS: Tool[] = [
   {
     name: "admin_write",
     description:
-      "Grant, revoke or invite. op=grant sets one principal's verbs and reach (one per principal per workspace — granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting, so you can admit someone with no account yet; nothing is granted before they accept. An agent's invitation is HELD until a person calls op=release_invite. You can never hand out more than you hold, a wider reach than yours, or anything to yourself. op=set_business (business_model, currency). op=record_type creates or patches one by key; definition = {label, fields:[{key,label,type,required,options,target,description}], stage_field, storage}. op=delete_record_type. Requires the admin verb, not given to agents by default.",
+      "Grant, revoke or invite. op=grant sets one principal's verbs and reach (one per principal per workspace — granting again replaces it); op=revoke withdraws it. op=invite offers an address the verbs and reach it gets on accepting, so you can admit someone with no account yet; nothing is granted before they accept. An agent's invitation is HELD until a person calls op=release_invite. You can never hand out more than you hold, a wider reach than yours, or anything to yourself. op=set_business (business_model, currency). op=record_type creates or patches one by key; definition = {label, fields:[{key,label,type,required,options,target,description}], stage_field, storage}. op=delete_record_type. op=apply_business_template (business_model?) adds its template's missing record types and views, never overwriting. Requires the admin verb, not given to agents by default.",
     inputSchema: zodToJsonSchema(AdminWriteInput),
     annotations: { destructiveHint: true },
   },
@@ -2804,7 +2810,11 @@ export function buildMcpServer(ctx: McpContext): Server {
             case "resolve": {
               const view = await getView(ctx.storage, principal, input.id);
               if (view.presentation.renderer !== "roadmap") {
-                return json({ view, result: await resolveViewQuery(ctx.storage, view.query) });
+                // Views over record types answer with what the web draws:
+                // records and their fields, dataset rows, KPIs, aggregates.
+                const records = await readViewRecords(ctx.storage, view);
+                const result = await resolveViewQuery(ctx.storage, view.query, { recordFields: records?.fields });
+                return json({ view, result, ...(await buildBusinessExtras(ctx.storage, view, result, records?.nodes)) });
               }
               // The roadmap is its rows, not its node ids: an agent asking for
               // it gets the same goals × horizons the web draws, with the
@@ -2818,7 +2828,7 @@ export function buildMcpServer(ctx: McpContext): Server {
               return json({ view, result, roadmap });
             }
             case "query":
-              await assertViewKindsExist(ctx.storage, input.query);
+              await assertViewAgainstWorkspace(ctx.storage, input.query);
               return json({ result: await resolveViewQuery(ctx.storage, input.query) });
           }
           break;
@@ -2890,10 +2900,19 @@ export function buildMcpServer(ctx: McpContext): Server {
 
         case "admin_write": {
           const input = AdminWriteInput.parse(rawArgs);
-          if (input.op === "set_business" || input.op === "record_type" || input.op === "delete_record_type") {
+          if (input.op === "set_business" || input.op === "record_type" || input.op === "delete_record_type" || input.op === "apply_business_template") {
             // Shaping what the workspace is — its business model, the kinds
             // everyone writes — is an admin's call, like who gets in.
             requireAdminVerb(ctx);
+            if (input.op === "apply_business_template") {
+              const model = input.business_model ?? (await getBusinessSettings(ctx.storage)).business_model;
+              const applied = await applyBusinessTemplate(ctx.storage, mcpViewPrincipal(ctx), model, ctx.userId ?? ctx.subjectUserId);
+              appendMcpAdminAudit(ctx, "workspace.business_template", "workspace", ctx.workspaceId, { business_model: model }, {
+                record_types: applied.created.record_types,
+                views: applied.created.views.map((view) => view.key),
+              });
+              return json(applied);
+            }
             if (input.op === "set_business") {
               const { op: _op, ...patch } = input;
               const settings = await setBusinessSettings(ctx.storage, patch);
