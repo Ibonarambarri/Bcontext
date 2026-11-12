@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RecordFieldDef } from "../business/record-types.js";
 import { BUSINESS_TEMPLATES } from "../business/templates.js";
-import { columnSummary, fieldTotalOf, formatMoney, headlineTotal, totalText, totalsFor, type RecordRow } from "./fields.js";
+import { columnSummary, displayFieldValue, fieldTotalOf, formatMoney, headlineTotal, totalText, totalsFor, type RecordRow } from "./fields.js";
 
 /**
  * v0.4.2 browser pass: an Instructors table printed "Σ 78.1" under its
@@ -100,5 +100,36 @@ describe("formatMoney", () => {
   it("keeps a locale string as before, and survives an unknown currency", () => {
     expect(formatMoney(2100, "EUR", "en-GB")).toBe("€2,100");
     expect(formatMoney(5, "XXQ")).toContain("XXQ");
+  });
+});
+
+/**
+ * v0.4.3: a B2C customer's MRR lives in a dataset row, which cannot hold
+ * `{ amount, currency }`, so it is a number — and its cells read "9.99".
+ * `unit: "money"` prints it in the reporting currency.
+ */
+describe("number fields shown as money", () => {
+  const mrr: RecordFieldDef = { key: "mrr", label: "MRR", type: "number", unit: "money" };
+  const rows = [row("cus_1", { mrr: 9.99 }), row("cus_2", { mrr: 4.99 }), row("cus_3", {})];
+
+  it("prints the cell in the reporting currency, and stays a number without one", () => {
+    expect(displayFieldValue(mrr, 9.99, { currency: "EUR" })).toEqual({ kind: "text", text: "€9.99" });
+    expect(displayFieldValue(mrr, 1990, { currency: "USD" })).toEqual({ kind: "text", text: "$1,990" });
+    expect(displayFieldValue(mrr, 9.99)).toEqual({ kind: "text", text: "9.99" });
+    expect(displayFieldValue({ type: "number" }, 9.99, { currency: "EUR" })).toEqual({ kind: "text", text: "9.99" });
+  });
+
+  it("sums the footer and the board header as money", () => {
+    expect(fieldTotalOf(mrr)).toBe("sum");
+    const totals = totalsFor([mrr], rows, { currency: "EUR" });
+    expect(totals.totals[0]).toMatchObject({ field: "mrr", type: "number", sum: 14.98, count: 2, currency: "EUR" });
+    expect(totalText(totals.totals[0]!)).toBe("Σ €14.98");
+    expect(columnSummary("Active", totals, headlineTotal(totals), "/mo")).toBe("Active · 3 · €14.98/mo");
+    expect(totalText(totalsFor([mrr], rows).totals[0]!)).toBe("Σ 14.98");
+  });
+
+  it("is what the b2c template's customer MRR declares", () => {
+    const customer = BUSINESS_TEMPLATES.b2c.record_types.find((type) => type.key === "customer")!;
+    expect(customer.fields.find((field) => field.key === "mrr")).toMatchObject({ type: "number", unit: "money" });
   });
 });

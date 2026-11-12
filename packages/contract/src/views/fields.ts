@@ -196,10 +196,10 @@ const NO_TOTAL_KEY = /(^|_)(year|rank|ranking|position|order|index|age|lat|lng|l
  * key — rates and grades average, labels show nothing, and everything else
  * (counts, sizes, weights, amounts) sums. Null for a field that is neither.
  */
-export function fieldTotalOf(field: Pick<RecordFieldDef, "key" | "type" | "total">): "sum" | "average" | "none" | null {
+export function fieldTotalOf(field: Pick<RecordFieldDef, "key" | "type" | "total" | "unit">): "sum" | "average" | "none" | null {
   if (field.type !== "number" && field.type !== "money") return null;
   if (field.total) return field.total;
-  if (field.type === "money") return "sum";
+  if (field.type === "money" || field.unit === "money") return "sum";
   if (AVERAGE_KEY.test(field.key)) return "average";
   if (NO_TOTAL_KEY.test(field.key)) return "none";
   return "sum";
@@ -217,7 +217,11 @@ export interface FieldTotal {
   average: number | null;
   /** How many rows carry a value. */
   count: number;
-  /** money: the one currency summed; null when mixed (then `sum` is null). */
+  /**
+   * The one currency summed: a money field's (null when mixed, then `sum`
+   * is null), or the reporting currency for a number shown as money
+   * (`unit: "money"`). A total with a currency prints as money.
+   */
   currency: string | null;
   mixed_currency: boolean;
 }
@@ -230,8 +234,10 @@ export interface RowTotals {
 /**
  * Count of rows plus a total per number/money field that has a meaningful
  * one (`fieldTotalOf`) — table footers and board column headers.
+ * `currency` is the workspace's reporting currency: the one a number field
+ * with `unit: "money"` is in. Without it such a total prints as a number.
  */
-export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly RecordRow[]): RowTotals {
+export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly RecordRow[], opts: { currency?: string } = {}): RowTotals {
   const totals: FieldTotal[] = [];
   for (const field of fields) {
     const op = fieldTotalOf(field);
@@ -256,7 +262,9 @@ export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly Reco
       sum: mixed ? null : sum,
       average: mixed || sum === null || count === 0 ? null : sum / count,
       count,
-      currency: field.type === "money" && !mixed ? [...currencies][0] ?? null : null,
+      currency: field.type === "money"
+        ? (!mixed ? [...currencies][0] ?? null : null)
+        : field.unit === "money" ? opts.currency ?? null : null,
       mixed_currency: mixed,
     });
   }
@@ -274,7 +282,7 @@ export function headlineTotal(totals: RowTotals, preferred?: string | null): Fie
     if (named) return named;
   }
   const summed = totals.totals.filter((total) => total.op === "sum");
-  return summed.find((total) => total.type === "money") ?? summed.find((total) => total.type === "number") ?? null;
+  return summed.find(asMoney) ?? summed.find((total) => total.type === "number") ?? null;
 }
 
 /**
@@ -286,13 +294,22 @@ export function totalText(total: FieldTotal, locale?: string): string {
   if (total.mixed_currency) return "mixed currencies";
   if (total.op === "average") {
     if (total.average === null) return "";
-    const text = total.type === "money"
+    const text = asMoney(total)
       ? formatMoney(total.average, total.currency ?? "EUR", locale)
       : new Intl.NumberFormat(locale ?? DISPLAY_LOCALE, { maximumFractionDigits: 1 }).format(total.average);
     return `avg ${text}`;
   }
   if (total.sum === null) return "";
-  return `Σ ${total.type === "money" ? formatMoney(total.sum, total.currency ?? "EUR", locale) : formatNumber(total.sum, locale)}`;
+  return `Σ ${totalAmountText(total, total.sum, locale)}`;
+}
+
+/** A money field's total, or a number field's shown as money (it has a currency). */
+function asMoney(total: FieldTotal): boolean {
+  return total.type === "money" || total.currency !== null;
+}
+
+function totalAmountText(total: FieldTotal, amount: number, locale?: string): string {
+  return asMoney(total) ? formatMoney(amount, total.currency ?? "EUR", locale) : formatNumber(amount, locale);
 }
 
 /** "Proposal · 3 · €2,100/mo" — `suffix` is the layout's (`/mo` for MRR). */
@@ -303,7 +320,7 @@ export function columnSummary(label: string, totals: RowTotals, headline: FieldT
     else if (headline.op === "average") {
       if (headline.average !== null) parts.push(totalText(headline, locale));
     } else if (headline.sum !== null) {
-      parts.push((headline.type === "money" ? formatMoney(headline.sum, headline.currency ?? "EUR", locale) : formatNumber(headline.sum, locale)) + suffix);
+      parts.push(totalAmountText(headline, headline.sum, locale) + suffix);
     }
   }
   return parts.join(" · ");
@@ -441,8 +458,17 @@ export type DisplayValue =
  * chips and `relation` ids into links to the nodes. Values that do not
  * match their field's type (written before a definition changed) are shown
  * as text rather than hidden.
+ *
+ * `currency` is the workspace's reporting currency, which a number field
+ * with `unit: "money"` is printed in ("€9.99", not "9.99"); without it the
+ * number stays a number. A string is the locale, as before.
  */
-export function displayFieldValue(field: Pick<RecordFieldDef, "type">, value: RecordFieldValue | undefined, locale?: string): DisplayValue {
+export function displayFieldValue(
+  field: Pick<RecordFieldDef, "type" | "unit">,
+  value: RecordFieldValue | undefined,
+  opts: string | { locale?: string; currency?: string } = {},
+): DisplayValue {
+  const { locale, currency } = typeof opts === "string" ? { locale: opts, currency: undefined } : opts;
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return { kind: "empty" };
   switch (field.type) {
     case "money": {
@@ -450,7 +476,8 @@ export function displayFieldValue(field: Pick<RecordFieldDef, "type">, value: Re
       return amount === null ? { kind: "text", text: String(value) } : { kind: "text", text: formatMoney(amount, (value as MoneyValue).currency, locale) };
     }
     case "number":
-      return typeof value === "number" ? { kind: "text", text: formatNumber(value, locale) } : { kind: "text", text: String(value) };
+      if (typeof value !== "number") return { kind: "text", text: String(value) };
+      return { kind: "text", text: field.unit === "money" && currency ? formatMoney(value, currency, locale) : formatNumber(value, locale) };
     case "date":
       return { kind: "text", text: typeof value === "string" ? formatDateValue(value, locale) : String(value) };
     case "boolean":

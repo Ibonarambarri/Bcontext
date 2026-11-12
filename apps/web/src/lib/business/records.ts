@@ -24,7 +24,8 @@ import {
   type RecordTypeDefinition,
 } from "@bcontext-dev/contract/business/record-types";
 import type { BusinessEvent } from "@bcontext-dev/contract/business/events";
-import { formatCount, formatMoney } from "./format";
+import { formatNumber } from "@bcontext-dev/contract/views/fields";
+import { formatMoney } from "./format";
 
 /** The bits of a node the record helpers read. Summaries and full nodes both fit. */
 export interface RecordNodeLike {
@@ -79,16 +80,17 @@ export function relationIds(value: unknown): string[] {
  * already has; an id it cannot resolve prints shortened rather than not at all.
  */
 export function formatFieldValue(
-  field: Pick<RecordFieldDef, "type">,
+  field: Pick<RecordFieldDef, "type" | "unit">,
   value: RecordFieldValue | unknown,
-  opts: { titles?: ReadonlyMap<string, string>; people?: ReadonlyMap<string, string> } = {},
+  opts: { titles?: ReadonlyMap<string, string>; people?: ReadonlyMap<string, string>; /** The reporting currency a `unit: "money"` number is in. */ currency?: string } = {},
 ): string {
   if (value === null || value === undefined || value === "") return "—";
   switch (field.type) {
     case "money":
       return isMoney(value) ? formatMoney(value.amount, value.currency) : String(value);
     case "number":
-      return typeof value === "number" ? formatCount(value) : String(value);
+      if (typeof value !== "number") return String(value);
+      return field.unit === "money" && opts.currency ? formatMoney(value, opts.currency) : formatNumber(value);
     case "boolean":
       return value === true ? "Yes" : value === false ? "No" : String(value);
     case "date":

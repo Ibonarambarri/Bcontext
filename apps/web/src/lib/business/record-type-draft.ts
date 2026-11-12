@@ -19,6 +19,7 @@ import {
   RecordTypePatchSchema,
   definitionIssues,
   type FieldTotalMode,
+  type FieldUnit,
   type RecordFieldDef,
   type RecordFieldType,
   type RecordStorage,
@@ -38,6 +39,8 @@ export interface FieldDraft {
   description: string;
   /** number / money: the footer total, `""` to let `fieldTotalOf` infer it from the key. */
   total: "" | FieldTotalMode;
+  /** number: `money` prints it in the reporting currency; `""` a plain number. */
+  unit: "" | FieldUnit;
   /** Added in this edit: its key is still editable. */
   isNew: boolean;
 }
@@ -79,7 +82,7 @@ export const FIELD_TOTAL_LABELS: Record<"" | FieldTotalMode, string> = {
 };
 
 export function emptyField(): FieldDraft {
-  return { key: "", label: "", type: "text", required: false, optionsText: "", target: "", multiple: false, description: "", total: "", isNew: true };
+  return { key: "", label: "", type: "text", required: false, optionsText: "", target: "", multiple: false, description: "", total: "", unit: "", isNew: true };
 }
 
 export function emptyType(): TypeDraft {
@@ -105,6 +108,7 @@ export function draftFromType(type: RecordType): TypeDraft {
       multiple: Boolean(field.multiple),
       description: field.description ?? "",
       total: field.total ?? "",
+      unit: field.unit ?? "",
       isNew: false,
     })),
     isNew: false,
@@ -125,6 +129,8 @@ export function fieldDefFromDraft(draft: FieldDraft): RecordFieldDef {
     // Kept through an edit even though most people never touch it: dropping
     // it would turn an Instructors' "avg 4.7" back into a sum of ratings.
     ...(draft.total && (draft.type === "number" || draft.type === "money") ? { total: draft.total } : {}),
+    // The same for a number shown as money: a B2C MRR would print "9.99" again.
+    ...(draft.unit && draft.type === "number" ? { unit: draft.unit } : {}),
   };
 }
 

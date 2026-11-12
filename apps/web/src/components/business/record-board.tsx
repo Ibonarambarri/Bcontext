@@ -39,6 +39,7 @@ import { Kanban, useKanban, useKanbanColumn } from "@/components/ui/kanban";
 import { useToast, useWorkspace } from "@/components/workspace-context";
 import { patchRecordFields } from "@/lib/business/requests";
 import type { WorkspaceAddress } from "@/web/workspace-url";
+import { useBusiness } from "./business-context";
 import { FieldValue } from "./field-value";
 
 type Card = RecordRow & { column: string };
@@ -56,6 +57,7 @@ export function RecordBoard({
 }) {
   const toast = useToast();
   const { selectNode } = useWorkspace();
+  const { currency } = useBusiness();
   const [rows, setRows] = useState(payload.rows);
   const board = (presentation.layout.board ?? {}) as { total_field?: string; total_suffix?: string };
   const columns = useMemo(() => recordBoardColumns(field, rows), [field, rows]);
@@ -107,7 +109,7 @@ export function RecordBoard({
     <Kanban className="pb-4">
       {columns.map((column) => {
         const members = groups.get(column.value) ?? [];
-        const totals = totalsFor(allFields, members);
+        const totals = totalsFor(allFields, members, { currency });
         const headline = headlineTotal(totals, board.total_field);
         return (
           <RecordColumn

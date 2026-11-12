@@ -8,9 +8,9 @@
  * Agents fill records in; this is where a person shapes what a record is:
  * the fields (key, label, type, required, options, relation target and a
  * one-line description — the line an agent reads to decide what goes
- * there, and for a number or money field what its table footer totals
- * to), which select field is the pipeline stage, and, once, where the
- * records are stored. The draft and its validation are
+ * there, for a number or money field what its table footer totals to,
+ * and whether a number is shown as money), which select field is the
+ * pipeline stage, and, once, where the records are stored. The draft and its validation are
  * `@/lib/business/record-type-draft`, so what is sent is what the
  * contract's schemas accept and their errors are shown before saving.
  *
@@ -455,10 +455,20 @@ function FieldRow({
           <Input placeholder="One line for the agent: what goes here" />
         </TextField>
       </div>
-      <Checkbox className="mt-2" isSelected={field.required} onChange={(v) => onChange({ required: v })} isDisabled={disabled}>
-        <Checkbox.Control><Checkbox.Indicator /></Checkbox.Control>
-        <Checkbox.Content><Label className="text-[12.5px]">Required</Label></Checkbox.Content>
-      </Checkbox>
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+        <Checkbox isSelected={field.required} onChange={(v) => onChange({ required: v })} isDisabled={disabled}>
+          <Checkbox.Control><Checkbox.Indicator /></Checkbox.Control>
+          <Checkbox.Content><Label className="text-[12.5px]">Required</Label></Checkbox.Content>
+        </Checkbox>
+        {field.type === "number" ? (
+          // A dataset type cannot have money fields; this is how its MRR
+          // still reads "€9.99" in tables and totals.
+          <Checkbox isSelected={field.unit === "money"} onChange={(v) => onChange({ unit: v ? "money" : "" })} isDisabled={disabled}>
+            <Checkbox.Control><Checkbox.Indicator /></Checkbox.Control>
+            <Checkbox.Content><Label className="text-[12.5px]">Show as money (reporting currency)</Label></Checkbox.Content>
+          </Checkbox>
+        ) : null}
+      </div>
     </div>
   );
 }
