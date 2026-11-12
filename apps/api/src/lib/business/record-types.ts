@@ -81,6 +81,7 @@ function fromRow(row: Record<string, unknown>): RecordType {
     dataset_node_id: (row.dataset_node_id as string | null) ?? null,
     fields: Array.isArray(definition.fields) ? (definition.fields as RecordType["fields"]) : [],
     stage_field: (definition.stage_field as string | null | undefined) ?? null,
+    promotes_from: Array.isArray(definition.promotes_from) ? (definition.promotes_from as string[]) : null,
     position: Number(row.position ?? 0),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -92,6 +93,7 @@ function definitionColumn(def: RecordTypeDefinition): Record<string, unknown> {
     fields: def.fields,
     stage_field: def.stage_field ?? null,
     label_plural: def.label_plural ?? null,
+    promotes_from: def.promotes_from?.length ? def.promotes_from : null,
   };
 }
 
@@ -140,6 +142,7 @@ async function checkAgainstWorkspace(
   storage: Storage,
   def: RecordTypeDefinition,
   existing: readonly RecordType[],
+  checkPromotesFrom = true,
 ): Promise<void> {
   const keys = new Set([...existing.map((type) => type.key), def.key]);
   for (const field of def.fields) {
@@ -148,6 +151,18 @@ async function checkAgainstWorkspace(
       throw new RecordTypeError(
         "invalid",
         `field \`${field.key}\` targets \`${field.target}\`, which is neither a core kind nor a record type here`,
+      );
+    }
+  }
+  // Checked only when written: a source deleted later just stops matching,
+  // and must not make every later edit of this type fail.
+  for (const sourceKey of checkPromotesFrom ? def.promotes_from ?? [] : []) {
+    const source = existing.find((type) => type.key === sourceKey);
+    if (!source || source.storage !== "dataset") {
+      throw new RecordTypeError(
+        "invalid",
+        `promotes_from names \`${sourceKey}\`, which is not a dataset-backed record type here` +
+          (existing.some((type) => type.storage === "dataset") ? ` (dataset types: ${existing.filter((type) => type.storage === "dataset").map((type) => type.key).join(", ")})` : ""),
       );
     }
   }
@@ -186,6 +201,7 @@ export async function createRecordType(
       description: def.description ?? null,
       dataset_node_id: def.dataset_node_id ?? null,
       stage_field: def.stage_field ?? null,
+      promotes_from: def.promotes_from?.length ? def.promotes_from : null,
       id: crypto.randomUUID(),
       workspace_id: storage.workspace.id,
       position: existing.length,
@@ -237,11 +253,12 @@ export async function updateRecordType(
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.fields !== undefined ? { fields: patch.fields } : {}),
     ...(patch.stage_field !== undefined ? { stage_field: patch.stage_field } : {}),
+    ...(patch.promotes_from !== undefined ? { promotes_from: patch.promotes_from?.length ? patch.promotes_from : null } : {}),
     ...(patch.position !== undefined ? { position: patch.position } : {}),
   };
   const issues = definitionIssues(next);
   if (issues.length > 0) throw new RecordTypeError("invalid", issues.join("; "));
-  await checkAgainstWorkspace(storage, next, existing);
+  await checkAgainstWorkspace(storage, next, existing, patch.promotes_from !== undefined);
   // Removing a field does not rewrite the records that hold a value for it:
   // the value stays in data.fields, invisible to validation, and comes back
   // if the field does. Rewriting every record on a definition edit is a

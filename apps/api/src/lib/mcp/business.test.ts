@@ -270,6 +270,16 @@ describe("business layer over MCP", () => {
     });
     const type = (await getRecordType(storage, "client"))!;
 
+    // promotes_from names the dataset types a node type is made from; it
+    // must name one that exists and is dataset-backed, and survives a patch
+    // that does not mention it.
+    await ok("admin_write", { op: "record_type", key: "vip", definition: { promotes_from: ["client"] } });
+    expect((await getRecordType(storage, "vip"))!.promotes_from).toEqual(["client"]);
+    await ok("admin_write", { op: "record_type", key: "vip", definition: { label: "VIP" } });
+    expect((await getRecordType(storage, "vip"))!.promotes_from).toEqual(["client"]);
+    const notDataset = await call("admin_write", { op: "record_type", key: "vip", definition: { promotes_from: ["contact"] } });
+    expect(text(notDataset)).toContain("promotes_from names `contact`, which is not a dataset-backed record type here (dataset types: client)");
+
     const first = await upsertDatasetRecords(storage, type, [
       { external_id: "cli_1", fields: { name: "Ana", zone: "Baqueira", lessons: 3 } },
       { external_id: "cli_2", fields: { name: "Ben", zone: "Formigal", lessons: 1 } },

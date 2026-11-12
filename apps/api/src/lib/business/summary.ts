@@ -15,6 +15,8 @@
 import type { BusinessSettings } from "@bcontext-dev/contract/business/record-types";
 import {
   KPI_DEFINITIONS,
+  currentKpiWording,
+  isPeriodOpen,
   METRICS_SERIES_LENGTH,
   kpiSetFor,
   type KpiValue,
@@ -160,6 +162,9 @@ export function buildMetricsSummary(input: SummaryInput): MetricsSummary {
       }
       return cached;
     };
+    // Always true today (`current` is this month), but said through
+    // `isPeriodOpen` so a summary of a closed month keeps the plain "Net".
+    const currentOpen = isPeriodOpen(currentPeriod, now);
     const previousPeriod = shiftMonth(currentPeriod, -1);
     const yearAgoPeriod = shiftMonth(currentPeriod, -12);
     for (const definition of KPI_DEFINITIONS[set]) {
@@ -167,10 +172,16 @@ export function buildMetricsSummary(input: SummaryInput): MetricsSummary {
       const current = value(currentPeriod);
       const previous = value(previousPeriod);
       const yearAgo = value(yearAgoPeriod);
+      const label = renameSides(definition.label, names);
+      const meaning = renameSides(definition.definition, names);
+      const wording = currentKpiWording({ label, definition: meaning, to_date: definition.to_date }, currentOpen);
       kpis.push({
         ...definition,
-        label: renameSides(definition.label, names),
-        definition: renameSides(definition.definition, names),
+        label,
+        definition: meaning,
+        current_label: wording.label,
+        current_definition: wording.definition,
+        current_is_partial: wording.partial,
         current,
         previous,
         delta: current === null || previous === null ? null : current - previous,
