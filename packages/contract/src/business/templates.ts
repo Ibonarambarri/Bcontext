@@ -219,7 +219,7 @@ const B2B: BusinessTemplate = {
       fields: [
         { key: "stage", label: "Stage", type: "select", options: ["lead", "demo", "proposal", "negotiation", "won", "lost"], required: true },
         { key: "amount", label: "Amount", type: "money", description: "Expected MRR of the deal." },
-        { key: "probability", label: "Probability", type: "number", description: "0-100, the owner's honest estimate." },
+        { key: "probability", label: "Probability", type: "number", total: "average", description: "0-100, the owner's honest estimate." },
         { key: "account", label: "Account", type: "relation", target: "account" },
         { key: "close_date", label: "Close date", type: "date" },
         { key: "owner", label: "Owner", type: "person" },
@@ -393,7 +393,7 @@ const MARKETPLACE: BusinessTemplate = {
         { key: "email", label: "Email", type: "email" },
         { key: "zone", label: "Zone", type: "text" },
         { key: "status", label: "Status", type: "select", options: ["onboarding", "active", "paused", "offboarded"] },
-        { key: "rating", label: "Rating", type: "number" },
+        { key: "rating", label: "Rating", type: "number", total: "average" },
         { key: "joined_on", label: "Joined", type: "date" },
       ],
     },

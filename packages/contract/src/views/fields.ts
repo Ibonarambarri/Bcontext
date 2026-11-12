@@ -182,12 +182,39 @@ export function recordMovePatch(
 /*  Totals                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Number keys whose values are rates or grades: their column total is an
+ * average (a sum of 4.8 + 4.6 + … ratings is the "Σ 78.1" nobody can read).
+ */
+const AVERAGE_KEY = /(^|_)(rating|ratings|score|scores|stars|probability|prob|percent|percentage|pct|rate|ratio|nps|csat|satisfaction|margin|conversion)(_|$)/;
+/** Number keys that are labels or coordinates: no total at all. */
+const NO_TOTAL_KEY = /(^|_)(year|rank|ranking|position|order|index|age|lat|lng|lon|latitude|longitude|zip|postcode|code|id|number|version|priority)(_|$)/;
+
+/**
+ * What a number or money column totals to: the field's own `total` when
+ * the definition says, else money sums and a number is inferred from its
+ * key — rates and grades average, labels show nothing, and everything else
+ * (counts, sizes, weights, amounts) sums. Null for a field that is neither.
+ */
+export function fieldTotalOf(field: Pick<RecordFieldDef, "key" | "type" | "total">): "sum" | "average" | "none" | null {
+  if (field.type !== "number" && field.type !== "money") return null;
+  if (field.total) return field.total;
+  if (field.type === "money") return "sum";
+  if (AVERAGE_KEY.test(field.key)) return "average";
+  if (NO_TOTAL_KEY.test(field.key)) return "none";
+  return "sum";
+}
+
 export interface FieldTotal {
   field: string;
   label: string;
   type: "number" | "money";
+  /** How the column totals (`fieldTotalOf`); `none` columns are not listed. */
+  op: "sum" | "average";
   /** Sum of the values present; null when none has one. */
   sum: number | null;
+  /** Mean of the values present; null when none has one. */
+  average: number | null;
   /** How many rows carry a value. */
   count: number;
   /** money: the one currency summed; null when mixed (then `sum` is null). */
@@ -200,11 +227,15 @@ export interface RowTotals {
   totals: FieldTotal[];
 }
 
-/** Count of rows plus a sum per number/money field — table footers and board column headers. */
+/**
+ * Count of rows plus a total per number/money field that has a meaningful
+ * one (`fieldTotalOf`) — table footers and board column headers.
+ */
 export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly RecordRow[]): RowTotals {
   const totals: FieldTotal[] = [];
   for (const field of fields) {
-    if (field.type !== "number" && field.type !== "money") continue;
+    const op = fieldTotalOf(field);
+    if (op === null || op === "none" || (field.type !== "number" && field.type !== "money")) continue;
     let sum: number | null = null;
     let count = 0;
     const currencies = new Set<string>();
@@ -221,7 +252,9 @@ export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly Reco
       field: field.key,
       label: field.label,
       type: field.type,
+      op,
       sum: mixed ? null : sum,
+      average: mixed || sum === null || count === 0 ? null : sum / count,
       count,
       currency: field.type === "money" && !mixed ? [...currencies][0] ?? null : null,
       mixed_currency: mixed,
@@ -232,15 +265,34 @@ export function totalsFor(fields: readonly RecordFieldDef[], rows: readonly Reco
 
 /**
  * The one total a board column header shows: the field the layout names
- * (`layout.board.total_field`), else the first money field, else the first
- * number field.
+ * (`layout.board.total_field`), else the first summed money field, else the
+ * first summed number field. An average is shown only when named.
  */
 export function headlineTotal(totals: RowTotals, preferred?: string | null): FieldTotal | null {
   if (preferred) {
     const named = totals.totals.find((total) => total.field === preferred);
     if (named) return named;
   }
-  return totals.totals.find((total) => total.type === "money") ?? totals.totals.find((total) => total.type === "number") ?? null;
+  const summed = totals.totals.filter((total) => total.op === "sum");
+  return summed.find((total) => total.type === "money") ?? summed.find((total) => total.type === "number") ?? null;
+}
+
+/**
+ * A total as text: "Σ €2,100" for a sum, "avg 4.7" for an average (one
+ * decimal, as a grade is read), "mixed currencies" when a money column
+ * holds two. Empty when no row has a value.
+ */
+export function totalText(total: FieldTotal, locale?: string): string {
+  if (total.mixed_currency) return "mixed currencies";
+  if (total.op === "average") {
+    if (total.average === null) return "";
+    const text = total.type === "money"
+      ? formatMoney(total.average, total.currency ?? "EUR", locale)
+      : new Intl.NumberFormat(locale ?? DISPLAY_LOCALE, { maximumFractionDigits: 1 }).format(total.average);
+    return `avg ${text}`;
+  }
+  if (total.sum === null) return "";
+  return `Σ ${total.type === "money" ? formatMoney(total.sum, total.currency ?? "EUR", locale) : formatNumber(total.sum, locale)}`;
 }
 
 /** "Proposal · 3 · €2,100/mo" — `suffix` is the layout's (`/mo` for MRR). */
@@ -248,7 +300,9 @@ export function columnSummary(label: string, totals: RowTotals, headline: FieldT
   const parts = [label, String(totals.count)];
   if (headline && headline.count > 0) {
     if (headline.mixed_currency) parts.push("mixed currencies");
-    else if (headline.sum !== null) {
+    else if (headline.op === "average") {
+      if (headline.average !== null) parts.push(totalText(headline, locale));
+    } else if (headline.sum !== null) {
       parts.push((headline.type === "money" ? formatMoney(headline.sum, headline.currency ?? "EUR", locale) : formatNumber(headline.sum, locale)) + suffix);
     }
   }
@@ -335,13 +389,29 @@ export function moneyAmount(value: unknown): number | null {
  */
 export const DISPLAY_LOCALE = "en-US";
 
-export function formatMoney(amount: number, currency: string, locale: string = DISPLAY_LOCALE): string {
+export interface MoneyFormatOptions {
+  locale?: string;
+  /** `€12.3K`: for chart axes and the large figure of a narrow KPI card. */
+  compact?: boolean;
+}
+
+/**
+ * THE money formatter: every amount the business UI shows — record cells,
+ * table and board totals, KPI cards, charts, the event timeline — goes
+ * through it, so "€90" never sits next to "€150.00".
+ *
+ * The decimals rule: an amount with cents shows them, both digits (€49.90),
+ * up to 1,000; a whole amount (or one from 1,000 up) shows none (€90,
+ * €1,241). Compact notation keeps at most one decimal (€12.3K).
+ */
+export function formatMoney(amount: number, currency: string, opts: string | MoneyFormatOptions = {}): string {
+  const { locale = DISPLAY_LOCALE, compact = false } = typeof opts === "string" ? { locale: opts } : opts;
+  const cents = Math.abs(amount) < 1000 && Math.round(Math.abs(amount) * 100) % 100 !== 0;
   try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: Math.abs(amount) >= 1000 || Number.isInteger(amount) ? 0 : 2,
-    }).format(amount);
+    return new Intl.NumberFormat(locale, compact
+      ? { style: "currency", currency, notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 }
+      : { style: "currency", currency, minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 },
+    ).format(amount);
   } catch {
     // An unknown ISO code (the schema only checks the shape) still prints.
     return `${formatNumber(amount, locale)} ${currency}`;

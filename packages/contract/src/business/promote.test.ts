@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fieldValueFits, promoteFit, promoteTargetsFor, type RecordTypeDefinition } from "./record-types.js";
+import {
+  RecordTypeInputSchema,
+  RecordTypePatchSchema,
+  fieldValueFits,
+  isGenericField,
+  promoteFit,
+  promoteTargetsFor,
+  type RecordTypeDefinition,
+} from "./record-types.js";
 import { BUSINESS_TEMPLATES, type TemplateRecordType } from "./templates.js";
 
 /**
@@ -59,11 +67,110 @@ describe("promote targets from the templates", () => {
         { key: "rating", label: "Rating", type: "number" },
       ],
     };
-    const note: RecordTypeDefinition = { key: "note_card", label: "Note", storage: "node", fields: [{ key: "email", label: "Email", type: "text" }] };
-    expect(promoteTargetsFor(supplier, [...types, note, vip])).toEqual([
+    const coach: RecordTypeDefinition = {
+      key: "coach",
+      label: "Coach",
+      storage: "node",
+      fields: [
+        { key: "rating", label: "Rating", type: "number" },
+        { key: "joined_on", label: "Joined", type: "date" },
+      ],
+    };
+    expect(promoteTargetsFor(supplier, [...types, vip, coach])).toEqual([
+      { key: "coach", label: "Coach" },
       { key: "key_instructor", label: "Key instructor" },
-      { key: "note_card", label: "Note" },
     ]);
     expect(promoteFit(supplier, vip).mapping).toEqual({ name: "name", email: "email", rating: "rating" });
+  });
+});
+
+describe("generic fields do not make two types related", () => {
+  // The v0.4.1 browser pass: once a "lead instructor" type existed, every
+  // marketplace client row offered "Convert to lead instructor" — they share
+  // a name, an email and a zone, and nothing else.
+  const leadInstructor: RecordTypeDefinition = {
+    key: "lead_instructor",
+    label: "Lead instructor",
+    storage: "node",
+    fields: [
+      { key: "name", label: "Name", type: "text" },
+      { key: "email", label: "Email", type: "email" },
+      { key: "zone", label: "Zone", type: "text" },
+      { key: "rating", label: "Rating", type: "number" },
+      { key: "certification", label: "Certification", type: "text" },
+    ],
+  };
+
+  it("offers a lead instructor to suppliers (a rating in common), never to clients", () => {
+    const types = [...templateTypes("marketplace"), leadInstructor];
+    const supplier = types.find((type) => type.key === "supplier")!;
+    const buyer = types.find((type) => type.key === "buyer")!;
+    expect(promoteTargetsFor(supplier, types)).toEqual([{ key: "lead_instructor", label: "Lead instructor" }]);
+    expect(promoteTargetsFor(buyer, types)).toEqual([]);
+  });
+
+  it("treats name, email, phone, zone, country and the like as generic", () => {
+    for (const key of ["name", "email", "phone", "zone", "country", "title", "city", "status"]) {
+      expect(isGenericField({ key, type: "text" }), key).toBe(true);
+    }
+    expect(isGenericField({ key: "contact", type: "email" })).toBe(true);
+    expect(isGenericField({ key: "rating", type: "number" })).toBe(false);
+    expect(isGenericField({ key: "plan", type: "text" })).toBe(false);
+  });
+
+  it("offers a type sharing only generic fields when it declares the source in promotes_from", () => {
+    const types = templateTypes("marketplace");
+    const buyer = types.find((type) => type.key === "buyer")!;
+    const vipClient: RecordTypeDefinition = {
+      key: "vip_client",
+      label: "VIP client",
+      storage: "node",
+      promotes_from: ["buyer"],
+      fields: [
+        { key: "name", label: "Name", type: "text" },
+        { key: "email", label: "Email", type: "email" },
+      ],
+    };
+    expect(promoteTargetsFor(buyer, [...types, vipClient])).toEqual([{ key: "vip_client", label: "VIP client" }]);
+    // Declared first, ahead of a type that only shares a field.
+    const regular: RecordTypeDefinition = { key: "regular", label: "Regular", storage: "node", fields: [{ key: "bookings", label: "Bookings", type: "number" }] };
+    expect(promoteTargetsFor(buyer, [...types, regular, vipClient]).map((t) => t.key)).toEqual(["vip_client", "regular"]);
+  });
+
+  it("offers a type that declares other sources to none but those", () => {
+    const types = templateTypes("marketplace");
+    const supplier = types.find((type) => type.key === "supplier")!;
+    const declared = { ...leadInstructor, promotes_from: ["buyer"] };
+    expect(promoteTargetsFor(supplier, [...types, declared])).toEqual([]);
+  });
+
+  it("still demands every required field, declared or not", () => {
+    const types = templateTypes("marketplace");
+    const buyer = types.find((type) => type.key === "buyer")!;
+    const strict: RecordTypeDefinition = {
+      key: "ambassador",
+      label: "Ambassador",
+      storage: "node",
+      promotes_from: ["buyer"],
+      fields: [{ key: "code", label: "Code", type: "text", required: true }],
+    };
+    expect(promoteTargetsFor(buyer, [...types, strict])).toEqual([]);
+  });
+});
+
+describe("record type settings", () => {
+  const base = { key: "lead_instructor", label: "Lead instructor", fields: [{ key: "rating", label: "Rating", type: "number" as const, total: "average" as const }] };
+
+  it("takes promotes_from on a node type and a total on a number", () => {
+    expect(RecordTypeInputSchema.safeParse({ ...base, promotes_from: ["supplier"] }).success).toBe(true);
+    expect(RecordTypePatchSchema.safeParse({ promotes_from: null }).success).toBe(true);
+  });
+
+  it("refuses a total on a text field, promotes_from on a dataset type, and a self-reference", () => {
+    const text = RecordTypeInputSchema.safeParse({ ...base, fields: [{ key: "bio", label: "Bio", type: "text", total: "sum" }] });
+    expect(text.success).toBe(false);
+    const dataset = RecordTypeInputSchema.safeParse({ ...base, storage: "dataset", dataset_node_id: "ds", promotes_from: ["supplier"] });
+    expect(dataset.success).toBe(false);
+    expect(RecordTypeInputSchema.safeParse({ ...base, promotes_from: ["lead_instructor"] }).success).toBe(false);
   });
 });

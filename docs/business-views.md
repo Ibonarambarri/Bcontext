@@ -38,14 +38,18 @@ as `field:<key>`.
   person or boolean field. If you leave it out, the board groups by the
   record type's `stage_field`. Columns follow the field's options in order.
   Each column header gives the count and the sum of `layout.board.total_field`
-  (otherwise the first money or number field), for example
+  (otherwise the first summed money or number field), for example
   `Proposal · 3 · €2,100/mo`. Dragging a card sends
   `PATCH /api/nodes/:id { fields: { stage: "won" } }`, which the record type
   validates. A refused move snaps back and shows the API's message.
 - **Table** (`table` or `list`): the `columns` are formatted by type. Money
   shows with its currency, dates as dates, selects as chips, and relations
-  as links that open the node. The footer sums every money and number column
-  and never adds two currencies together.
+  as links that open the node. The footer totals a money or number column
+  only where a total means something: money and counts sum (`Σ €2,100`),
+  ratings, scores, probabilities and rates average (`avg 4.7`), and numbers
+  that are labels (a year, a rank) show nothing. A field's `total`
+  (`sum`, `average` or `none`) says which; without one it is inferred from
+  the key. It never adds two currencies together.
 - **Dataset-backed types** (`query.dataset_type: "customer"`): the view lists
   the dataset's keyed rows (up to 1,000; the rest stays queryable through
   `data(op=query)`). Each row has a **Convert to …** action, which calls
@@ -157,11 +161,16 @@ is still recommended).
 A row of a dataset-backed type (a supplier, a customer) becomes a node
 record with `POST /api/nodes/:id/dataset/promote` or
 `data_write(op=promote_row)`. Only node record types the row fits are
-offered: a target must share at least one field whose values fit it (same
-key; same type, a select whose options it has, or any string into a text
-field) and every field it requires must be filled that way. The templates'
-marketplace and b2c types have no such target, so their tables say why
-instead of offering a conversion; add a node type with some of the same
-fields to enable it. Without a `mapping`, a promote carries over only the
-fitting columns, and refuses up front, naming the field, when a required
-one would stay empty.
+offered. A target must be related to the row's type: it lists that type in
+its `promotes_from`, or it shares at least one field beyond the generic ones
+(name, email, phone, zone, country, status and the like) whose values fit
+it (same key; same type, a select whose options it has, or any string into
+a text field). Sharing only a name, an email and a zone is not enough: a
+marketplace client is not a lead instructor. A type that declares
+`promotes_from` is offered for those sources only. Every field the target
+requires must also be filled by a fitting column. The templates' marketplace
+and b2c types have no such target, so their tables say why instead of
+offering a conversion; add a node type with `promotes_from` (or one that
+shares a specific field) to enable it. Without a `mapping`, a promote
+carries over only the fitting columns, and refuses up front, naming the
+field, when a required one would stay empty.

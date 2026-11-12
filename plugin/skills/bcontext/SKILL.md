@@ -326,11 +326,19 @@ parentheses, the stage field's options in `stages`).
   a 12-month series. Quote these instead of computing your own from rows.
   Labels use the workspace's own words for its sides (a renamed `supplier`
   reads "Active instructors"); refer to a KPI by its `key`, which never
-  changes.
+  changes. For the running month, flows (expenses, net, burn, GMV, take,
+  bookings) are month to date — say so (`current_label` reads "Net (month
+  to date)") rather than calling a mid-month net a loss.
 - Defining types and setting the model is an admin's: `admin_write({ op:
   "record_type", key, definition })`, `admin_write({ op: "set_business",
   business_model })`; `admin({ op: "business" })` returns the full
-  definitions. `admin_write({ op: "apply_business_template" })` adds the
+  definitions. Two optional settings: a number/money field's `total`
+  (`sum` · `average` · `none` — ratings average, years show nothing; the
+  table footer uses it), and a node type's `promotes_from` (the
+  dataset-backed types it is made from, e.g. `lead_instructor` with
+  `["supplier"]`). "Convert to …" offers a node type for a row only when it
+  lists the row's type there, or shares a field beyond name, email, zone and
+  the like — a client sharing a name and an email is not a lead instructor. `admin_write({ op: "apply_business_template" })` adds the
   model's default record types (b2b: account, contact, deal, request; b2c:
   segment, request, incident, dataset-backed customer; marketplace: segment,
   zone, incident, request, dataset-backed supplier and buyer) and views

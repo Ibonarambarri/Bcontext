@@ -118,7 +118,7 @@ describe("mrrHistory", () => {
   it("describes events in words", () => {
     expect(describeEvent(event("subscription.started", "2026-11-01T00:00:00Z", 490), "EUR")).toBe("Subscription started · €490/mo");
     expect(describeEvent({ type: "feature.used", properties: {} }, "EUR")).toBe("feature.used");
-    expect(describeEvent({ type: "booking.created", amount: 90, currency: "EUR", properties: {}, role: "supplier" }, "EUR")).toBe("Booked with them · €90.00");
+    expect(describeEvent({ type: "booking.created", amount: 90, currency: "EUR", properties: {}, role: "supplier" }, "EUR")).toBe("Booked with them · €90");
   });
 });
 
@@ -135,6 +135,20 @@ describe("promoteUnavailableNote", () => {
   it("explains why rows cannot be converted, and says nothing when a target fits", () => {
     const supplier = { key: "supplier", label: "Instructor", label_plural: "Instructors" };
     expect(promoteUnavailableNote(supplier, [])).toMatch(/^Instructors stay rows: no node record type shares compatible fields/);
+    // Name and email no longer make a type a target; the note says what does.
+    expect(promoteUnavailableNote(supplier, [])).toContain("promotes_from: supplier");
+    expect(promoteUnavailableNote(supplier, [])).toContain("beyond name, email or zone");
     expect(promoteUnavailableNote(supplier, [{ key: "vip", label: "VIP" }])).toBeNull();
+  });
+});
+
+describe("money in the timeline", () => {
+  // v0.4.1 browser pass: "€90.00" sat next to "€150" in one timeline.
+  it("writes every amount with the one rule the tables and KPIs use", () => {
+    const line = (amount: number) => describeEvent({ type: "booking.created", amount, currency: "EUR", properties: {} }, "EUR");
+    expect(line(90)).toBe("Booking · €90");
+    expect(line(150)).toBe("Booking · €150");
+    expect(line(49.9)).toBe("Booking · €49.90");
+    expect(describeEvent({ type: "subscription.started", amount: 1990, currency: "USD", properties: {} }, "EUR")).toBe("Subscription started · $1,990/mo");
   });
 });

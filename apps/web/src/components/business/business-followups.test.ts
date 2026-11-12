@@ -89,3 +89,28 @@ describe("convert to node", () => {
     expect(table).toContain("promoteUnavailableNote(source.payload.type, source.payload.promote_targets)");
   });
 });
+
+describe("v0.4.2 wiring", () => {
+  it("names a running month's KPI as the contract does on cards and figure lists", () => {
+    const card = read("components/business/kpi-card.tsx");
+    expect(card).toContain("const currentLabel = kpi.current_label ?? kpi.label;");
+    expect(card).toContain("title={kpi.current_definition ?? kpi.definition}");
+    expect(read("components/business/business-overview.tsx")).toContain("{kpi.current_label ?? kpi.label}");
+  });
+
+  it("totals a table with the contract's totalText, not a sum of everything", () => {
+    const table = read("components/business/record-table.tsx");
+    expect(table).toContain("totalText(total)");
+    expect(table).not.toMatch(/function totalText/);
+  });
+
+  it("writes the ingest examples for the workspace's business model", () => {
+    const keys = read("app/workspaces/workspace-admin/ingest-keys-section.tsx");
+    expect(keys).toContain("fetchBusinessSettings(slug)");
+    expect(keys).toContain("ingestExamples({ origin, slug, key: secret?.key, model })");
+  });
+
+  it("formats dashboard money with the contract's formatter", () => {
+    expect(read("lib/business/format.ts")).toContain('formatMoney as formatMoneyValue } from "@bcontext-dev/contract/views/fields"');
+  });
+});

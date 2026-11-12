@@ -8,7 +8,8 @@
  * Agents fill records in; this is where a person shapes what a record is:
  * the fields (key, label, type, required, options, relation target and a
  * one-line description — the line an agent reads to decide what goes
- * there), which select field is the pipeline stage, and, once, where the
+ * there, and for a number or money field what its table footer totals
+ * to), which select field is the pipeline stage, and, once, where the
  * records are stored. The draft and its validation are
  * `@/lib/business/record-type-draft`, so what is sent is what the
  * contract's schemas accept and their errors are shown before saving.
@@ -43,6 +44,7 @@ import {
 } from "@/lib/business/client";
 import {
   FIELD_TYPES,
+  FIELD_TOTAL_LABELS,
   FIELD_TYPE_LABELS,
   draftFromType,
   emptyField,
@@ -360,6 +362,7 @@ function FieldRow({
   onRemove: () => void;
 }) {
   const choice = field.type === "select" || field.type === "multi_select";
+  const numeric = field.type === "number" || field.type === "money";
   return (
     <div className="rounded-[10px] border border-border p-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_160px_auto]">
@@ -428,7 +431,27 @@ function FieldRow({
             </Checkbox>
           </div>
         ) : null}
-        <TextField aria-label="Field description" value={field.description} onChange={(v) => onChange({ description: v })} isDisabled={disabled} className={choice || field.type === "relation" ? "" : "sm:col-span-2"}>
+        {numeric ? (
+          <Select
+            aria-label="Column total"
+            value={field.total || "auto"}
+            onChange={(key) => onChange({ total: key === "auto" ? "" : (String(key) as FieldDraft["total"]) })}
+            isDisabled={disabled}
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {(Object.keys(FIELD_TOTAL_LABELS) as Array<keyof typeof FIELD_TOTAL_LABELS>).map((mode) => (
+                  <ListBox.Item key={mode || "auto"} id={mode || "auto"} textValue={FIELD_TOTAL_LABELS[mode]}>{FIELD_TOTAL_LABELS[mode]}</ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        ) : null}
+        <TextField aria-label="Field description" value={field.description} onChange={(v) => onChange({ description: v })} isDisabled={disabled} className={choice || numeric || field.type === "relation" ? "" : "sm:col-span-2"}>
           <Input placeholder="One line for the agent: what goes here" />
         </TextField>
       </div>

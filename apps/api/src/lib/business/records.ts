@@ -362,7 +362,11 @@ export async function promoteDatasetRow(
         `a \`${sourceType.key}\` row cannot become \`${type.key}\`: no compatible column fills its required field(s) ${fit.missing_required.join(", ")}; pass a mapping or promote into another type`,
       );
     }
-    mapping = fit.mapping;
+    // A row holds only the columns its sender filled (a client pushed
+    // without an email has no `email` cell), so the default mapping keeps
+    // the columns this row has; a missing one is an empty value, not an
+    // error. An explicit `mapping` still has to name real columns.
+    mapping = Object.fromEntries(Object.entries(fit.mapping).filter(([column]) => column in row));
   }
   if (!mapping) {
     const fieldKeys = new Set(type.fields.map((field) => field.key));

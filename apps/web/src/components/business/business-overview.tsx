@@ -204,8 +204,8 @@ function FigureList({ items, currency }: { items: KpiValue[]; currency: string }
   return (
     <dl className="divide-y divide-border">
       {items.map((kpi) => (
-        <div key={kpi.key} className="flex items-baseline justify-between gap-3 py-1.5" title={kpi.definition}>
-          <dt className="text-[12.5px] text-muted">{kpi.label}</dt>
+        <div key={kpi.key} className="flex items-baseline justify-between gap-3 py-1.5" title={kpi.current_definition ?? kpi.definition}>
+          <dt className="text-[12.5px] text-muted">{kpi.current_label ?? kpi.label}</dt>
           <dd className="text-[14px] font-medium tabular-nums text-foreground">{formatKpiValue(kpi.unit, kpi.current, currency)}</dd>
         </div>
       ))}

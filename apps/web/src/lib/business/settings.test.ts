@@ -5,7 +5,8 @@
  * choice of business views.
  */
 import { describe, expect, it } from "vitest";
-import { BUSINESS_MODELS, type RecordType } from "@bcontext-dev/contract/business/record-types";
+import { BUSINESS_MODELS, validateRecordFields, type RecordType } from "@bcontext-dev/contract/business/record-types";
+import { BUSINESS_TEMPLATES } from "@bcontext-dev/contract/business/templates";
 import { BusinessEventInputSchema } from "@bcontext-dev/contract/business/events";
 import { INGEST_KEY_PREFIX, RecordBatchSchema } from "@bcontext-dev/contract/business/ingest";
 import type { SavedView } from "@bcontext-dev/contract/views/types";
@@ -81,18 +82,60 @@ describe("record type draft", () => {
 });
 
 describe("ingest examples", () => {
+  const typesOf = (model: "b2b" | "b2c" | "marketplace") => BUSINESS_TEMPLATES[model].record_types;
+
   it("send bodies the contract accepts, to the real paths, with a placeholder key", () => {
-    const examples = ingestExamples({ origin: "https://bctx.example/", slug: "acme" });
-    expect(examples).toHaveLength(3);
-    for (const example of examples) {
-      expect(example.command).toContain(`Bearer ${INGEST_KEY_PREFIX}…`);
-      expect(example.command).toContain("https://bctx.example/api/workspaces/acme/");
-      expect(example.command).not.toContain("//api");
+    for (const model of BUSINESS_MODELS) {
+      const examples = ingestExamples({ origin: "https://bctx.example/", slug: "acme", model });
+      expect(examples, model).toHaveLength(3);
+      for (const example of examples) {
+        expect(example.command).toContain(`Bearer ${INGEST_KEY_PREFIX}…`);
+        expect(example.command).toContain("https://bctx.example/api/workspaces/acme/");
+        expect(example.command).not.toContain("//api");
+      }
+      expect(BusinessEventInputSchema.safeParse(examples[0]!.body).success, model).toBe(true);
+      expect(BusinessEventInputSchema.safeParse(examples[1]!.body).success, model).toBe(true);
+      expect(RecordBatchSchema.safeParse(examples[2]!.body).success, model).toBe(true);
     }
-    expect(BusinessEventInputSchema.safeParse(examples[0]!.body).success).toBe(true);
-    expect(BusinessEventInputSchema.safeParse(examples[1]!.body).success).toBe(true);
-    expect(RecordBatchSchema.safeParse(examples[2]!.body).success).toBe(true);
     expect(ingestExamples({ origin: "o", slug: "acme", key: "bctx_ingest_abc" })[0]!.command).toContain("bctx_ingest_abc");
+  });
+
+  it("match the business model: subscriptions for b2b and b2c, bookings for a marketplace", () => {
+    const first = (model: (typeof BUSINESS_MODELS)[number]) => ingestExamples({ origin: "o", slug: "acme", model })[0]!.body as Record<string, any>;
+    expect(first("b2b")).toMatchObject({ type: "subscription.started", subject_type: "account" });
+    expect(first("product")).toMatchObject({ type: "subscription.started" });
+    expect(first("b2c")).toMatchObject({ type: "subscription.started", subject_type: "customer" });
+    const booking = first("marketplace");
+    expect(booking.type).toBe("booking.created");
+    expect(booking.properties).toMatchObject({ booking_id: expect.any(String), supplier_id: expect.any(String), fee: expect.any(Number) });
+    expect(booking.amount).toBeGreaterThan(booking.properties.fee);
+    // Without a model (settings not read) the b2b set is still a correct call.
+    expect(ingestExamples({ origin: "o", slug: "acme" })[0]!.body).toMatchObject({ type: "subscription.started" });
+  });
+
+  it("write records of the model's own type, with fields its template accepts", () => {
+    for (const [model, type] of [["b2b", "account"], ["b2c", "customer"], ["marketplace", "supplier"]] as const) {
+      const example = ingestExamples({ origin: "o", slug: "acme", model })[2]!;
+      expect(example.record_type).toBe(type);
+      expect(example.command).toContain(`/records/${type}`);
+      const def = typesOf(model).find((candidate) => candidate.key === type)!;
+      for (const record of (example.body as { records: Array<{ fields: unknown }> }).records) {
+        const result = validateRecordFields(def, record.fields, "create");
+        expect(result.ok, `${model}: ${result.ok ? "" : result.message}`).toBe(true);
+      }
+    }
+  });
+});
+
+describe("record type draft", () => {
+  it("keeps a field's total through an edit, and drops it on a field that cannot total", () => {
+    const type = { key: "supplier", label: "Supplier", storage: "node", fields: [{ key: "rating", label: "Rating", type: "number", total: "average" }] } as unknown as RecordType;
+    const draft = draftFromType(type);
+    expect(draft.fields[0]!.total).toBe("average");
+    const patch = patchFromDraft(draft);
+    expect(patch.ok && patch.value.fields?.[0]).toMatchObject({ key: "rating", total: "average" });
+    const text = patchFromDraft({ ...draft, fields: [{ ...draft.fields[0]!, type: "text", total: "sum" }] });
+    expect(text.ok && text.value.fields?.[0]).not.toHaveProperty("total");
   });
 });
 
