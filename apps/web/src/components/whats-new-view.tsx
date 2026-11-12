@@ -397,9 +397,13 @@ function IngestBatchCard({ batch, known, onOpen }: { batch: IngestBatch; known: 
     <article className="rounded-xl border border-[var(--line)] bg-[var(--paper)]" data-ingest-batch>
       <header className="flex items-center gap-2 px-3 py-2.5">
         <Settings2 size={15} className="shrink-0 text-[var(--ink-3)]" />
-        <span className="min-w-0 truncate text-[13px] font-medium text-[var(--ink)]">{ingestBatchTitle(batch)}</span>
-        {batch.record_type ? <span className="mono text-[10px] uppercase tracking-wider text-[var(--ink-mute)]">{batch.record_type}</span> : null}
-        <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-muted">
+        {/* The counts are the point of the row, so the title wraps on a
+            phone instead of being cut to "Ingest: 1 r…". */}
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+          <span className="text-[13px] font-medium text-[var(--ink)]">{ingestBatchTitle(batch)}</span>
+          {batch.record_type ? <span className="mono text-[10px] uppercase tracking-wider text-[var(--ink-mute)]">{batch.record_type}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
           <time dateTime={batch.latest}>{formatRelative(batch.latest)}</time>
           <Button size="sm" variant="ghost" aria-expanded={expanded} onPress={() => setExpanded((value) => !value)}>
             {expanded ? "Hide records" : `Show ${nodes.length === 1 ? "record" : `${nodes.length} records`}`}
