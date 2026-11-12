@@ -26,9 +26,14 @@ export const VIEW_LIMITS = {
   maxResolverCost: 50_000,
 } as const;
 
-const NODE_KINDS = [
-  "doc", "task", "decision", "meeting", "bug", "adr", "entity", "skill", "data", "credential", "goal",
-] as const;
+/**
+ * A kind in a view query: a core kind or one of the workspace's record type
+ * keys. The schema can only check the shape — which record types exist is
+ * per workspace — so the API checks the set when a view is saved or resolved
+ * (`assertViewKindsExist`), and an unknown kind there is an error naming the
+ * kinds that do exist. Same pattern as `RECORD_TYPE_KEY_PATTERN`.
+ */
+const ViewKindSchema = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "kind must be a core kind or a record type key");
 const NODE_STATUSES = [
   "backlog", "todo", "in_progress", "review", "blocked", "done", "archived",
   "on_track", "at_risk", "off_track", "achieved", "missed", "abandoned",
@@ -70,7 +75,7 @@ export const TraversalSchema = z.object({
 
 export const ViewQuerySchema = z.object({
   schema_version: z.literal(VIEW_QUERY_SCHEMA_VERSION),
-  kinds: z.array(z.enum(NODE_KINDS)).max(VIEW_LIMITS.maxKinds).default([]),
+  kinds: z.array(ViewKindSchema).max(VIEW_LIMITS.maxKinds).default([]),
   tags_any: StringSet(VIEW_LIMITS.maxTagFilters),
   tags_all: StringSet(VIEW_LIMITS.maxTagFilters),
   statuses: z.array(z.enum(NODE_STATUSES)).max(VIEW_LIMITS.maxStatuses).default([]),

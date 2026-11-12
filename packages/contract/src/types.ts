@@ -3,7 +3,11 @@
 import { normalizeTagNames } from "./tags.js";
 import type { SubtaskProgress } from "./subtasks.js";
 
-export type NodeKind =
+/**
+ * The kinds every workspace has. Owned by the product: views, panels and
+ * templates know what each one means.
+ */
+export type CoreNodeKind =
   | "doc"
   | "task"
   | "decision"
@@ -17,6 +21,23 @@ export type NodeKind =
   | "goal";
 
 /**
+ * A kind a workspace defined for itself — a record type key such as
+ * `account`, `deal` or `zone` (see `business/record-types.ts`). Any string
+ * at the type level, because which ones exist is data, not code: the valid
+ * set for a workspace is `NODE_KINDS` plus its record type keys, and that is
+ * checked where a workspace is in scope (`isValidKindFor`).
+ */
+export type RecordKind = string & { readonly __recordKind?: true };
+
+/**
+ * What `nodes.kind` may hold. Code that maps kinds to icons, labels or
+ * panels keys those maps by `CoreNodeKind` and falls back to a generic
+ * rendering for anything else, so a record type the code has never heard of
+ * still renders instead of crashing.
+ */
+export type NodeKind = CoreNodeKind | RecordKind;
+
+/**
  * The kinds, as a value. Three copies of this list existed when `goal` was
  * added and two of them were missed — a change feed silently stopped
  * classifying goal entries, and filtering by kind dropped them. A kind is
@@ -24,7 +45,14 @@ export type NodeKind =
  */
 export const NODE_KINDS = [
   "doc", "task", "decision", "meeting", "bug", "adr", "entity", "skill", "data", "credential", "goal",
-] as const satisfies readonly NodeKind[];
+] as const satisfies readonly CoreNodeKind[];
+
+const CORE_KIND_SET: ReadonlySet<string> = new Set<string>(NODE_KINDS);
+
+/** True for the product's own kinds; false for record types and junk. */
+export function isCoreKind(kind: unknown): kind is CoreNodeKind {
+  return typeof kind === "string" && CORE_KIND_SET.has(kind);
+}
 
 /** Stable discriminant shared by graph query/storage payloads. */
 export type GraphResourceType = "node" | "tag" | "cluster";
