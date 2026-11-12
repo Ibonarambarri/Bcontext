@@ -5,22 +5,24 @@
  * inside the `Sidebar.Provider` of `ui/sidebar` (offcanvas on desktop, the
  * `Sidebar.Mobile` drawer under 768px — one tree of content rendered twice).
  *
- * Structure: workspace switcher · Find (⌘K) · Dashboard · the Business
- * group (only when the business model is not `product`: the template's
- * saved views, picked by `@/lib/business/nav`) · the Knowledge
- * group (Brain first, then
- * Tasks, Roadmap, Browse, Credentials, and "New" last: the create-node
- * dialog, ⌘⇧K, dispatched as the `bcontext:new-node` window event that
- * `create-node-dialog-host.tsx` listens for — it sits with the knowledge it
- * creates, not with Find) · the Agents & Tools group (connected agents, and
- * the tool providers they reach through Bcontext's MCP plus the outbound
- * webhooks) · the account row (user menu).
+ * Structure: workspace switcher · Find (⌘K) · Dashboard · What's new (the
+ * review surface, with the unread count from `useWhatsNewCount`) · the
+ * Business group (only when the business model is not `product`: the
+ * template's saved views, picked by `@/lib/business/nav`) · the Knowledge
+ * group (Brain first, then Tasks, Roadmap, Browse, Credentials) · the
+ * Agents & Tools group (connected agents, and the tool providers they reach
+ * through Bcontext's MCP plus the outbound webhooks) · the account row (user
+ * menu).
  *
- * What is deliberately NOT here: saved custom views other than the business
- * ones (their routes still render for direct links), Activity (in the user menu), Tags and Decisions
- * as entries of their own. Tags are a focus inside Brain (`graph-view.tsx`),
- * which is also where tags are created and managed; a second graph surface
- * over the same data starved the thin one.
+ * What is deliberately NOT here: a "New node" entry. Agents write the brain
+ * through the MCP; the web is for reading and reviewing what they wrote, so
+ * creating by hand is a secondary path — the ⌘K palette's "Create a node…"
+ * and ⌘⇧K (`create-node-dialog-host.tsx`). Also absent: saved custom views
+ * other than the business ones (their routes still render for direct links),
+ * Activity (in the user menu), Tags and Decisions as entries of their own.
+ * Tags are a focus inside Brain (`graph-view.tsx`), which is also where tags
+ * are created and managed; a second graph surface over the same data starved
+ * the thin one.
  *
  * `activeViewMeta` is the sidebar's knowledge of slugs turned into the
  * title the shell shows next to the trigger. Width is user-resizable and
@@ -46,8 +48,8 @@ import {
   List,
   Milestone,
   Network,
-  Plus,
   Search,
+  Sparkles,
   Table2,
   Wrench,
 } from "lucide-react";
@@ -62,6 +64,8 @@ import { businessNavViews, isBusinessView } from "@/lib/business/nav";
 import { UserMenu } from "./user-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { OPEN_GUIDE_EVENT } from "./onboarding/events";
+import { useWhatsNewCount } from "./whats-new-data";
+import { badgeLabel } from "@/lib/whats-new";
 
 /** The Knowledge group, in display order. Brain first: it is the workspace. */
 const KNOWLEDGE_VIEWS: { key: SystemViewKey; label: string; Icon: typeof Home }[] = [
@@ -116,6 +120,7 @@ export function activeViewMeta(
 ): { label: string; Icon: NavIcon; section?: string } | null {
   if (!slug) return null;
   if (slug === "overview") return { label: "Dashboard", Icon: Home };
+  if (slug === "whats-new") return { label: "What's new", Icon: Sparkles };
   if (slug === "changes") return { label: "Activity", Icon: Activity };
   const knowledge = KNOWLEDGE_VIEWS.find((view) => view.key === slug);
   if (knowledge) return { label: knowledge.label, Icon: knowledge.Icon, section: "Knowledge" };
@@ -178,22 +183,16 @@ export function Sidebar({
   const { business_model } = useBusiness();
   const businessViews = useMemo(() => businessNavViews(views, business_model), [views, business_model]);
   const router = useRouter();
-  const { setMobileOpen } = useSidebar();
   // Width state lives in the shell (the offcanvas wrapper reads
   // --sidebar-width at the Provider level); props arrive on desktop only.
   const sidebarWidth = width ?? SIDEBAR_DEFAULT_W;
   const setSidebarWidth = onResize ?? (() => {});
+  const unread = useWhatsNewCount();
+  const whatsNewBadge = badgeLabel(unread.count, unread.capped);
 
   const navigate = useCallback((href: Route) => {
     router.push(href);
   }, [router]);
-
-  // The mobile sheet closes itself only for items with an href; an action
-  // item has to close it, or the dialog opens behind the sheet.
-  const openNewNode = useCallback(() => {
-    setMobileOpen(false);
-    window.dispatchEvent(new CustomEvent("bcontext:new-node"));
-  }, [setMobileOpen]);
 
   // Rendered twice under the shell's Sidebar.Provider: in the desktop aside
   // (offcanvas collapse, Trigger in the content header) and in the phone
@@ -234,6 +233,26 @@ export function Sidebar({
                     <SidebarPrimitive.MenuItemContent>
                       <SidebarPrimitive.MenuLabel>Dashboard</SidebarPrimitive.MenuLabel>
                     </SidebarPrimitive.MenuItemContent>
+                  </SidebarPrimitive.MenuItem>
+                  <SidebarPrimitive.MenuItem
+                    id="whats-new"
+                    textValue="What's new"
+                    aria-label={whatsNewBadge ? `What's new, ${whatsNewBadge} unread` : "What's new"}
+                    href={systemViewPath(address, "whats-new")}
+                    isCurrent={activeViewSlug === "whats-new"}
+                  >
+                    <SidebarPrimitive.MenuIcon><Sparkles size={13} /></SidebarPrimitive.MenuIcon>
+                    <SidebarPrimitive.MenuItemContent>
+                      <SidebarPrimitive.MenuLabel>What&apos;s new</SidebarPrimitive.MenuLabel>
+                    </SidebarPrimitive.MenuItemContent>
+                    {whatsNewBadge ? (
+                      <SidebarPrimitive.MenuChip
+                        aria-hidden
+                        className="ml-auto min-w-5 rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-medium text-[var(--accent-foreground)]"
+                      >
+                        {whatsNewBadge}
+                      </SidebarPrimitive.MenuChip>
+                    ) : null}
                   </SidebarPrimitive.MenuItem>
                 </SidebarPrimitive.Menu>
               </SidebarPrimitive.Group>
@@ -277,25 +296,6 @@ export function Sidebar({
                       </SidebarPrimitive.MenuItemContent>
                     </SidebarPrimitive.MenuItem>
                   ))}
-                  {/* Not a route: opens the create-node dialog, whose host
-                      owns the ⌘⇧K binding the hint advertises. */}
-                  <SidebarPrimitive.MenuItem
-                    id="new-node"
-                    textValue="New"
-                    aria-label="New node"
-                    aria-keyshortcuts="Meta+Shift+K"
-                    onAction={openNewNode}
-                  >
-                    <SidebarPrimitive.MenuIcon><Plus size={13} /></SidebarPrimitive.MenuIcon>
-                    <SidebarPrimitive.MenuItemContent>
-                      <SidebarPrimitive.MenuLabel>New</SidebarPrimitive.MenuLabel>
-                    </SidebarPrimitive.MenuItemContent>
-                    <Kbd variant="light" className="ml-auto shrink-0 text-[10px] text-[var(--ink-mute)]">
-                      <Kbd.Abbr keyValue="command" />
-                      <Kbd.Abbr keyValue="shift" />
-                      <Kbd.Content>K</Kbd.Content>
-                    </Kbd>
-                  </SidebarPrimitive.MenuItem>
                 </SidebarPrimitive.Menu>
               </SidebarPrimitive.Group>
 

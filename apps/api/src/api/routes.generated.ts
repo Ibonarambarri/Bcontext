@@ -24,102 +24,103 @@ import * as r19 from "@/app/api/agents/connections/route";
 import * as r20 from "@/app/api/agents/connections/[id]/route";
 import * as r21 from "@/app/api/agents/context/route";
 import * as r22 from "@/app/api/agents/write/route";
-import * as r23 from "@/app/api/audit/verify/route";
-import * as r24 from "@/app/api/capabilities/route";
-import * as r25 from "@/app/api/capabilities/discover/route";
-import * as r26 from "@/app/api/capabilities/oauth/callback/route";
-import * as r27 from "@/app/api/capabilities/oauth/start/route";
-import * as r28 from "@/app/api/capabilities/oauth/status/route";
-import * as r29 from "@/app/api/capabilities/provider-logo/route";
-import * as r30 from "@/app/api/capabilities/[id]/route";
-import * as r31 from "@/app/api/capabilities/[id]/review/route";
-import * as r32 from "@/app/api/capability-bundles/route";
-import * as r33 from "@/app/api/capability-grants/route";
-import * as r34 from "@/app/api/capability-grants/[id]/route";
-import * as r35 from "@/app/api/credentials/[nodeId]/materialize/route";
-import * as r36 from "@/app/api/datasets/route";
-import * as r37 from "@/app/api/embed/migration-status/route";
-import * as r38 from "@/app/api/health/route";
-import * as r39 from "@/app/api/ingest/candidates/route";
-import * as r40 from "@/app/api/ingest/candidates/[id]/route";
-import * as r41 from "@/app/api/ingest/candidates/[id]/accept/route";
-import * as r42 from "@/app/api/ingest/candidates/[id]/dismiss/route";
-import * as r43 from "@/app/api/ingest/stats/route";
-import * as r44 from "@/app/api/invites/[token]/route";
-import * as r45 from "@/app/api/invites/[token]/accept/route";
-import * as r46 from "@/app/api/invites/[token]/signup/route";
-import * as r47 from "@/app/api/me/route";
-import * as r48 from "@/app/api/me/password/route";
-import * as r49 from "@/app/api/me/workspaces/route";
-import * as r50 from "@/app/api/meetings/attach-transcript/[nodeId]/route";
-import * as r51 from "@/app/api/meetings/refine/[nodeId]/route";
-import * as r52 from "@/app/api/nodes/route";
-import * as r53 from "@/app/api/nodes/by-slug/[slug]/route";
-import * as r54 from "@/app/api/nodes/[id]/route";
-import * as r55 from "@/app/api/nodes/[id]/autofix/route";
-import * as r56 from "@/app/api/nodes/[id]/dataset/route";
-import * as r57 from "@/app/api/nodes/[id]/dataset/promote/route";
-import * as r58 from "@/app/api/nodes/[id]/dataset/query/route";
-import * as r59 from "@/app/api/nodes/[id]/export/route";
-import * as r60 from "@/app/api/nodes/[id]/inspector/route";
-import * as r61 from "@/app/api/nodes/[id]/subtasks/route";
-import * as r62 from "@/app/api/nodes/[id]/tags/route";
-import * as r63 from "@/app/api/oauth/authorize/route";
-import * as r64 from "@/app/api/oauth/clients/[clientId]/route";
-import * as r65 from "@/app/api/oauth/register/route";
-import * as r66 from "@/app/api/oauth/revoke/route";
-import * as r67 from "@/app/api/oauth/token/route";
-import * as r68 from "@/app/api/onboarding/route";
-import * as r69 from "@/app/api/onboarding/create/route";
-import * as r70 from "@/app/api/onboarding/dismiss/route";
-import * as r71 from "@/app/api/signup/route";
-import * as r72 from "@/app/api/skills/[id]/run/route";
-import * as r73 from "@/app/api/tags/route";
-import * as r74 from "@/app/api/tags/[id]/route";
-import * as r75 from "@/app/api/tags/[id]/merge/route";
-import * as r76 from "@/app/api/tags/[id]/relations/route";
-import * as r77 from "@/app/api/tokens/route";
-import * as r78 from "@/app/api/tokens/user/route";
-import * as r79 from "@/app/api/tokens/user/[id]/route";
-import * as r80 from "@/app/api/tokens/[id]/route";
-import * as r81 from "@/app/api/upload/route";
-import * as r82 from "@/app/api/views/route";
-import * as r83 from "@/app/api/views/resolve/route";
-import * as r84 from "@/app/api/views/[id]/route";
-import * as r85 from "@/app/api/views/[id]/duplicate/route";
-import * as r86 from "@/app/api/views/[id]/resolve/route";
-import * as r87 from "@/app/api/webhooks/deliveries/route";
-import * as r88 from "@/app/api/webhooks/deliveries/[id]/retry/route";
-import * as r89 from "@/app/api/webhooks/endpoints/route";
-import * as r90 from "@/app/api/webhooks/endpoints/[id]/route";
-import * as r91 from "@/app/api/workspaces/route";
-import * as r92 from "@/app/api/workspaces/[ws]/route";
-import * as r93 from "@/app/api/workspaces/[ws]/agents-md/route";
-import * as r94 from "@/app/api/workspaces/[ws]/apply-template/route";
-import * as r95 from "@/app/api/workspaces/[ws]/business/route";
-import * as r96 from "@/app/api/workspaces/[ws]/business/apply-template/route";
-import * as r97 from "@/app/api/workspaces/[ws]/digest/route";
-import * as r98 from "@/app/api/workspaces/[ws]/events/route";
-import * as r99 from "@/app/api/workspaces/[ws]/export/route";
-import * as r100 from "@/app/api/workspaces/[ws]/import/route";
-import * as r101 from "@/app/api/workspaces/[ws]/ingest-keys/route";
-import * as r102 from "@/app/api/workspaces/[ws]/ingest-keys/[id]/route";
-import * as r103 from "@/app/api/workspaces/[ws]/invites/route";
-import * as r104 from "@/app/api/workspaces/[ws]/invites/[id]/route";
-import * as r105 from "@/app/api/workspaces/[ws]/invites/[id]/email/route";
-import * as r106 from "@/app/api/workspaces/[ws]/members/route";
-import * as r107 from "@/app/api/workspaces/[ws]/members/[userId]/route";
-import * as r108 from "@/app/api/workspaces/[ws]/metrics/summary/route";
-import * as r109 from "@/app/api/workspaces/[ws]/record-types/route";
-import * as r110 from "@/app/api/workspaces/[ws]/record-types/[key]/route";
-import * as r111 from "@/app/api/workspaces/[ws]/records/[type]/route";
-import * as r112 from "@/app/api/workspaces/[ws]/records/[type]/[external_id]/route";
-import * as r113 from "@/app/api/workspaces/[ws]/usage/route";
-import * as r114 from "@/app/install/mcp/route";
-import * as r115 from "@/app/llms.txt/route";
-import * as r116 from "@/app/mcp/route";
-import * as r117 from "@/app/mcp/[org]/[workspace]/route";
-import * as r118 from "@/app/mcp/[workspace]/route";
+import * as r23 from "@/app/api/ask/route";
+import * as r24 from "@/app/api/audit/verify/route";
+import * as r25 from "@/app/api/capabilities/route";
+import * as r26 from "@/app/api/capabilities/discover/route";
+import * as r27 from "@/app/api/capabilities/oauth/callback/route";
+import * as r28 from "@/app/api/capabilities/oauth/start/route";
+import * as r29 from "@/app/api/capabilities/oauth/status/route";
+import * as r30 from "@/app/api/capabilities/provider-logo/route";
+import * as r31 from "@/app/api/capabilities/[id]/route";
+import * as r32 from "@/app/api/capabilities/[id]/review/route";
+import * as r33 from "@/app/api/capability-bundles/route";
+import * as r34 from "@/app/api/capability-grants/route";
+import * as r35 from "@/app/api/capability-grants/[id]/route";
+import * as r36 from "@/app/api/credentials/[nodeId]/materialize/route";
+import * as r37 from "@/app/api/datasets/route";
+import * as r38 from "@/app/api/embed/migration-status/route";
+import * as r39 from "@/app/api/health/route";
+import * as r40 from "@/app/api/ingest/candidates/route";
+import * as r41 from "@/app/api/ingest/candidates/[id]/route";
+import * as r42 from "@/app/api/ingest/candidates/[id]/accept/route";
+import * as r43 from "@/app/api/ingest/candidates/[id]/dismiss/route";
+import * as r44 from "@/app/api/ingest/stats/route";
+import * as r45 from "@/app/api/invites/[token]/route";
+import * as r46 from "@/app/api/invites/[token]/accept/route";
+import * as r47 from "@/app/api/invites/[token]/signup/route";
+import * as r48 from "@/app/api/me/route";
+import * as r49 from "@/app/api/me/password/route";
+import * as r50 from "@/app/api/me/workspaces/route";
+import * as r51 from "@/app/api/meetings/attach-transcript/[nodeId]/route";
+import * as r52 from "@/app/api/meetings/refine/[nodeId]/route";
+import * as r53 from "@/app/api/nodes/route";
+import * as r54 from "@/app/api/nodes/by-slug/[slug]/route";
+import * as r55 from "@/app/api/nodes/[id]/route";
+import * as r56 from "@/app/api/nodes/[id]/autofix/route";
+import * as r57 from "@/app/api/nodes/[id]/dataset/route";
+import * as r58 from "@/app/api/nodes/[id]/dataset/promote/route";
+import * as r59 from "@/app/api/nodes/[id]/dataset/query/route";
+import * as r60 from "@/app/api/nodes/[id]/export/route";
+import * as r61 from "@/app/api/nodes/[id]/inspector/route";
+import * as r62 from "@/app/api/nodes/[id]/subtasks/route";
+import * as r63 from "@/app/api/nodes/[id]/tags/route";
+import * as r64 from "@/app/api/oauth/authorize/route";
+import * as r65 from "@/app/api/oauth/clients/[clientId]/route";
+import * as r66 from "@/app/api/oauth/register/route";
+import * as r67 from "@/app/api/oauth/revoke/route";
+import * as r68 from "@/app/api/oauth/token/route";
+import * as r69 from "@/app/api/onboarding/route";
+import * as r70 from "@/app/api/onboarding/create/route";
+import * as r71 from "@/app/api/onboarding/dismiss/route";
+import * as r72 from "@/app/api/signup/route";
+import * as r73 from "@/app/api/skills/[id]/run/route";
+import * as r74 from "@/app/api/tags/route";
+import * as r75 from "@/app/api/tags/[id]/route";
+import * as r76 from "@/app/api/tags/[id]/merge/route";
+import * as r77 from "@/app/api/tags/[id]/relations/route";
+import * as r78 from "@/app/api/tokens/route";
+import * as r79 from "@/app/api/tokens/user/route";
+import * as r80 from "@/app/api/tokens/user/[id]/route";
+import * as r81 from "@/app/api/tokens/[id]/route";
+import * as r82 from "@/app/api/upload/route";
+import * as r83 from "@/app/api/views/route";
+import * as r84 from "@/app/api/views/resolve/route";
+import * as r85 from "@/app/api/views/[id]/route";
+import * as r86 from "@/app/api/views/[id]/duplicate/route";
+import * as r87 from "@/app/api/views/[id]/resolve/route";
+import * as r88 from "@/app/api/webhooks/deliveries/route";
+import * as r89 from "@/app/api/webhooks/deliveries/[id]/retry/route";
+import * as r90 from "@/app/api/webhooks/endpoints/route";
+import * as r91 from "@/app/api/webhooks/endpoints/[id]/route";
+import * as r92 from "@/app/api/workspaces/route";
+import * as r93 from "@/app/api/workspaces/[ws]/route";
+import * as r94 from "@/app/api/workspaces/[ws]/agents-md/route";
+import * as r95 from "@/app/api/workspaces/[ws]/apply-template/route";
+import * as r96 from "@/app/api/workspaces/[ws]/business/route";
+import * as r97 from "@/app/api/workspaces/[ws]/business/apply-template/route";
+import * as r98 from "@/app/api/workspaces/[ws]/digest/route";
+import * as r99 from "@/app/api/workspaces/[ws]/events/route";
+import * as r100 from "@/app/api/workspaces/[ws]/export/route";
+import * as r101 from "@/app/api/workspaces/[ws]/import/route";
+import * as r102 from "@/app/api/workspaces/[ws]/ingest-keys/route";
+import * as r103 from "@/app/api/workspaces/[ws]/ingest-keys/[id]/route";
+import * as r104 from "@/app/api/workspaces/[ws]/invites/route";
+import * as r105 from "@/app/api/workspaces/[ws]/invites/[id]/route";
+import * as r106 from "@/app/api/workspaces/[ws]/invites/[id]/email/route";
+import * as r107 from "@/app/api/workspaces/[ws]/members/route";
+import * as r108 from "@/app/api/workspaces/[ws]/members/[userId]/route";
+import * as r109 from "@/app/api/workspaces/[ws]/metrics/summary/route";
+import * as r110 from "@/app/api/workspaces/[ws]/record-types/route";
+import * as r111 from "@/app/api/workspaces/[ws]/record-types/[key]/route";
+import * as r112 from "@/app/api/workspaces/[ws]/records/[type]/route";
+import * as r113 from "@/app/api/workspaces/[ws]/records/[type]/[external_id]/route";
+import * as r114 from "@/app/api/workspaces/[ws]/usage/route";
+import * as r115 from "@/app/install/mcp/route";
+import * as r116 from "@/app/llms.txt/route";
+import * as r117 from "@/app/mcp/route";
+import * as r118 from "@/app/mcp/[org]/[workspace]/route";
+import * as r119 from "@/app/mcp/[workspace]/route";
 
 export const ROUTES: ReadonlyArray<{ path: string; methods: readonly string[]; module: RouteModule }> = [
   { path: "/.well-known/agents.json", methods: ["GET"], module: r0 as unknown as RouteModule },
@@ -145,100 +146,101 @@ export const ROUTES: ReadonlyArray<{ path: string; methods: readonly string[]; m
   { path: "/api/agents/connections/:id", methods: ["PATCH","DELETE"], module: r20 as unknown as RouteModule },
   { path: "/api/agents/context", methods: ["POST"], module: r21 as unknown as RouteModule },
   { path: "/api/agents/write", methods: ["POST"], module: r22 as unknown as RouteModule },
-  { path: "/api/audit/verify", methods: ["GET"], module: r23 as unknown as RouteModule },
-  { path: "/api/capabilities", methods: ["GET","POST","PATCH"], module: r24 as unknown as RouteModule },
-  { path: "/api/capabilities/discover", methods: ["POST"], module: r25 as unknown as RouteModule },
-  { path: "/api/capabilities/oauth/callback", methods: ["GET"], module: r26 as unknown as RouteModule },
-  { path: "/api/capabilities/oauth/start", methods: ["POST"], module: r27 as unknown as RouteModule },
-  { path: "/api/capabilities/oauth/status", methods: ["GET","DELETE"], module: r28 as unknown as RouteModule },
-  { path: "/api/capabilities/provider-logo", methods: ["GET"], module: r29 as unknown as RouteModule },
-  { path: "/api/capabilities/:id", methods: ["GET","PATCH","DELETE"], module: r30 as unknown as RouteModule },
-  { path: "/api/capabilities/:id/review", methods: ["GET","POST"], module: r31 as unknown as RouteModule },
-  { path: "/api/capability-bundles", methods: ["POST"], module: r32 as unknown as RouteModule },
-  { path: "/api/capability-grants", methods: ["POST"], module: r33 as unknown as RouteModule },
-  { path: "/api/capability-grants/:id", methods: ["DELETE"], module: r34 as unknown as RouteModule },
-  { path: "/api/credentials/:nodeId/materialize", methods: ["GET"], module: r35 as unknown as RouteModule },
-  { path: "/api/datasets", methods: ["POST"], module: r36 as unknown as RouteModule },
-  { path: "/api/embed/migration-status", methods: ["GET"], module: r37 as unknown as RouteModule },
-  { path: "/api/health", methods: ["GET"], module: r38 as unknown as RouteModule },
-  { path: "/api/ingest/candidates", methods: ["GET"], module: r39 as unknown as RouteModule },
-  { path: "/api/ingest/candidates/:id", methods: ["PATCH"], module: r40 as unknown as RouteModule },
-  { path: "/api/ingest/candidates/:id/accept", methods: ["POST"], module: r41 as unknown as RouteModule },
-  { path: "/api/ingest/candidates/:id/dismiss", methods: ["POST"], module: r42 as unknown as RouteModule },
-  { path: "/api/ingest/stats", methods: ["GET"], module: r43 as unknown as RouteModule },
-  { path: "/api/invites/:token", methods: ["GET"], module: r44 as unknown as RouteModule },
-  { path: "/api/invites/:token/accept", methods: ["POST"], module: r45 as unknown as RouteModule },
-  { path: "/api/invites/:token/signup", methods: ["POST"], module: r46 as unknown as RouteModule },
-  { path: "/api/me", methods: ["GET","PATCH"], module: r47 as unknown as RouteModule },
-  { path: "/api/me/password", methods: ["POST"], module: r48 as unknown as RouteModule },
-  { path: "/api/me/workspaces", methods: ["GET"], module: r49 as unknown as RouteModule },
-  { path: "/api/meetings/attach-transcript/:nodeId", methods: ["POST"], module: r50 as unknown as RouteModule },
-  { path: "/api/meetings/refine/:nodeId", methods: ["POST"], module: r51 as unknown as RouteModule },
-  { path: "/api/nodes", methods: ["GET","POST"], module: r52 as unknown as RouteModule },
-  { path: "/api/nodes/by-slug/:slug", methods: ["GET"], module: r53 as unknown as RouteModule },
-  { path: "/api/nodes/:id", methods: ["GET","PATCH","DELETE"], module: r54 as unknown as RouteModule },
-  { path: "/api/nodes/:id/autofix", methods: ["POST"], module: r55 as unknown as RouteModule },
-  { path: "/api/nodes/:id/dataset", methods: ["GET","POST"], module: r56 as unknown as RouteModule },
-  { path: "/api/nodes/:id/dataset/promote", methods: ["POST"], module: r57 as unknown as RouteModule },
-  { path: "/api/nodes/:id/dataset/query", methods: ["POST"], module: r58 as unknown as RouteModule },
-  { path: "/api/nodes/:id/export", methods: ["GET"], module: r59 as unknown as RouteModule },
-  { path: "/api/nodes/:id/inspector", methods: ["GET"], module: r60 as unknown as RouteModule },
-  { path: "/api/nodes/:id/subtasks", methods: ["GET","POST"], module: r61 as unknown as RouteModule },
-  { path: "/api/nodes/:id/tags", methods: ["PUT"], module: r62 as unknown as RouteModule },
-  { path: "/api/oauth/authorize", methods: ["POST"], module: r63 as unknown as RouteModule },
-  { path: "/api/oauth/clients/:clientId", methods: ["GET"], module: r64 as unknown as RouteModule },
-  { path: "/api/oauth/register", methods: ["POST"], module: r65 as unknown as RouteModule },
-  { path: "/api/oauth/revoke", methods: ["POST"], module: r66 as unknown as RouteModule },
-  { path: "/api/oauth/token", methods: ["POST"], module: r67 as unknown as RouteModule },
-  { path: "/api/onboarding", methods: ["GET"], module: r68 as unknown as RouteModule },
-  { path: "/api/onboarding/create", methods: ["POST"], module: r69 as unknown as RouteModule },
-  { path: "/api/onboarding/dismiss", methods: ["POST"], module: r70 as unknown as RouteModule },
-  { path: "/api/signup", methods: ["POST"], module: r71 as unknown as RouteModule },
-  { path: "/api/skills/:id/run", methods: ["POST"], module: r72 as unknown as RouteModule },
-  { path: "/api/tags", methods: ["GET","POST"], module: r73 as unknown as RouteModule },
-  { path: "/api/tags/:id", methods: ["PATCH","DELETE"], module: r74 as unknown as RouteModule },
-  { path: "/api/tags/:id/merge", methods: ["POST"], module: r75 as unknown as RouteModule },
-  { path: "/api/tags/:id/relations", methods: ["POST","DELETE"], module: r76 as unknown as RouteModule },
-  { path: "/api/tokens", methods: ["GET","POST"], module: r77 as unknown as RouteModule },
-  { path: "/api/tokens/user", methods: ["GET","POST"], module: r78 as unknown as RouteModule },
-  { path: "/api/tokens/user/:id", methods: ["DELETE"], module: r79 as unknown as RouteModule },
-  { path: "/api/tokens/:id", methods: ["DELETE"], module: r80 as unknown as RouteModule },
-  { path: "/api/upload", methods: ["POST"], module: r81 as unknown as RouteModule },
-  { path: "/api/views", methods: ["GET","POST"], module: r82 as unknown as RouteModule },
-  { path: "/api/views/resolve", methods: ["POST"], module: r83 as unknown as RouteModule },
-  { path: "/api/views/:id", methods: ["GET","PATCH","DELETE"], module: r84 as unknown as RouteModule },
-  { path: "/api/views/:id/duplicate", methods: ["POST"], module: r85 as unknown as RouteModule },
-  { path: "/api/views/:id/resolve", methods: ["POST"], module: r86 as unknown as RouteModule },
-  { path: "/api/webhooks/deliveries", methods: ["GET"], module: r87 as unknown as RouteModule },
-  { path: "/api/webhooks/deliveries/:id/retry", methods: ["POST"], module: r88 as unknown as RouteModule },
-  { path: "/api/webhooks/endpoints", methods: ["GET","POST"], module: r89 as unknown as RouteModule },
-  { path: "/api/webhooks/endpoints/:id", methods: ["POST","PATCH","DELETE"], module: r90 as unknown as RouteModule },
-  { path: "/api/workspaces", methods: ["GET","POST"], module: r91 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws", methods: ["GET","PATCH"], module: r92 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/agents-md", methods: ["GET"], module: r93 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/apply-template", methods: ["GET","POST"], module: r94 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/business", methods: ["GET","PATCH"], module: r95 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/business/apply-template", methods: ["GET","POST"], module: r96 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/digest", methods: ["GET","POST","PUT"], module: r97 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/events", methods: ["GET","POST"], module: r98 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/export", methods: ["GET"], module: r99 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/import", methods: ["POST"], module: r100 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/ingest-keys", methods: ["GET","POST"], module: r101 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/ingest-keys/:id", methods: ["DELETE"], module: r102 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/invites", methods: ["POST"], module: r103 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/invites/:id", methods: ["DELETE"], module: r104 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/invites/:id/email", methods: ["POST"], module: r105 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/members", methods: ["GET"], module: r106 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/members/:userId", methods: ["GET","PATCH","DELETE"], module: r107 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/metrics/summary", methods: ["GET"], module: r108 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/record-types", methods: ["GET","POST"], module: r109 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/record-types/:key", methods: ["PATCH","DELETE"], module: r110 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/records/:type", methods: ["GET","POST"], module: r111 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/records/:type/:external_id", methods: ["PUT","DELETE"], module: r112 as unknown as RouteModule },
-  { path: "/api/workspaces/:ws/usage", methods: ["GET"], module: r113 as unknown as RouteModule },
-  { path: "/install/mcp", methods: ["GET"], module: r114 as unknown as RouteModule },
-  { path: "/llms.txt", methods: ["GET"], module: r115 as unknown as RouteModule },
-  { path: "/mcp", methods: ["GET","POST"], module: r116 as unknown as RouteModule },
-  { path: "/mcp/:org/:workspace", methods: ["GET","POST"], module: r117 as unknown as RouteModule },
-  { path: "/mcp/:workspace", methods: ["GET","POST"], module: r118 as unknown as RouteModule },
+  { path: "/api/ask", methods: ["POST"], module: r23 as unknown as RouteModule },
+  { path: "/api/audit/verify", methods: ["GET"], module: r24 as unknown as RouteModule },
+  { path: "/api/capabilities", methods: ["GET","POST","PATCH"], module: r25 as unknown as RouteModule },
+  { path: "/api/capabilities/discover", methods: ["POST"], module: r26 as unknown as RouteModule },
+  { path: "/api/capabilities/oauth/callback", methods: ["GET"], module: r27 as unknown as RouteModule },
+  { path: "/api/capabilities/oauth/start", methods: ["POST"], module: r28 as unknown as RouteModule },
+  { path: "/api/capabilities/oauth/status", methods: ["GET","DELETE"], module: r29 as unknown as RouteModule },
+  { path: "/api/capabilities/provider-logo", methods: ["GET"], module: r30 as unknown as RouteModule },
+  { path: "/api/capabilities/:id", methods: ["GET","PATCH","DELETE"], module: r31 as unknown as RouteModule },
+  { path: "/api/capabilities/:id/review", methods: ["GET","POST"], module: r32 as unknown as RouteModule },
+  { path: "/api/capability-bundles", methods: ["POST"], module: r33 as unknown as RouteModule },
+  { path: "/api/capability-grants", methods: ["POST"], module: r34 as unknown as RouteModule },
+  { path: "/api/capability-grants/:id", methods: ["DELETE"], module: r35 as unknown as RouteModule },
+  { path: "/api/credentials/:nodeId/materialize", methods: ["GET"], module: r36 as unknown as RouteModule },
+  { path: "/api/datasets", methods: ["POST"], module: r37 as unknown as RouteModule },
+  { path: "/api/embed/migration-status", methods: ["GET"], module: r38 as unknown as RouteModule },
+  { path: "/api/health", methods: ["GET"], module: r39 as unknown as RouteModule },
+  { path: "/api/ingest/candidates", methods: ["GET"], module: r40 as unknown as RouteModule },
+  { path: "/api/ingest/candidates/:id", methods: ["PATCH"], module: r41 as unknown as RouteModule },
+  { path: "/api/ingest/candidates/:id/accept", methods: ["POST"], module: r42 as unknown as RouteModule },
+  { path: "/api/ingest/candidates/:id/dismiss", methods: ["POST"], module: r43 as unknown as RouteModule },
+  { path: "/api/ingest/stats", methods: ["GET"], module: r44 as unknown as RouteModule },
+  { path: "/api/invites/:token", methods: ["GET"], module: r45 as unknown as RouteModule },
+  { path: "/api/invites/:token/accept", methods: ["POST"], module: r46 as unknown as RouteModule },
+  { path: "/api/invites/:token/signup", methods: ["POST"], module: r47 as unknown as RouteModule },
+  { path: "/api/me", methods: ["GET","PATCH"], module: r48 as unknown as RouteModule },
+  { path: "/api/me/password", methods: ["POST"], module: r49 as unknown as RouteModule },
+  { path: "/api/me/workspaces", methods: ["GET"], module: r50 as unknown as RouteModule },
+  { path: "/api/meetings/attach-transcript/:nodeId", methods: ["POST"], module: r51 as unknown as RouteModule },
+  { path: "/api/meetings/refine/:nodeId", methods: ["POST"], module: r52 as unknown as RouteModule },
+  { path: "/api/nodes", methods: ["GET","POST"], module: r53 as unknown as RouteModule },
+  { path: "/api/nodes/by-slug/:slug", methods: ["GET"], module: r54 as unknown as RouteModule },
+  { path: "/api/nodes/:id", methods: ["GET","PATCH","DELETE"], module: r55 as unknown as RouteModule },
+  { path: "/api/nodes/:id/autofix", methods: ["POST"], module: r56 as unknown as RouteModule },
+  { path: "/api/nodes/:id/dataset", methods: ["GET","POST"], module: r57 as unknown as RouteModule },
+  { path: "/api/nodes/:id/dataset/promote", methods: ["POST"], module: r58 as unknown as RouteModule },
+  { path: "/api/nodes/:id/dataset/query", methods: ["POST"], module: r59 as unknown as RouteModule },
+  { path: "/api/nodes/:id/export", methods: ["GET"], module: r60 as unknown as RouteModule },
+  { path: "/api/nodes/:id/inspector", methods: ["GET"], module: r61 as unknown as RouteModule },
+  { path: "/api/nodes/:id/subtasks", methods: ["GET","POST"], module: r62 as unknown as RouteModule },
+  { path: "/api/nodes/:id/tags", methods: ["PUT"], module: r63 as unknown as RouteModule },
+  { path: "/api/oauth/authorize", methods: ["POST"], module: r64 as unknown as RouteModule },
+  { path: "/api/oauth/clients/:clientId", methods: ["GET"], module: r65 as unknown as RouteModule },
+  { path: "/api/oauth/register", methods: ["POST"], module: r66 as unknown as RouteModule },
+  { path: "/api/oauth/revoke", methods: ["POST"], module: r67 as unknown as RouteModule },
+  { path: "/api/oauth/token", methods: ["POST"], module: r68 as unknown as RouteModule },
+  { path: "/api/onboarding", methods: ["GET"], module: r69 as unknown as RouteModule },
+  { path: "/api/onboarding/create", methods: ["POST"], module: r70 as unknown as RouteModule },
+  { path: "/api/onboarding/dismiss", methods: ["POST"], module: r71 as unknown as RouteModule },
+  { path: "/api/signup", methods: ["POST"], module: r72 as unknown as RouteModule },
+  { path: "/api/skills/:id/run", methods: ["POST"], module: r73 as unknown as RouteModule },
+  { path: "/api/tags", methods: ["GET","POST"], module: r74 as unknown as RouteModule },
+  { path: "/api/tags/:id", methods: ["PATCH","DELETE"], module: r75 as unknown as RouteModule },
+  { path: "/api/tags/:id/merge", methods: ["POST"], module: r76 as unknown as RouteModule },
+  { path: "/api/tags/:id/relations", methods: ["POST","DELETE"], module: r77 as unknown as RouteModule },
+  { path: "/api/tokens", methods: ["GET","POST"], module: r78 as unknown as RouteModule },
+  { path: "/api/tokens/user", methods: ["GET","POST"], module: r79 as unknown as RouteModule },
+  { path: "/api/tokens/user/:id", methods: ["DELETE"], module: r80 as unknown as RouteModule },
+  { path: "/api/tokens/:id", methods: ["DELETE"], module: r81 as unknown as RouteModule },
+  { path: "/api/upload", methods: ["POST"], module: r82 as unknown as RouteModule },
+  { path: "/api/views", methods: ["GET","POST"], module: r83 as unknown as RouteModule },
+  { path: "/api/views/resolve", methods: ["POST"], module: r84 as unknown as RouteModule },
+  { path: "/api/views/:id", methods: ["GET","PATCH","DELETE"], module: r85 as unknown as RouteModule },
+  { path: "/api/views/:id/duplicate", methods: ["POST"], module: r86 as unknown as RouteModule },
+  { path: "/api/views/:id/resolve", methods: ["POST"], module: r87 as unknown as RouteModule },
+  { path: "/api/webhooks/deliveries", methods: ["GET"], module: r88 as unknown as RouteModule },
+  { path: "/api/webhooks/deliveries/:id/retry", methods: ["POST"], module: r89 as unknown as RouteModule },
+  { path: "/api/webhooks/endpoints", methods: ["GET","POST"], module: r90 as unknown as RouteModule },
+  { path: "/api/webhooks/endpoints/:id", methods: ["POST","PATCH","DELETE"], module: r91 as unknown as RouteModule },
+  { path: "/api/workspaces", methods: ["GET","POST"], module: r92 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws", methods: ["GET","PATCH"], module: r93 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/agents-md", methods: ["GET"], module: r94 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/apply-template", methods: ["GET","POST"], module: r95 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/business", methods: ["GET","PATCH"], module: r96 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/business/apply-template", methods: ["GET","POST"], module: r97 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/digest", methods: ["GET","POST","PUT"], module: r98 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/events", methods: ["GET","POST"], module: r99 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/export", methods: ["GET"], module: r100 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/import", methods: ["POST"], module: r101 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/ingest-keys", methods: ["GET","POST"], module: r102 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/ingest-keys/:id", methods: ["DELETE"], module: r103 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/invites", methods: ["POST"], module: r104 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/invites/:id", methods: ["DELETE"], module: r105 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/invites/:id/email", methods: ["POST"], module: r106 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/members", methods: ["GET"], module: r107 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/members/:userId", methods: ["GET","PATCH","DELETE"], module: r108 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/metrics/summary", methods: ["GET"], module: r109 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/record-types", methods: ["GET","POST"], module: r110 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/record-types/:key", methods: ["PATCH","DELETE"], module: r111 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/records/:type", methods: ["GET","POST"], module: r112 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/records/:type/:external_id", methods: ["PUT","DELETE"], module: r113 as unknown as RouteModule },
+  { path: "/api/workspaces/:ws/usage", methods: ["GET"], module: r114 as unknown as RouteModule },
+  { path: "/install/mcp", methods: ["GET"], module: r115 as unknown as RouteModule },
+  { path: "/llms.txt", methods: ["GET"], module: r116 as unknown as RouteModule },
+  { path: "/mcp", methods: ["GET","POST"], module: r117 as unknown as RouteModule },
+  { path: "/mcp/:org/:workspace", methods: ["GET","POST"], module: r118 as unknown as RouteModule },
+  { path: "/mcp/:workspace", methods: ["GET","POST"], module: r119 as unknown as RouteModule },
 ];

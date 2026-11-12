@@ -38,7 +38,11 @@ Bcontext is the place that work lands. An agent starts by asking for a
 **brief**: what is unblocked, which decisions are open, what changed since it
 last looked. It picks a task, does the work and closes it with a
 **`## Result`** the next agent or person builds on. People see the same graph
-in the web app and steer it: review what agents wrote, fix it, decide.
+in the web app and steer it: review what agents wrote, fix it, decide. The
+web is built for reading, not data entry: **What's new** lists what agents
+and teammates changed since your last visit (proposals to accept or dismiss
+on top), and **Ask the brain…** answers from the workspace with links to the
+nodes it cites. Writing is your agent's job.
 
 ```mermaid
 flowchart LR

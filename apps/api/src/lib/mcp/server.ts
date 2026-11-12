@@ -41,8 +41,7 @@ import {
   refForHit,
 } from "@/lib/rag";
 import { RetrievalScopeSchema } from "@/lib/rag/scope";
-import { chatModel } from "@/lib/ai/models";
-import { aiConfigured, languageModel } from "@/lib/ai/provider";
+import { synthesizeAnswer } from "@/lib/rag/ask";
 import { findBacklinks, findForwardLinks } from "@bcontext-dev/contract/backlinks";
 import { appUrl } from "@/lib/env";
 import { redactCredentialForAgents } from "@/lib/credentials";
@@ -220,7 +219,6 @@ import {
 } from "@/lib/auth/invitations";
 import { buildInspectorRelations } from "@bcontext-dev/contract/node-inspector";
 import { appendAudit } from "@/lib/audit";
-import { recordAiUsageEvent, tokensFromUsage } from "@/lib/telemetry/ai-usage";
 
 export interface McpContext {
   workspaceId: string;
@@ -3089,41 +3087,18 @@ export function buildMcpServer(ctx: McpContext): Server {
           }));
           // Synthesized answer with inline [N] citations that map to
           // hits[N-1]. This is what makes ask_rag a sensible FIRST call:
-          // an answer you can act on, where every claim is verifiable.
-          let answer: string | null = null;
-          if (synthesize && hits.length > 0 && aiConfigured()) {
-            try {
-              const { generateText } = await import("ai");
-              const model = chatModel();
-              const context = hits
-                .map(
-                  (h, i) =>
-                    `[${i + 1}] ${h.kind.toUpperCase()} · ${h.title} (${refForHit(h)})\n${(h.content ?? "").trim().slice(0, 1500)}`,
-                )
-                .join("\n\n---\n\n");
-              const result = await generateText({
-                model: languageModel(model),
-                system:
-                  "Answer strictly from the numbered context blocks. Cite every factual claim with its [N] marker inline. If the context doesn't answer the question, say so — never invent. Be concise (under 200 words).",
-                prompt: `Question: ${query}\n\nContext:\n${context}`,
-              });
-              answer = result.text;
-              if (ctx.storage.backend === "supabase") {
-                void recordAiUsageEvent({
-                  workspaceId: ctx.storage.workspace.id,
-                  subjectUserId: ctx.subjectUserId,
-                  surface: "ask_rag",
-                  model,
-                  tokens: tokensFromUsage(result.usage),
-                });
-              }
-            } catch (err) {
-              // Retrieval must never fail because synthesis did — degrade
-              // to hits-only and tell the caller why there's no answer.
-              answer = null;
-              console.warn("[mcp] ask_rag synthesis failed:", err);
-            }
-          }
+          // an answer you can act on, where every claim is verifiable. The
+          // web's ask box (`POST /api/ask`) runs the same synthesis, and it
+          // never throws: no key, no hits or a model error is answer=null.
+          const answer = synthesize
+            ? (await synthesizeAnswer({
+                query,
+                hits,
+                usage: ctx.storage.backend === "supabase"
+                  ? { workspaceId: ctx.storage.workspace.id, subjectUserId: ctx.subjectUserId, surface: "ask_rag" }
+                  : null,
+              })).answer
+            : null;
           return json({
             query,
             scope: retrieval.scope,

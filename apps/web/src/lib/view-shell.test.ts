@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legacyAdminDestination, SYSTEM_VIEW_KEYS } from "./view-shell";
+import { legacyAdminDestination, SYSTEM_VIEW_KEYS, systemViewPath, viewSlugFromPathname } from "./view-shell";
 
 const ws = { slug: "acme" };
 
@@ -18,5 +18,13 @@ describe("legacy admin destinations", () => {
   it("has `tools` as the system view and no `webhooks` one (that slug only redirects)", () => {
     expect(SYSTEM_VIEW_KEYS).toContain("tools");
     expect(SYSTEM_VIEW_KEYS).not.toContain("webhooks");
+  });
+});
+
+describe("What's new", () => {
+  it("is a system view under v/, highlighted by its own slug", () => {
+    expect(SYSTEM_VIEW_KEYS).toContain("whats-new");
+    expect(systemViewPath(ws, "whats-new")).toBe("/w/acme/v/whats-new");
+    expect(viewSlugFromPathname("/w/acme/v/whats-new", ws)).toBe("whats-new");
   });
 });

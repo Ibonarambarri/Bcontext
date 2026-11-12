@@ -10,6 +10,10 @@ import { workspacePath, type WorkspaceAddress } from "@/web/workspace-url";
 /** The built-in views, in no particular order; `v/[view]/page.tsx` renders each by key. */
 export const SYSTEM_VIEW_KEYS = [
   "overview",
+  // "What's new": a web-only surface (`whats-new-view.tsx`), not a saved
+  // view — it has no seed row and the API never resolves it. Hyphenated so
+  // it cannot shadow a custom view an agent names "Updates" or "News".
+  "whats-new",
   "graph",
   "tasks",
   "roadmap",

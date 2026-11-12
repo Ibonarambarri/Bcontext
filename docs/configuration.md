@@ -70,7 +70,7 @@ extraction.
 | `AI_GATEWAY_API_KEY` | — | Vercel AI Gateway key; model ids are `provider/model`. The only backend with rerank |
 | `OPENAI_BASE_URL` | — | Any OpenAI-compatible server (Ollama, LiteLLM, vLLM). Wins over the gateway when set. A server on the Docker host is `http://host.docker.internal:<port>/v1` |
 | `OPENAI_API_KEY` | — | Key for `OPENAI_BASE_URL`, when the server wants one |
-| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: `ask_rag`, skills, autofix, meeting refine. In the backend's own naming |
+| `CHAT_MODEL` | `anthropic/claude-sonnet-5` | Interactive answers: `ask_rag` and the web's "Ask the brain…" box, skills, autofix, meeting refine. In the backend's own naming |
 | `EXTRACT_MODEL` | `deepseek/deepseek-v4-flash` | Structured extraction: ingest candidates from meeting transcripts |
 | `EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embeddings. **Must return 1536-dimensional vectors** (the columns are `vector(1536)`) |
 
