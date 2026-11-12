@@ -1,7 +1,7 @@
 {
   "name": "bcontext",
-  "version": "0.6.0",
-  "description": "Bcontext workspace integration: MCP server registration, the agent skill for the 28 native tools plus capability_search/capability_call (brief, blocks, subtasks, goals, datasets, ask_nexo, skills, external tools by search and ref, if_updated_at, typed dependencies, cited retrieval, working alongside other agents), and a daily-brief command.",
+  "version": "0.7.0",
+  "description": "Bcontext workspace integration: MCP server registration, the agent skill for the 25 MCP tools (brief, blocks, subtasks, goals, datasets, skills, if_updated_at, typed dependencies, cited retrieval with ask_rag, working alongside other agents), and a daily-brief command.",
   "author": {
     "name": "Ibon Arambarri"
   },

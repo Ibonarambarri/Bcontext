@@ -1,5 +1,5 @@
 /**
- * Weekly digest — the first built-in scheduled skill (NEXO proactivity).
+ * Weekly digest — the first built-in scheduled skill.
  *
  * The brain speaks without being asked: once a week, per workspace, it reads
  * the change feed and the task/decision state, and publishes a `doc` node
@@ -28,6 +28,8 @@ import { listChangePageForStorage, record as recordActivity } from "@/lib/activi
 import type { Storage } from "@/lib/storage";
 import { recordAiUsageEvent, tokensFromUsage } from "@/lib/telemetry/ai-usage";
 
+// The stored source key predates the rename and stays as written: existing
+// digests are found by it, so changing it would publish a duplicate.
 export const DIGEST_SOURCE = "nexo.digest";
 const DEFAULT_DIGEST_DAYS = 7;
 /** Feed pages read per digest — 5 × 200 entries covers a very busy week. */
@@ -317,7 +319,7 @@ export function renderDigestMarkdown(facts: DigestFacts, prose?: Partial<DigestP
     [`## ${title}`, "", ...(text?.trim() ? [text.trim(), ""] : []), ...lines, ""].join("\n");
 
   return [
-    `_Semana del ${day(facts.from)} al ${day(facts.to)} en **${facts.workspace.name}** · ${c.total} cambios · generado por NEXO._`,
+    `_Semana del ${day(facts.from)} al ${day(facts.to)} en **${facts.workspace.name}** · ${c.total} cambios · generado por Bcontext._`,
     "",
     section(DIGEST_SECTIONS[0], prose?.changed, changedLines),
     section(DIGEST_SECTIONS[1], prose?.decided, decidedLines),

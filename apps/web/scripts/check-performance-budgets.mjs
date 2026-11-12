@@ -20,8 +20,8 @@ const shellBytes = gzipBytes(initialChunks(shellManifest));
 const editorBytes = gzipBytes(initialChunks(editorManifest));
 console.log(JSON.stringify({ shell_gzip_bytes: shellBytes, editor_route_gzip_bytes: editorBytes }, null, 2));
 // Workspace-shell budget: 175 KB gzip (measured 155.1 KB on 2026-10-14 +
-// ~12% headroom). The chat panel, the recharts dashboard chart, the Supabase
-// browser SDK, the heavy modals and the mobile chat drawer are all async; the
+// ~12% headroom). The recharts dashboard chart, the Supabase browser SDK and
+// the heavy modals are all async; the
 // synchronous weight left is the chrome itself: HeroUI v3 and the app's own
 // shell components (src/components/ui: sidebar, command palette), the
 // overlay machinery of react-aria, and the app shell code (workspace-context,

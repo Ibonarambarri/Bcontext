@@ -158,7 +158,6 @@ Slack, and a dozen Google Docs.
 \`\`\`
 Next.js (App Router) ── /app
   ├── /(workspace)/[ws] — three-zone layout
-  ├── /api/nexo         — Nexo, the in-app assistant (streaming, tool-using)
   ├── /api/nodes        — CRUD over knowledge graph
   └── /api/agents/*     — structured agent surface
 

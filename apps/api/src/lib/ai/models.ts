@@ -4,18 +4,15 @@
  * Three variables, three jobs — because one variable was doing all three.
  * `CHAT_MODEL` used to override every call site, so the "cheap default" the
  * contextualize and extract code declared never ran in production: every
- * per-chunk prefix and every nightly contradiction check went to the chat
- * model. Measured on 2026-09-10, that loop was ~90% of the AI bill.
+ * per-chunk prefix and every extraction went to the chat model. Measured on 2026-09-10, that loop was ~90% of the AI bill.
  *
  *   CHAT_MODEL     interactive, quality-bearing answers a person or an agent
- *                  reads: Nexo chat, ask_nexo / ask_rag synthesis, skills,
- *                  autofix, meeting refine.
+ *                  reads: ask_rag synthesis, skills, autofix, meeting
+ *                  refine.
  *   CONTEXT_MODEL  the one-sentence Contextual Retrieval prefix generated per
  *                  chunk on every embed (src/lib/rag/contextualize.ts). High
  *                  volume, tiny output, nobody reads it.
- *   EXTRACT_MODEL  structured extraction and judging: ingest candidates,
- *                  batch extraction, conflict resolution, the nightly
- *                  contradiction sweep, integration proposals.
+ *   EXTRACT_MODEL  structured extraction: ingest candidates.
  *
  * Read at call time, like `src/lib/env.ts`, so tests can set them per case.
  * The ids are the backend's own names: "provider/model" on the AI Gateway,

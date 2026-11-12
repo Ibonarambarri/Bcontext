@@ -2,11 +2,11 @@
  * What an organization consumes, per person and per month — counted for the
  * people who run it, never enforced.
  *
- * Called by the MCP server (`ask_rag`, `ask_nexo`), the Nexo chat, autofix,
- * the meeting-bot webhook and the MCP usage flush (`recordUsage`), and by the
- * organization's member screen (`getOrgUsageTotals`). A self-hosted instance
- * has no ceilings: these numbers answer "who and what is using the model,
- * the meeting bot and the context", which an administrator still needs.
+ * Called by the MCP server (`ask_rag`), autofix and the MCP usage flush
+ * (`recordUsage`), and by the organization's member screen
+ * (`getOrgUsageTotals`). A self-hosted instance has no ceilings: these
+ * numbers answer "who and what is using the model and the context", which an
+ * administrator still needs.
  *
  * Three of the four meters are FLOWS and live in `org_usage_counters`
  * (migration 0070). `nodes` is a STOCK — how much context the organization
@@ -95,42 +95,6 @@ export async function recordUsage(
       error: { message: err instanceof Error ? err.message : String(err) },
     });
   }
-}
-
-/**
- * Add recorded meeting minutes to the workspace's monthly counter
- * (`meeting_usage_counters`), which the organization's usage tab and the
- * admin dashboard read.
- */
-export async function addMeetingMinutes(
-  workspaceId: string,
-  minutes: number,
-  now: Date = new Date(),
-): Promise<void> {
-  if (minutes <= 0) return;
-  const sb = getSupabaseAdmin();
-  const period = currentPeriod(now);
-  const existing = await sb
-    .from("meeting_usage_counters")
-    .select("minutes")
-    .eq("workspace_id", workspaceId)
-    .eq("period", period)
-    .maybeSingle();
-
-  if (!existing.data) {
-    await sb.from("meeting_usage_counters").insert({
-      workspace_id: workspaceId,
-      period,
-      minutes,
-    });
-    return;
-  }
-  const next = ((existing.data.minutes as number) ?? 0) + minutes;
-  await sb
-    .from("meeting_usage_counters")
-    .update({ minutes: next, updated_at: new Date().toISOString() })
-    .eq("workspace_id", workspaceId)
-    .eq("period", period);
 }
 
 /* -------------------------------------------------------------------------- */

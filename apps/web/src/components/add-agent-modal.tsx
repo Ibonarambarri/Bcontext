@@ -92,8 +92,7 @@ const ROLE_COPY: Record<AgentRole, string> = {
 
 /**
  * The server's static tool list (`TOOLS` in bcontext-api's `mcp/server.ts`),
- * for the Connect step. `tools/list` filters it per principal and adds the
- * capability gateway (`capability_search` / `capability_call`).
+ * for the Connect step. `tools/list` filters it per principal.
  */
 const MCP_TOOLS: [string, string][] = [
   ["nodes", "get / list / search — one hit per node, block refs nested"],
@@ -110,17 +109,14 @@ const MCP_TOOLS: [string, string][] = [
   ["views_write", "create, duplicate, update, delete a saved view"],
   ["admin", "who can reach this workspace, with verbs and reach; preview a reach"],
   ["admin_write", "grant, revoke or invite a principal"],
-  ["capabilities", "external MCP servers / webhooks: catalog, discover, status"],
-  ["capabilities_write", "connect an endpoint, finish its OAuth, grant, disconnect"],
   ["skills", "list skill nodes, or get one as instructions to run yourself"],
   ["skills_write", "import a skill node from SKILL.md (versioned upsert)"],
   ["skills_run", "run a skill server-side with the server's model"],
   ["ask_rag", "synthesized answer, every claim cited [N]"],
-  ["ask_nexo", "ask the memory: cited answer, confidence, freshness, gaps"],
   ["brief", "start here: counts, unblocked queue, open decisions, what changed"],
   ["list_changes", "incremental change feed (since / node_id)"],
   ["links_write", "typed edges: blocked_by, references…"],
-  ["ingest", "the ingestion inbox: candidates proposed by connector signals"],
+  ["ingest", "the ingestion inbox: node candidates proposed from meetings and other signals"],
   ["ingest_write", "accept (creates the node + links) or dismiss a candidate"],
   ["ping", "health check"],
   ["list_workspaces", "list workspaces this token can reach"],
@@ -983,7 +979,7 @@ const PLUGIN_INSTALL = [
 /** The session loop the rules file asks for, as four glanceable lines. */
 const SESSION_LOOP: [string, string][] = [
   ["brief", "one call at the start: the queue, open decisions, what is yours, what changed"],
-  ["ask_nexo", "before researching — what the team already knows, cited"],
+  ["ask_rag", "before researching — what the team already knows, cited"],
   ["one task, in_progress", "its steps as subtasks; decisions as decision nodes linked to it"],
   ["done + ## Result", "what changed, what was decided, what is left — for the next reader"],
 ];
@@ -991,8 +987,7 @@ const SESSION_LOOP: [string, string][] = [
 /** Everything else the workspace offers an agent, and where a person switches it on. */
 const GO_FURTHER: [string, string][] = [
   ["Goals", "the North Star and the goals under it. Link tasks with contributes_to and the Roadmap fills itself; goals_write(checkin) moves a key result."],
-  ["Integrations", "GitHub, Slack, Notion, Linear… from Integrations → Add integration. What they find lands in the ingest inbox for review, not straight in the graph."],
-  ["Tools", "connect other MCP servers and webhooks once, grant them per agent. Agents find them with capability_search and call them with capability_call — no extra client config."],
+  ["Webhooks", "workspace events (nodes created, updated, deleted…) delivered to your URL, signed with HMAC — from Webhooks in the sidebar."],
   ["Skills", "skill nodes are instructions an agent runs (skills → get) or the server runs for it (skills_run); import one from a SKILL.md with skills_write."],
   ["Credentials", "one node per credential. Agents read them redacted and use them through materialize (needs credentials:use), so a secret never lands in a transcript."],
   ["Views", "saved queries the team shares; also the scope for ask_rag when a question is local."],

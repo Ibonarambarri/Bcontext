@@ -5,7 +5,6 @@ import {
   Building2,
   FolderTree,
   Gauge,
-  KeyRound,
   Mail,
   Settings2,
   Users,
@@ -24,7 +23,6 @@ import { GeneralSection } from "./general-section";
 import { UsersSection } from "./users-section";
 import { InvitationsSection } from "./invitations-section";
 import { WorkspacesSection } from "./workspaces-section";
-import { AiKeysSection } from "./ai-keys-section";
 
 /**
  * Administering an organization.
@@ -45,9 +43,9 @@ import { AiKeysSection } from "./ai-keys-section";
  * else — the alternative was a hand-rolled list of buttons that looked like
  * the sidebar until the day one of them changed.
  *
- * Grouped, because the sections are not siblings: three are about the company
+ * Grouped, because the sections are not siblings: two are about the company
  * as an entity, two about the people in it, one about its projects. A flat
- * list of six made "Users" and "General" look like the same kind of thing.
+ * list of five made "Users" and "General" look like the same kind of thing.
  *
  * Everything is read when it opens and re-read after every write, so no two
  * sections can disagree about who is in the organization — a roster and an
@@ -60,7 +58,6 @@ const GROUPS = [
     items: [
       { id: "overview", label: "Overview", icon: Gauge },
       { id: "general", label: "General", icon: Settings2 },
-      { id: "ai-keys", label: "AI keys", icon: KeyRound },
     ],
   },
   {
@@ -252,8 +249,6 @@ export function OrgAdminModal({
                 />
               ) : section === "general" ? (
                 <GeneralSection detail={detail} onChanged={load} />
-              ) : section === "ai-keys" ? (
-                <AiKeysSection orgSlug={detail.slug} />
               ) : section === "users" ? (
                 <UsersSection
                   detail={detail}

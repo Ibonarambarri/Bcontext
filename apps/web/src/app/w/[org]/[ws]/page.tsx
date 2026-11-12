@@ -108,9 +108,10 @@ export default async function WorkspaceHome({
 }
 
 /**
- * The review inbox is a badge, not the page: a failure here (the stats route
- * answers 0 for the demo store, and anything else is a hiccup) must never
- * take the dashboard down with it.
+ * Ingest candidates waiting for a decision (agents review them with the MCP
+ * `ingest` / `ingest_write` tools). A number, not a page: a failure here (the
+ * stats route answers 0 for the demo store, and anything else is a hiccup)
+ * must never take the dashboard down with it.
  */
 async function getPendingIngestCount(workspaceId: string): Promise<number> {
   try {
@@ -146,11 +147,7 @@ function ActivitySection({
             value={overview.totals.blocked}
             href={systemViewPath(ws, "tasks")}
           />
-          <MiniStat
-            label="Pending review"
-            value={pendingIngest}
-            href={systemViewPath(ws, "conflicts")}
-          />
+          <MiniStat label="Pending review" value={pendingIngest} />
         </div>
         <div className="flex items-center gap-3 pb-1">
           <LegendDot color={accent.from} label="Created" />

@@ -6,15 +6,11 @@
  * same node minutes earlier, and nothing in the response said so. The
  * timestamp was "strongly recommended"; a recommendation is not a guard.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createWorkspace } from "@/lib/demo-store";
 import { resolveDemoStorage } from "@/lib/storage/demo";
-
-const mocks = vi.hoisted(() => ({ listAuthorizedCapabilityTools: vi.fn() }));
-vi.mock("@/lib/capabilities/catalog", () => ({ listAuthorizedCapabilityTools: mocks.listAuthorizedCapabilityTools }));
-vi.mock("@/lib/capabilities/gateway", () => ({ CapabilityGatewayError: class extends Error {}, invokeAuthorizedCapability: vi.fn() }));
 
 import { buildMcpServer } from "./server";
 
@@ -29,7 +25,6 @@ describe("nodes_write(op=update) and content_md", () => {
   let updatedAt: string;
 
   beforeEach(async () => {
-    mocks.listAuthorizedCapabilityTools.mockReset().mockResolvedValue([]);
     const slug = `mcp-pre-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const workspace = createWorkspace({ name: "Precondition", slug });
     const storage = resolveDemoStorage(slug)!;

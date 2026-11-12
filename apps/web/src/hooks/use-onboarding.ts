@@ -13,9 +13,8 @@ import { workspaceApiRef } from "@/web/workspace-url";
  * the workspace, whenever the tab comes back into focus, and — while the
  * caller says the guide is on screen with work left — every 20 seconds.
  * The steps that matter happen elsewhere (the agent is connected from a
- * terminal, the integration from an OAuth tab) or on another page of this
- * tab (a question to Nexo), and the box has to tick itself either way
- * without the person reloading. Nothing is derived on the client — the API
+ * terminal and writes from there), and the box has to tick itself without
+ * the person reloading. Nothing is derived on the client — the API
  * already says which steps are done.
  *
  * `dismiss` is optimistic: the panel goes away at once and the stamp is
@@ -74,7 +73,7 @@ export function useOnboarding(
   }, [refresh]);
 
   // A navigation inside the workspace is the moment something may just have
-  // happened on the page being left (Nexo answered, an agent got added).
+  // happened on the page being left (an agent got added).
   // The first render is not a navigation; the mount read above covers it.
   const lastPath = useRef(pathname);
   useEffect(() => {

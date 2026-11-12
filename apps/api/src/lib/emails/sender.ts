@@ -1,7 +1,7 @@
 /**
  * Who the instance's emails are from, and how they sign off.
  *
- * Every letter the product sends (invitations, Nexo escalations, the weekly
+ * Every letter the product sends (invitations, the weekly
  * digest) reads these instead of a hard-coded domain: a self-hosted instance
  * can only send from an address it owns, so there is no default sender. With
  * no `EMAIL_FROM` the senders skip, the same as with no `RESEND_API_KEY`.

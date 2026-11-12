@@ -1,8 +1,8 @@
 /**
  * The facts behind the "Getting started" checklist, read from the workspace
  * rather than stored — see `@bcontext-dev/contract/onboarding` for why.
- * Called by `GET /api/onboarding`; each fact is one existence query and the
- * four run together, so the route costs a single round of the pool.
+ * Called by `GET /api/onboarding`; each fact is one existence query and they
+ * run together, so the route costs a single round of the pool.
  *
  * Every query goes through the admin client because the route has already
  * proven membership by hand; nothing here relies on RLS. Keep each fact an
@@ -14,8 +14,6 @@ import type { OnboardingFacts } from "@bcontext-dev/contract/onboarding";
 
 export interface OnboardingSubject {
   workspaceId: string;
-  /** Asking Nexo is personal: another member's conversation is not yours. */
-  userId: string;
 }
 
 // The minimum a query builder must offer for `exists` to run it; typed this
@@ -33,7 +31,7 @@ export async function readOnboardingFacts(
   subject: OnboardingSubject,
 ): Promise<OnboardingFacts> {
   const head = { count: "exact" as const, head: true };
-  const [connect_agent, first_agent_write, ask_nexo, connect_integration] = await Promise.all([
+  const [connect_agent, first_agent_write] = await Promise.all([
     // An approved, unrevoked connection is enough: the Agents page issued it.
     // Whether the agent then used it is what the next step answers.
     exists(
@@ -52,22 +50,6 @@ export async function readOnboardingFacts(
         .eq("actor_kind", "agent"),
       "first_agent_write",
     ),
-    exists(
-      admin
-        .from("chat_sessions")
-        .select("id", head)
-        .eq("workspace_id", subject.workspaceId)
-        .eq("user_id", subject.userId),
-      "ask_nexo",
-    ),
-    exists(
-      admin
-        .from("connector_installs")
-        .select("id", head)
-        .eq("workspace_id", subject.workspaceId)
-        .neq("status", "uninstalled"),
-      "connect_integration",
-    ),
   ]);
-  return { connect_agent, first_agent_write, ask_nexo, connect_integration };
+  return { connect_agent, first_agent_write };
 }

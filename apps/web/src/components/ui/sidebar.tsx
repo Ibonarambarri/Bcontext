@@ -13,8 +13,7 @@
  * What must not break:
  * - The class names (`sidebar`, `sidebar__provider`, `sidebar__menu-item`…)
  *   and `data-current` / `data-state` attributes: `sidebar.css` styles them
- *   and `globals.css` hooks into them (the Nexos mark in a row, the
- *   organization panel's rail).
+ *   and `globals.css` hooks into them (the organization panel's rail).
  * - `--sidebar-width` set on the Provider is the rail's width (the workspace
  *   sidebar is user-resizable through it).
  * - Under 768px the desktop aside hides and `Sidebar.Mobile` is a drawer

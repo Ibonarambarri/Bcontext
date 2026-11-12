@@ -12,7 +12,6 @@
     "rag:eval": "node scripts/rag-eval.mjs",
     "db:reset": "bash scripts/db-reset.sh",
     "gen:api-routes": "node scripts/gen-api-routes.mjs",
-    "nango:sync": "npx tsx scripts/nango-sync-integrations.ts",
     "build:api": "node scripts/build-api.mjs",
     "start:api": "node dist/api.cjs",
     "build:errors": "node scripts/build-errors.mjs",
@@ -37,7 +36,6 @@
     "pg": "^8.23.0",
     "pg-boss": "^12.29.0",
     "resend": "^6.12.3",
-    "tldts": "^7.4.9",
     "ws": "^8.21.3",
     "zod": "^3.23.8",
     "@bcontext-dev/contract": "*"

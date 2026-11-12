@@ -147,7 +147,7 @@ export const ErrorReportSchema = z.object({
   attempt: z.number().int().min(0).max(1_000).optional(),
 
   /** Anything else worth having when you open the row: a node id, a
-   *  connector, a model. Redacted and size-capped by the collector — never
+   *  job, a model. Redacted and size-capped by the collector — never
    *  put a request body in here. */
   context: z.record(z.unknown()).optional(),
 });

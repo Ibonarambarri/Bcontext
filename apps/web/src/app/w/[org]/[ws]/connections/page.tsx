@@ -1,7 +1,7 @@
 /**
  * Retired address: `/connections` and its `?tab=` split into the `agents` and
- * `tools` system views and the general Nexo's Setup → Sources. Client-side
- * redirect so the query and hash decide the destination.
+ * `webhooks` system views. Client-side redirect so the query and hash decide
+ * the destination.
  */
 import { LegacyAdminRedirect } from "@/components/legacy-admin-redirect";
 

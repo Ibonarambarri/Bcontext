@@ -127,8 +127,8 @@ reset emails are not sent.
 
 There are two senders:
 
-- **Bcontext's own emails** (sign-up confirmation, invitations, Nexo
-  escalations, the weekly digest) go through the Resend API:
+- **Bcontext's own emails** (sign-up confirmation, invitations, the weekly
+  digest) go through the Resend API:
   `RESEND_API_KEY` and `EMAIL_FROM`.
 - **Auth's emails** (password reset, email change) go through SMTP:
   `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`.
@@ -147,9 +147,9 @@ without it they are skipped and invitations stay copyable links.
 
 ## AI
 
-Optional. Without an AI backend, search is keyword-only and `ask_nexo`
-answers with retrieval alone; embeddings, extraction from integrations and
-meetings, skills and the Nexos' chat need one. Choose one backend in `.env`:
+Optional. Without an AI backend, search is keyword-only and `ask_rag`
+answers with retrieval alone; embeddings, extraction from meeting
+transcripts and skills need one. Choose one backend in `.env`:
 
 - **Vercel AI Gateway**: `AI_GATEWAY_API_KEY`. Model ids are
   `provider/model`; the defaults are `CHAT_MODEL=anthropic/claude-sonnet-5`,
@@ -172,34 +172,6 @@ meetings, skills and the Nexos' chat need one. Choose one backend in `.env`:
 > `apps/api/scripts/reembed-stale.ts` re-embeds a workspace.
 
 Then `docker compose up -d`.
-
-## Integrations (optional)
-
-Each integration is off until its variables are set; the rest of the product
-runs without them. Add the variables to the root `.env` (the `api`,
-`worker` and `errors` containers read the whole file) and run
-`docker compose up -d`. Webhook and OAuth callback URLs are on your public
-origin:
-
-| Integration | Variables | URLs to register with the provider |
-|---|---|---|
-| GitHub App | `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` | webhook `/api/webhooks/github`, setup/callback `/api/connectors/github/callback` |
-| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET` | events `/api/webhooks/slack`, OAuth redirect `/api/connectors/slack/callback` |
-| Linear | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET`, `LINEAR_WEBHOOK_SECRET` | webhook `/api/webhooks/linear`, OAuth redirect `/api/connectors/linear/callback` |
-| Notion (importer) | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | OAuth redirect `/api/connectors/notion/callback` |
-| Meeting bots (Recall.ai) | `RECALL_API_KEY`, `RECALL_WEBHOOK_SECRET`, `RECALL_API_BASE` (non-default region) | webhook `/api/connectors/meeting-bot/webhook` |
-| Nango (long tail) | `NANGO_SERVER_URL`, `NANGO_SECRET_KEY`, `NANGO_WEBHOOK_SECRET`, `NANGO_PUBLIC_URL`, `NANGO_CONNECT_URL` | webhook `/api/webhooks/nango` (in Nango) |
-
-[Nango](https://nango.dev) handles auth and proxying for the long tail of
-providers (Jira, HubSpot, Google, Microsoft and many more). It is **not
-bundled**: it needs its own Postgres, Redis and two public origins, so run it
-next to Bcontext with Nango's self-hosting guide.
-`apps/api/docs/integrations-nango.md` describes the setup, the OAuth apps
-and every provider. Without it, Nango-backed integrations answer 503.
-
-External MCP servers and webhooks need no configuration on the instance:
-workspace admins add them in the web app (Tools), and their secrets are
-stored in Supabase Vault.
 
 ## Optional services
 
@@ -244,8 +216,7 @@ start again. Check it with `docker compose logs migrate`.
 ## Backups
 
 State lives in three named volumes: `db-data` (Postgres), `db-config` (the
-database's Vault key, which encrypts the secrets of connected MCP servers and
-integrations) and `storage-data` (uploaded files). `caddy-data` only holds
+database's Vault key) and `storage-data` (uploaded files). `caddy-data` only holds
 certificates, which Caddy can obtain again. Keep a copy of `.env` too: its
 secrets sign every session and key.
 
@@ -254,7 +225,7 @@ While the stack runs:
 ```bash
 # Database (as supabase_admin, the only role that can read every schema)
 docker compose exec -T db pg_dump -U supabase_admin -Fc postgres > bcontext-$(date +%F).dump
-# Vault key: without it, restored integration secrets cannot be decrypted
+# Vault key: without it, anything restored into Vault cannot be decrypted
 docker compose exec -T db cat /etc/postgresql-custom/pgsodium_root.key > pgsodium_root.key
 # Uploaded files
 docker run --rm -v bcontext_storage-data:/data -v "$PWD":/backup alpine \

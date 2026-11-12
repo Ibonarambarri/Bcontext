@@ -167,7 +167,7 @@ they describe:
    is left, then set the task to `done`. That section is what the next agent
    reads instead of the transcript.
 
-Questions about the workspace go to `ask_nexo` (a cited answer with
-confidence, freshness and gaps) or `ask_rag` (the ranked passages). Tools
-from other MCP servers connected to the workspace, and the workspace's
-skills, are found with `capability_search` and run with `capability_call`.
+Questions about the workspace go to `ask_rag` (a cited answer over the
+ranked passages; `synthesize: false` for the passages alone). The
+workspace's skills are listed with `skills({ op: "list" })` and fetched as
+instructions with `skills({ op: "get" })`.

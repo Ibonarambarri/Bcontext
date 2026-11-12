@@ -10,7 +10,7 @@
  * total — which is exactly how it reached 6k tokens in the first place.
  */
 import { describe, expect, it } from "vitest";
-import { CAPABILITY_ROUTING_TOOLS, TOOLS, visibleTools } from "./server";
+import { TOOLS, visibleTools } from "./server";
 import { VERBS, type Grant, type Verb } from "@/lib/auth/grants";
 
 /** Bytes of minified JSON, the shape the schema actually travels in. */
@@ -194,7 +194,12 @@ describe("MCP tool surface budget", () => {
     // pasted token (`auth.secret`): the one clause an agent must not miss —
     // write-only, never returned — costs 64 bytes and is paid by trimming
     // the rest of the same description, not by a raise.
-    const BUDGET = 38_900;
+    //
+    // 38.900 → 34.200 when Nexo and the integrations were removed: `ask_nexo`
+    // and the two admin `capabilities` tools went (measured 34.113), and the
+    // brief's `capabilities` section became a plain skill count. The ratchet
+    // takes the saving instead of leaving it as headroom.
+    const BUDGET = 34_200;
     expect(
       bytes,
       `The tool schema is ${bytes} bytes (~${Math.round(bytes / 4)} tokens), over ` +
@@ -260,7 +265,9 @@ describe("MCP tool surface budget", () => {
       // the roadmap sentence on `views` — a read, so a reader rightly pays it.
       // Held at 14.100 (measured 14.096) when `brief` started counting the
       // external tools and skills a reader can search for.
-    ).toBeLessThanOrEqual(14_100);
+      // 14.100 → 13.300 (measured 13.280) with `ask_nexo` gone from a
+      // reader's list.
+    ).toBeLessThanOrEqual(13_300);
     expect(bytes).toBeLessThan(schemaBytes(TOOLS) / 2);
   });
 
@@ -276,46 +283,16 @@ describe("MCP tool surface budget", () => {
     const admin = visibleTools(grantWith(VERBS)).map((t) => t.name);
     expect(admin).toContain("admin");
     expect(admin).toContain("admin_write");
-    // The capability catalog is admin territory too: connecting an external
-    // MCP server hands its tools to principals, which is a grant by another
-    // name.
-    expect(editor).not.toContain("capabilities");
-    expect(editor).not.toContain("capabilities_write");
-    expect(admin).toContain("capabilities");
-    expect(admin).toContain("capabilities_write");
   });
 
-  describe("external tools and skills: two routing tools, whatever is granted", () => {
-    // What a granted capability used to put in front of a principal, on every
-    // turn: a real MCP server is 20-40 tools with their own inputSchemas — one
-    // GitHub grant was 13 KB in production, more than half the native surface.
-    // Now nothing external is ever inlined: tools/list is the native tools for
-    // the principal's verbs plus exactly `capability_search` and
-    // `capability_call`, and their cost does not move with the grants.
-    it("is exactly capability_search and capability_call", () => {
-      expect(CAPABILITY_ROUTING_TOOLS.map((tool) => tool.name)).toEqual(["capability_search", "capability_call"]);
-      expect(TOOLS.map((tool) => tool.name)).not.toContain("capability_search");
-      expect(TOOLS.map((tool) => tool.name)).not.toContain("capability_call");
-    });
-
-    it("costs every principal the same small fixed amount", () => {
-      const bytes = schemaBytes(CAPABILITY_ROUTING_TOOLS);
-      // Two tools, one query and one ref. The descriptions carry the two rules
-      // an agent cannot infer — refs are stable, schemas come inline for few
-      // hits or an exact ref — and nothing else.
-      expect(bytes).toBeLessThanOrEqual(1_400);
-      for (const verbs of [["read"], ["read", "write"], VERBS] as const) {
-        const native = visibleTools(grantWith(verbs));
-        // One list, so one comma instead of a second pair of brackets.
-        expect(schemaBytes([...native, ...CAPABILITY_ROUTING_TOOLS])).toBe(schemaBytes(native) + bytes - 1);
-      }
-    });
-
-    it("annotates both: the search is read-only, the call is not", () => {
-      const [search, call] = CAPABILITY_ROUTING_TOOLS;
-      expect(search!.annotations).toMatchObject({ readOnlyHint: true });
-      expect(call!.annotations).toMatchObject({ destructiveHint: true, openWorldHint: true });
-    });
+  it("advertises no gateway to external tools", () => {
+    // The capability gateway (capability_search / capability_call and the
+    // admin capabilities tools) was removed with the integrations: the MCP is
+    // the workspace's memory, and nothing outside it is routed through here.
+    const names = TOOLS.map((tool) => tool.name);
+    for (const gone of ["capabilities", "capabilities_write", "capability_search", "capability_call", "ask_nexo"]) {
+      expect(names).not.toContain(gone);
+    }
   });
 
   it("classifies every tool, so a new one cannot leak in unreasoned", () => {

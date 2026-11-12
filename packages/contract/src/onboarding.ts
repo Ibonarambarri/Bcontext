@@ -14,12 +14,10 @@
  * API states facts, the product explains them.
  */
 
-/** In the order the guide presents them: connect, see it write, ask, feed. */
+/** In the order the guide presents them: connect an agent, see it write. */
 export const ONBOARDING_STEP_IDS = [
   "connect_agent",
   "first_agent_write",
-  "ask_nexo",
-  "connect_integration",
 ] as const;
 
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];

@@ -181,7 +181,7 @@ fi
 if [ -z "$(get AI_GATEWAY_API_KEY)" ] && [ -z "$(get OPENAI_BASE_URL)" ]; then
   echo
   bold "No AI backend configured (optional)"
-  say "  Without one, search is keyword-only and ask_nexo answers with retrieval alone."
+  say "  Without one, search is keyword-only and ask_rag answers with retrieval alone."
   say "  In .env, set either AI_GATEWAY_API_KEY (Vercel AI Gateway) or OPENAI_BASE_URL"
   say "  (+ OPENAI_API_KEY) for an OpenAI-compatible server such as Ollama or LiteLLM,"
   say "  and CHAT_MODEL / EXTRACT_MODEL / EMBEDDING_MODEL in that backend's naming."

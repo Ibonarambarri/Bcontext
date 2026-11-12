@@ -69,12 +69,8 @@ export type Reach =
   | { type: "all" }
   | { type: "query"; query: ViewQuery };
 
-/**
- * Who a grant row is about. `service_account` is a `capability_principals`
- * row that is neither a person nor a token-bearing agent — today, a Slack
- * install acting for a whole channel — and its `id` is that row's id.
- */
-export type PrincipalKind = "user" | "agent" | "service_account";
+/** Who a grant row is about: a person or a connected agent. */
+export type PrincipalKind = "user" | "agent";
 
 export interface Grant {
   workspaceId: string;
@@ -169,7 +165,7 @@ export const DENY_REACH: Reach = { type: "query", query: DENY_EVERYTHING };
 
 /**
  * Full access for paths that act as the system rather than on behalf of anyone:
- * the queue worker, webhook ingestion, connector sync. Deliberately explicit —
+ * the queue worker, scheduled skills, ingest auto-accept. Deliberately explicit —
  * a `systemGrant()` call is visible in a diff and can be audited, which an
  * optional parameter defaulting to unrestricted would not be.
  */
@@ -222,7 +218,7 @@ export function verbsForScopes(scopes: readonly string[]): readonly Verb[] {
   // `chat:run`, `agents:read` and `skills:execute` are mintable on their own and
   // documented as such. They all read workspace content to do their job, so a
   // token carrying only one of them has to resolve to `read` — otherwise it
-  // passes `gate` and then 403s on /api/nexo, /api/agents/context and
+  // passes `gate` and then 403s on autofix, /api/agents/context and
   // /api/skills/:id/run, all of which it could call before this change.
   const READ_IMPLYING = ["nodes:read", "chat:run", "agents:read", "skills:execute"];
   if (READ_IMPLYING.some((scope) => scopes.includes(scope)) || scopes.includes("admin:*")) {
@@ -467,10 +463,6 @@ async function legacyGrantForPrincipal(
   principal: { kind: PrincipalKind; id: string },
   tokenScopes: readonly string[] | null,
 ): Promise<Grant | Denied> {
-  // A service account has no legacy table to fall back to: its grant row is
-  // the only place its access was ever written, so "no row" is "no access".
-  if (principal.kind === "service_account") return { denied: "not_found" };
-
   const admin = getSupabaseAdmin();
 
   if (principal.kind === "agent") {

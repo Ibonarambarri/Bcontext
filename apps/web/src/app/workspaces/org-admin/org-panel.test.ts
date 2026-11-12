@@ -18,7 +18,6 @@ const read = (path: string) => readFileSync(join(here, path), "utf8");
 const SECTIONS = [
   "org-admin/overview-section.tsx",
   "org-admin/general-section.tsx",
-  "org-admin/ai-keys-section.tsx",
   "org-admin/users-section.tsx",
   "org-admin/user-detail.tsx",
   "org-admin/invitations-section.tsx",

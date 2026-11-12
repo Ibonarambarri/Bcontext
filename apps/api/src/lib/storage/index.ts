@@ -67,7 +67,7 @@ export type NodeWriteErrorCode =
   | "legacy_data_tags"
   | "redacted_credential_write";
 
-/** Stable, non-sensitive errors shared by REST, MCP and connector writers. */
+/** Stable, non-sensitive errors shared by REST, MCP and background writers. */
 export class NodeWriteError extends Error {
   constructor(
     public readonly code: NodeWriteErrorCode,
@@ -131,7 +131,7 @@ export function canonicalNodeData(data: unknown): Record<string, unknown> {
 /**
  * Validate a semantic parent against a bounded workspace snapshot. The
  * storage implementations call this before writes; Postgres repeats it in a
- * trigger so service-role/direct connector writes cannot bypass the contract.
+ * trigger so service-role/direct writes cannot bypass the contract.
  */
 export function assertSemanticParent(
   nodes: Array<Pick<KnowledgeNode, "id" | "workspace_id" | "parent_id">>,

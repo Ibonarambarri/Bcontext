@@ -46,7 +46,6 @@ export const GET = withRoute(async (req: Request) => {
         endpoints: [
           { method: "POST", path: "/api/agents/context", scope: "agents:read" },
           { method: "POST", path: "/api/agents/write", scope: "agents:write" },
-          { method: "POST", path: "/api/nexo", scope: "chat:run" },
           { method: "GET", path: "/api/nodes", scope: "nodes:read" },
           { method: "POST", path: "/api/nodes", scope: "nodes:write" },
           { method: "GET", path: "/api/tags", scope: "nodes:read" },

@@ -1,16 +1,14 @@
 "use client";
 
 /**
- * Stepper — numbered progress through a fixed list of steps. Horizontal in
- * the multi-step modals (Add agent, meeting-records setup), vertical as the
- * bot-status timeline of a meeting recording.
+ * Stepper — numbered progress through a fixed list of steps, horizontal in
+ * the Add agent modal (a vertical orientation is available too).
  *
  * Status per step is derived from `currentStep` (before = complete, equal =
  * active, after = inactive) and exposed as `data-status` on the step and its
  * indicator, so titles and colours follow without props. Colours come from
  * CSS variables (`--stepper-active-color`, `--stepper-complete-color`) that a
- * call site may override inline — the recording timeline turns them red when
- * the bot failed, so those two names must keep working.
+ * call site may override inline.
  *
  * The separator is a sibling of the step's content, not inside it: it is
  * absolutely positioned between this indicator and the next one, and the

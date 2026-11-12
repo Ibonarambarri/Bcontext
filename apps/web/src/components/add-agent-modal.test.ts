@@ -17,7 +17,7 @@ describe("Add agent step sequence", () => {
 });
 
 describe("Add agent configuration", () => {
-  it("keeps the Bcontext client endpoint separate from external tool providers", () => {
+  it("gives Codex its own server name and token variable", () => {
     expect(agentConfig("openai", "oauth", TARGET)).toContain(`codex mcp add ${NAME}`);
     expect(agentConfig("openai", "token", TARGET)).toContain("BCONTEXT_MCP_TOKEN");
   });

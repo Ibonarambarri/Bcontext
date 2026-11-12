@@ -72,14 +72,10 @@ export default async function NodePage({
           transcript_md?: string;
           refine_status?: RefineStatus;
           refine_error?: string | null;
-          recording_status?: string | null;
-          meeting_url?: string;
         })
       : null;
   const transcriptMd = meetingData?.transcript_md ?? "";
   const refineStatus = meetingData?.refine_status;
-  const recordingStatus = meetingData?.recording_status ?? null;
-  const recordingMeetingUrl = meetingData?.meeting_url ?? null;
   const hasTranscript = Boolean(meetingData && transcriptMd.trim().length > 0);
   const initialView: MeetingView = (() => {
     const requested = typeof sp.view === "string" ? sp.view : null;
@@ -108,8 +104,6 @@ export default async function NodePage({
         transcriptMd={transcriptMd}
         refineStatus={refineStatus}
         refineError={meetingData?.refine_error ?? null}
-        recordingStatus={recordingStatus}
-        recordingMeetingUrl={recordingMeetingUrl}
         initialView={initialView}
         header={header}
       />

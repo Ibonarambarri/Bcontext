@@ -9,7 +9,7 @@
  *
  * The checklist is not a to-do list the person ticks. Every step is a fact
  * the API derives from the workspace (`useOnboarding`), so the boxes tick
- * themselves as the agent connects, writes, is asked, is fed — and each
+ * themselves as the agent connects and writes — and each
  * pending row says so in words, because a box that cannot be clicked has
  * to explain what will click it. What the person decides is only whether
  * to see the guide: collapsing it is for this page, skipping it is for
@@ -18,8 +18,8 @@
  * skip with a better word.
  *
  * A row is a button: pressing it opens the step's view (if not already
- * there) and rings the real control on it — "Add agent", the Nexo
- * composer — so "how do I do this" is answered by the cursor, not by prose.
+ * there) and rings the real control on it — "Add agent", the activity
+ * chart — so "how do I do this" is answered by the cursor, not by prose.
  *
  * Nothing here is remembered in the browser: a reload asks the API again,
  * which is the point of deriving instead of storing.
@@ -65,8 +65,7 @@ export function GettingStarted() {
 
   // Opening a step means being on its page: the spotlight only rings what
   // is on screen. Same page, nothing to do; the anchor lookup waits for the
-  // new page's elements otherwise. Compared by path, not by sidebar slug:
-  // the Nexos page and the general Nexo's chat light the same entry.
+  // new page's elements otherwise. Compared by path, not by sidebar slug.
   const openStep = useCallback(
     (index: number) => {
       const step = GUIDE_STEPS[index];

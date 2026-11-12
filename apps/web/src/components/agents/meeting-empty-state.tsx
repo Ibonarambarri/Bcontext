@@ -3,64 +3,37 @@
 /**
  * Banner shown on `meeting` nodes that don't have a transcript attached
  * yet (rendered by `meeting-node-view.tsx` inside the node header, above the
- * editor) with two CTAs:
- *
- *   1. **Paste transcript** — opens an inline textarea. POST to
- *      /api/meetings/attach-transcript/[nodeId] → kicks off refine.
- *   2. **Record with Recall** — opens the existing RecordMeetingModal
- *      pre-bound to this node via `attachToNodeId`. When the bot
- *      finishes, the webhook updates THIS node instead of creating a
- *      new one.
+ * editor). **Paste transcript** opens an inline textarea: POST to
+ * /api/meetings/attach-transcript/[nodeId] → kicks off refine. An agent can
+ * do the same by writing the transcript into the node over MCP.
  *
  * Disappears as soon as `data.transcript_md` is populated server-side
  * (page refreshes on `node.updated` broadcast).
  */
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardPaste, Loader2, Mic, X } from "lucide-react";
+import { ClipboardPaste, Loader2, X } from "lucide-react";
 import { Button } from "@heroui/react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/workspace-context";
-import { RecordMeetingModal } from "./record-meeting-modal";
-import { type WorkspaceAddress } from "@/web/workspace-url";
 
-export function MeetingEmptyState({
-  workspace,
-  nodeId,
-}: {
-  workspace: WorkspaceAddress;
-  nodeId: string;
-}) {
-  const [mode, setMode] = useState<"idle" | "paste" | "record">("idle");
+export function MeetingEmptyState({ nodeId }: { nodeId: string }) {
+  const [mode, setMode] = useState<"idle" | "paste">("idle");
 
   return (
     <div className="my-4 rounded-[12px] border border-dashed border-[var(--line)] bg-[var(--paper-2)] p-4">
-      {mode === "idle" && <IdleBanner onPaste={() => setMode("paste")} onRecord={() => setMode("record")} />}
+      {mode === "idle" && <IdleBanner onPaste={() => setMode("paste")} />}
       {mode === "paste" && (
         <PastePanel
           nodeId={nodeId}
           onClose={() => setMode("idle")}
         />
       )}
-      {mode === "record" && (
-        <RecordMeetingModal
-          open
-          onClose={() => setMode("idle")}
-          workspace={workspace}
-          attachToNodeId={nodeId}
-        />
-      )}
     </div>
   );
 }
 
-function IdleBanner({
-  onPaste,
-  onRecord,
-}: {
-  onPaste: () => void;
-  onRecord: () => void;
-}) {
+function IdleBanner({ onPaste }: { onPaste: () => void }) {
   return (
     <EmptyState size="sm" className="items-start gap-3 py-0 text-left">
       <EmptyState.Header className="items-start gap-1">
@@ -69,7 +42,7 @@ function IdleBanner({
         </EmptyState.Title>
         <EmptyState.Description className="mt-0.5 text-[12px] leading-[1.5] text-[var(--ink-3)]">
           A meeting node becomes searchable once it has a transcript. Paste
-          one you already have, or drop a Recall.ai bot into a live call.
+          one you already have, from whatever recorded the call.
         </EmptyState.Description>
       </EmptyState.Header>
       <EmptyState.Content className="flex-row flex-wrap gap-2">
@@ -81,14 +54,6 @@ function IdleBanner({
         >
           <ClipboardPaste size={12} />
           Paste transcript
-        </Button>
-        <Button
-          size="sm"
-          className="h-8 gap-1.5 rounded-md bg-[var(--ink)] px-3 text-[12.5px] text-[var(--paper)]"
-          onPress={onRecord}
-        >
-          <Mic size={12} />
-          Record with Recall
         </Button>
       </EmptyState.Content>
     </EmptyState>

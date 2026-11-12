@@ -123,8 +123,6 @@ export function LazyMeetingNodeView(props: {
   transcriptMd: string;
   refineStatus: RefineStatus | undefined;
   refineError: string | null;
-  recordingStatus: string | null;
-  recordingMeetingUrl: string | null;
   initialView: MeetingView;
   header: React.ReactNode;
 }) {

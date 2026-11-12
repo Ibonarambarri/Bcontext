@@ -8,16 +8,6 @@
  * to the whole surface, never a modal. Its own Back/Forward walks the trail
  * of nodes opened from links, backlinks, relations and search.
  *
- * It shares the right edge with Nexo. `--nexo-w` (set on the active-page
- * region by the shell) is Nexo's width, or `0px` when it is closed: the panel
- * offsets its right edge by it and clamps its width to what is left, so
- * opening Nexo slides the node aside — including in "full", which means
- * everything Nexo is not using rather than literally everything.
- *
- * On the Nexo page the panel is always the half: Nexo opens nodes to talk
- * about them, and a full-size node would cover the conversation it belongs
- * to. "Open as page" is the way to read one on its own from there.
- *
  * Keys: Esc closes (handled by the shared panel) · Alt+← / Alt+→ walk the
  * trail.
  */
@@ -42,13 +32,11 @@ export function NodeFloatingPanel() {
     nodePanelSize,
     setNodePanelSize,
     openNodePage,
-    activeViewSlug,
   } = useWorkspace();
   const isMobile = useIsMobile();
   // The `/n/<id>` route is the node itself — nothing to float over it.
   const open = Boolean(inspectedNodeId) && !activeNodeId;
-  const halfOnly = activeViewSlug === "nexo";
-  const full = isMobile || (nodePanelSize === "full" && !halfOnly);
+  const full = isMobile || nodePanelSize === "full";
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +58,7 @@ export function NodeFloatingPanel() {
       <FloatingPanelAction label="Back" disabled={!canGoBackNode} onPress={goBackNode}><ArrowLeft size={13} /></FloatingPanelAction>
       <FloatingPanelAction label="Forward" disabled={!canGoForwardNode} onPress={goForwardNode}><ArrowRight size={13} /></FloatingPanelAction>
       <span className="mx-0.5 h-4 w-px bg-[var(--line)]" />
-      {!isMobile && !halfOnly ? (
+      {!isMobile ? (
         <FloatingPanelAction label={full ? "Shrink to half" : "Expand"} onPress={() => setNodePanelSize(full ? "half" : "full")}>
           {full ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
         </FloatingPanelAction>
@@ -80,8 +68,6 @@ export function NodeFloatingPanel() {
     </div>
   );
 
-  // z-30: above the conflict panel (z-20), so a node opened from inside a
-  // conflict covers it and closing the node returns to the conflict.
   return (
     <FloatingPanel open={open} size={full ? "full" : "half"} label="Node" onClose={closeNode} data-node-panel className="z-30">
       {open && inspectedNodeId ? (

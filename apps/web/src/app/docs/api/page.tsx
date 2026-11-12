@@ -10,7 +10,7 @@ import { Code, DocHeader, DocSection, Inline } from "../_components";
 export const metadata = {
   title: "API reference — Bcontext docs",
   description:
-    "REST endpoints for people and automations that cannot speak MCP: context retrieval, idempotent writes, Nexo, and direct node CRUD.",
+    "REST endpoints for people and automations that cannot speak MCP: context retrieval, idempotent writes and direct node CRUD.",
 };
 
 const CONTEXT_REQ = `POST /api/agents/context
@@ -52,18 +52,6 @@ Content-Type: application/json
         "content_md": "## Context\\n..."
     } },
     { "op": "patch", "id": "node_123", "patch": { "status": "done" } }
-  ]
-}`;
-
-const CHAT_REQ = `POST /api/nexo
-Authorization: Bearer bctx_live_...
-Content-Type: application/json
-
-{
-  "workspace": "acme/docs",
-  "scope": { "schema_version": 1, "type": "neighborhood", "root_node_ids": ["node_123"], "depth": 1 },
-  "messages": [
-    { "role": "user", "content": "summarize the open ADRs" }
   ]
 }`;
 
@@ -194,20 +182,6 @@ embed   10 req, refill 0.1 req/s`}
           <Inline>meeting</Inline>, <Inline>bug</Inline>, <Inline>adr</Inline>,{" "}
           <Inline>entity</Inline>, <Inline>skill</Inline>.
         </p>
-      </DocSection>
-
-      <DocSection title="POST /api/nexo">
-        <p>
-          One turn with Nexo, the assistant inside the app, against your
-          workspace via the configured AI Gateway model. Retrieves citations
-          from RAG, builds a context block, and streams the Vercel AI SDK{" "}
-          <Inline>streamText</Inline> result back as NDJSON. Optional{" "}
-          <Inline>pageContext</Inline> says where the caller is standing and{" "}
-          <Inline>conversationId</Inline> continues a conversation (omit it to
-          open one; the id comes back in a header). Requires scope{" "}
-          <Inline>chat:run</Inline>.
-        </p>
-        <Code label="Request" code={CHAT_REQ} />
       </DocSection>
 
       <DocSection title="GET/POST /api/nodes">

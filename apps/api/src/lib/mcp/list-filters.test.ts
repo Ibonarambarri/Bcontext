@@ -13,20 +13,11 @@
  * A filter that silently returns a subset is worse than one that fails, because
  * the caller acts on it.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createWorkspace } from "@/lib/demo-store";
 import { resolveDemoStorage } from "@/lib/storage/demo";
-
-const mocks = vi.hoisted(() => ({ listAuthorizedCapabilityTools: vi.fn() }));
-vi.mock("@/lib/capabilities/catalog", () => ({
-  listAuthorizedCapabilityTools: mocks.listAuthorizedCapabilityTools,
-}));
-vi.mock("@/lib/capabilities/gateway", () => ({
-  CapabilityGatewayError: class CapabilityGatewayError extends Error {},
-  invokeAuthorizedCapability: vi.fn(),
-}));
 
 import { buildMcpServer } from "./server";
 
@@ -45,7 +36,6 @@ describe("nodes(op=list) filters", () => {
   let close: () => Promise<void>;
 
   beforeEach(async () => {
-    mocks.listAuthorizedCapabilityTools.mockReset().mockResolvedValue([]);
     const slug = `mcp-list-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const workspace = createWorkspace({ name: "MCP list", slug });
     const storage = resolveDemoStorage(slug);

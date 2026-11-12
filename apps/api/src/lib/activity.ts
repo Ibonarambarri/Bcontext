@@ -269,7 +269,7 @@ export interface ActivityFacets {
  * Known side channel, stated rather than discovered.
  *
  * Facets aggregate `payload->>source` across the workspace's activity, so a
- * narrowed principal learns which connectors produce changes in parts of the
+ * narrowed principal learns which sources produce changes in parts of the
  * graph it cannot see — source names, never content. Filtering it properly
  * means resolving the reach for a query whose whole point is to be one cheap
  * aggregate, so it is left open deliberately and listed here with

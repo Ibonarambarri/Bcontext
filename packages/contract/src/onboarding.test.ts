@@ -11,22 +11,18 @@ describe("onboarding contract", () => {
     const steps = onboardingSteps({
       connect_agent: true,
       first_agent_write: false,
-      ask_nexo: true,
-      connect_integration: false,
     });
     expect(steps.map((s) => s.id)).toEqual([...ONBOARDING_STEP_IDS]);
-    expect(steps.map((s) => s.done)).toEqual([true, false, true, false]);
+    expect(steps.map((s) => s.done)).toEqual([true, false]);
   });
 
   it("is complete only when every step is done", () => {
     const all = onboardingSteps({
       connect_agent: true,
       first_agent_write: true,
-      ask_nexo: true,
-      connect_integration: true,
     });
     expect(onboardingCompleted(all)).toBe(true);
-    expect(onboardingCompleted(all.map((s, i) => (i === 3 ? { ...s, done: false } : s)))).toBe(false);
+    expect(onboardingCompleted(all.map((s, i) => (i === 1 ? { ...s, done: false } : s)))).toBe(false);
     expect(onboardingCompleted([])).toBe(false);
   });
 
