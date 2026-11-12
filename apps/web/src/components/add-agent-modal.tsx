@@ -92,7 +92,8 @@ const ROLE_COPY: Record<AgentRole, string> = {
 
 /**
  * The server's static tool list (`TOOLS` in bcontext-api's `mcp/server.ts`),
- * for the Connect step. `tools/list` filters it per principal.
+ * for the Connect step. `tools/list` filters it per principal and adds the
+ * capability gateway (`capability_search` / `capability_call`).
  */
 const MCP_TOOLS: [string, string][] = [
   ["nodes", "get / list / search — one hit per node, block refs nested"],
@@ -109,6 +110,8 @@ const MCP_TOOLS: [string, string][] = [
   ["views_write", "create, duplicate, update, delete a saved view"],
   ["admin", "who can reach this workspace, with verbs and reach; preview a reach"],
   ["admin_write", "grant, revoke or invite a principal"],
+  ["capabilities", "external MCP servers / webhooks: catalog, discover, status"],
+  ["capabilities_write", "connect an endpoint, finish its OAuth, grant, disconnect"],
   ["skills", "list skill nodes, or get one as instructions to run yourself"],
   ["skills_write", "import a skill node from SKILL.md (versioned upsert)"],
   ["skills_run", "run a skill server-side with the server's model"],
@@ -987,7 +990,7 @@ const SESSION_LOOP: [string, string][] = [
 /** Everything else the workspace offers an agent, and where a person switches it on. */
 const GO_FURTHER: [string, string][] = [
   ["Goals", "the North Star and the goals under it. Link tasks with contributes_to and the Roadmap fills itself; goals_write(checkin) moves a key result."],
-  ["Webhooks", "workspace events (nodes created, updated, deleted…) delivered to your URL, signed with HMAC — from Webhooks in the sidebar."],
+  ["Tools", "connect other MCP servers and webhooks once, grant them per agent. Agents find them with capability_search and call them with capability_call — no extra client config."],
   ["Skills", "skill nodes are instructions an agent runs (skills → get) or the server runs for it (skills_run); import one from a SKILL.md with skills_write."],
   ["Credentials", "one node per credential. Agents read them redacted and use them through materialize (needs credentials:use), so a secret never lands in a transcript."],
   ["Views", "saved queries the team shares; also the scope for ask_rag when a question is local."],

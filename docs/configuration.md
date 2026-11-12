@@ -104,7 +104,7 @@ and `NEXT_PUBLIC_ALLOWED_ORIGINS` spellings are still read as fallbacks until
 | `SUPABASE_ANON_KEY` | — | Anon JWT, used to validate user sessions |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Service-role JWT for server-side reads and writes |
 | `DATABASE_URL` | — | Direct, session-mode Postgres URL (never a transaction pooler): worker queues, realtime `LISTEN/NOTIFY`, transactional webhooks |
-| `APP_URL` | `http://localhost:3000` | Public URL of the web app: links, OAuth redirects, discovery documents. Required in production: the API and worker refuse to boot without it |
+| `APP_URL` | `http://localhost:3000` | Public URL of the web app: links, OAuth redirects (also `/api/capabilities/oauth/callback` for MCP servers connected with OAuth in Tools), discovery documents. Required in production: the API and worker refuse to boot without it |
 
 ### Process, database and queue
 

@@ -33,7 +33,9 @@ const SRC = join(process.cwd(), "src");
  */
 const WORKSPACE_SCOPED_TABLES = new Set([
   "activity", "agent_workspace_access", "ai_usage_events", "api_tokens",
-  "audit_log", "edges", "embeddings", "ingest_candidates",
+  "audit_log", "capabilities", "capability_bundles", "capability_grants",
+  "capability_invocations", "capability_oauth_credentials", "capability_principals",
+  "capability_reviews", "capability_versions", "edges", "embeddings", "ingest_candidates",
   "memberships", "node_links", "node_read_activity", "node_redirects", "node_tags",
   "nodes", "oauth_access_tokens", "saved_views", "tag_aliases", "tag_relations",
   "tags", "usage_counters", "webhook_deliveries", "webhook_endpoints",
@@ -49,6 +51,8 @@ const REVIEWED: Record<string, string> = {
   "lib/auth/tokens.ts": "token lookup by hash; the id IS the credential",
   "lib/mcp/brief.ts": "last_brief_at on the caller's OWN token row (ctx.tokenId), authenticated by the transport before any tool runs",
   "lib/auth/oauth.ts": "OAuth codes and tokens are credentials, looked up to be validated",
+  "lib/capabilities/gateway.ts": "resolves a grant in order to check it; workspace compared after",
+  "lib/capabilities/secrets.ts": "vault secrets addressed by their own id, never by user input",
   "api/realtime/auth.ts":
     "reads only the node's workspace_id, as the QUESTION for resolveGrant — no " +
     "grant there is a 404, and a grant is then narrowed by scopedStorage before " +

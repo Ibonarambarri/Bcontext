@@ -2,11 +2,14 @@
 
 /**
  * Agents — the external agents (Claude Code, Cursor…) grid, the `agents`
- * system view (mounted through `agents-dashboard.tsx`).
+ * system view (mounted through `agents-dashboard.tsx`). An admin grants each
+ * agent tool providers (connected MCP servers, webhooks/workflows) and
+ * bundles from its edit window; the grant set is written whole with role and
+ * scopes (`AgentCapabilityGrants` in the contract).
  *
  * Header row + filters bar (same pattern as the Activity FiltersBar in
  * changes-view.tsx) + minimal provider-branded cards (same anatomy as the
- * Webhooks grid in webhooks/webhooks-view.tsx) sorted by last MCP activity.
+ * Tools grid in tools/tool-providers-view.tsx) sorted by last MCP activity.
  * Card actions live in a kebab menu; editing happens in a modal window, and
  * everything about connecting a new agent (endpoint, client config, token
  * reveal) lives inside AddAgentModal.
@@ -29,6 +32,7 @@ import {
   RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
+  Terminal,
   Unplug,
   UserRound,
   X,
@@ -51,6 +55,8 @@ import {
   TextField,
   Tooltip,
 } from "@heroui/react";
+import { CheckboxButtonGroup } from "@/components/ui/button-groups";
+import type { AgentCapabilityGrants, GrantableBundle, GrantableCapability } from "@bcontext-dev/contract/agents/capability-grants";
 import { EmptyState } from "@/components/ui/empty-state";
 import { appUrl } from "@/lib/app-url";
 import { CardActionsMenu } from "./card-actions-menu";
@@ -74,7 +80,7 @@ import { useToast, useWorkspace } from "./workspace-context";
 import { workspaceMcpEndpoint } from "@/lib/mcp-endpoint";
 import { workspaceApiRef, type WorkspaceAddress } from "@/web/workspace-url";
 
-interface AgentVM {
+interface AgentVM extends AgentCapabilityGrants {
   id: string;
   name: string;
   provider: AgentProvider;
@@ -92,9 +98,14 @@ interface AgentVM {
   can_edit_identity: boolean;
 }
 
+type CapabilityVM = GrantableCapability;
+type BundleVM = GrantableBundle;
+
 interface Payload {
   can_manage: boolean;
   agents: AgentVM[];
+  capabilities: CapabilityVM[];
+  bundles: BundleVM[];
 }
 
 const ROLE_COPY: Record<AgentRole, string> = {
@@ -202,6 +213,8 @@ export function AgentConnectionsTab({ workspace }: { workspace: WorkspaceAddress
           description: agent.description,
           role: agent.role,
           scopes: agent.scopes,
+          capability_ids: agent.capability_ids,
+          bundle_ids: agent.bundle_ids,
         }),
       });
       const body = (await response.json().catch(() => ({}))) as { message?: string };
@@ -336,6 +349,8 @@ export function AgentConnectionsTab({ workspace }: { workspace: WorkspaceAddress
       {selected && data ? (
         <AgentEditModal
           agent={selected}
+          capabilities={data.capabilities}
+          bundles={data.bundles}
           canManage={data.can_manage}
           saving={saving}
           onChange={setSelected}
@@ -619,10 +634,12 @@ function EmptyAgents() {
   );
 }
 
-/* ── Edit window (modal) ─────────────────────────────────────────────── */
+/* ── Edit window (modal, provider-modal.tsx anatomy) ─────────────────── */
 
 function AgentEditModal(props: {
   agent: AgentVM;
+  capabilities: CapabilityVM[];
+  bundles: BundleVM[];
   canManage: boolean;
   saving: boolean;
   onChange: (agent: AgentVM) => void;
@@ -703,6 +720,11 @@ function AgentEditModal(props: {
                 <div className="flex flex-wrap gap-2">{SCOPES.filter((scope) => scope !== "admin:*").map((scope) => <Button key={scope} isDisabled={!props.canManage} onPress={() => patch({ role: "custom", scopes: agent.scopes.includes(scope) ? agent.scopes.filter((item) => item !== scope) : [...agent.scopes, scope] })} variant="outline" className={`h-auto rounded-md border px-2.5 py-2 font-mono text-[10.5px] font-normal ${agent.scopes.includes(scope) ? "border-[var(--ink)] bg-[var(--paper-2)] text-[var(--ink)]" : "border-[var(--line)] text-[var(--ink-3)]"}`}>{agent.scopes.includes(scope) ? <Check size={10} className="mr-1 inline" /> : null}{scope}</Button>)}</div>
               </ModalSection>
 
+              <ModalSection title="Capabilities" icon={Terminal}>
+                {props.bundles.length > 0 ? <ChoiceList title="Bundles" items={props.bundles.map((item) => ({ id: item.id, label: item.title, meta: "bundle" }))} selected={agent.bundle_ids} onSelectionChange={(ids) => patch({ bundle_ids: ids })} disabled={!props.canManage} /> : null}
+                {props.capabilities.length > 0 ? <ChoiceList title="Individual tools" items={props.capabilities.map((item) => ({ id: item.id, label: item.title, meta: `${item.provider} · ${item.type}` }))} selected={agent.capability_ids} onSelectionChange={(ids) => patch({ capability_ids: ids })} disabled={!props.canManage} /> : <p className="text-[11.5px] text-[var(--ink-3)]">No approved tool providers yet. Add MCP servers or workflows from Tool providers.</p>}
+              </ModalSection>
+
               <div className="rounded-[10px] border border-[var(--line)] bg-[var(--paper-2)] p-3 font-mono text-[10.5px] text-[var(--ink-3)]">
                 {agent.workspace_count} workspace{agent.workspace_count === 1 ? "" : "s"} · {agent.session_count} active session{agent.session_count === 1 ? "" : "s"} · last seen {formatLastSeen(agent.last_seen_at)}
               </div>
@@ -740,7 +762,7 @@ function DisconnectAgentDialog({ agent, saving, onClose, onConfirm }: {
             <AlertDialog.Heading id="disconnect-agent-title" className="mt-4 text-[15px] font-medium">Disconnect {agent.name}?</AlertDialog.Heading>
           </AlertDialog.Header>
           <AlertDialog.Body>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-muted">Its access to this workspace is revoked immediately: tokens stop working and sessions end. The agent can reconnect later through OAuth or a new token, but this cannot be undone for the current connection.</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted">Its access to this workspace is revoked immediately: tokens stop working, sessions end and tool grants are removed. The agent can reconnect later through OAuth or a new token, but this cannot be undone for the current connection.</p>
           </AlertDialog.Body>
           <AlertDialog.Footer className="flex">
             <Button isDisabled={saving} onPress={onClose} variant="outline" size="sm">Cancel</Button>
@@ -749,6 +771,25 @@ function DisconnectAgentDialog({ agent, saving, onClose, onConfirm }: {
         </AlertDialog.Dialog>
       </AlertDialog.Container>
     </AlertDialog.Backdrop>
+  );
+}
+
+function ChoiceList({ title, items, selected, onSelectionChange, disabled }: { title: string; items: Array<{ id: string; label: string; meta: string }>; selected: string[]; onSelectionChange: (ids: string[]) => void; disabled: boolean }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-[var(--ink-mute)]">{title}</div>
+      <CheckboxButtonGroup aria-label={title} value={selected} onChange={onSelectionChange} isDisabled={disabled} className="gap-1.5">
+        {items.map((item) => (
+          <CheckboxButtonGroup.Item key={item.id} value={item.id} className="rounded-md px-3 py-2">
+            <CheckboxButtonGroup.Indicator />
+            <CheckboxButtonGroup.ItemContent className="flex-row items-center justify-between gap-2">
+              <span className="text-[11.5px]">{item.label}</span>
+              <span className="font-mono text-[9.5px] text-[var(--ink-mute)]">{item.meta}</span>
+            </CheckboxButtonGroup.ItemContent>
+          </CheckboxButtonGroup.Item>
+        ))}
+      </CheckboxButtonGroup>
+    </div>
   );
 }
 

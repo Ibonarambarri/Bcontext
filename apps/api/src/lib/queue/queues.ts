@@ -10,6 +10,8 @@
 import type { Queue, QueueOptions } from "pg-boss";
 
 export const QUEUE_WEBHOOK_DRAIN = "webhook.drain";
+export const QUEUE_CAPABILITY_HEALTH = "capability.health-check";
+export const QUEUE_CAPABILITY_OAUTH_EXPIRE = "capability.oauth-expire";
 export const QUEUE_ERRORS_RETENTION = "errors.retention";
 export const QUEUE_TASKS_AUTO_ARCHIVE = "tasks.auto-archive";
 export const QUEUE_SKILLS_SCHEDULE = "skills.schedule";
@@ -48,6 +50,23 @@ export const QUEUES: readonly QueueDefinition[] = [
     cron: "* * * * *",
     description:
       "Drains due webhook_deliveries rows (src/lib/webhooks/worker.ts).",
+  },
+  {
+    name: QUEUE_CAPABILITY_HEALTH,
+    options: { ...DRAIN_OPTIONS, expireInSeconds: 900 },
+    cron: "* * * * *",
+    description:
+      "Pings approved executable capabilities (src/lib/capabilities/health-check.ts).",
+  },
+  {
+    name: QUEUE_CAPABILITY_OAUTH_EXPIRE,
+    // Was a pg_cron job (migration 0034, removed by 0097) on the same
+    // five-minute clock. Idempotent and row-locked in SQL, so a duplicate
+    // tick from a second replica is harmless.
+    options: DRAIN_OPTIONS,
+    cron: "*/5 * * * *",
+    description:
+      "Expires abandoned capability OAuth attempts and deletes their Vault material (src/lib/capabilities/oauth-expiry.ts).",
   },
   {
     name: QUEUE_ERRORS_RETENTION,

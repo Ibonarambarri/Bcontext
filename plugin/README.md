@@ -56,7 +56,7 @@ instead.
 
 ## Keeping it in sync
 
-The skill names concrete MCP tools. When `TOOLS` changes in
-`apps/api/src/lib/mcp/server.ts`,
+The skill names concrete MCP tools. When `TOOLS` or
+`CAPABILITY_ROUTING_TOOLS` change in `apps/api/src/lib/mcp/server.ts`,
 update `SKILL.md` and the tool count in `.claude-plugin/plugin.json` in the
 same pull request, and bump the plugin's version.

@@ -13,6 +13,8 @@ against that file (creates what is declared, removes what was dropped).
 | Queue | Cron | Domain code |
 |---|---|---|
 | `webhook.drain` | `* * * * *` (+ on demand) | `src/lib/webhooks/worker.ts` → `processDeliveries` |
+| `capability.health-check` | `* * * * *` | `src/lib/capabilities/health-check.ts` → `runCapabilityHealthChecks` |
+| `capability.oauth-expire` | `*/5 * * * *` | `src/lib/capabilities/oauth-expiry.ts` → `expireAbandonedOAuthAttempts` (abandoned OAuth flows, and their Vault material) |
 | `errors.retention` | `20 4 * * *` | `src/lib/errors/retention.ts` → `purgeErrorTelemetry` (`ERRORS_EVENT_RETENTION_DAYS`, `ERRORS_GROUP_RETENTION_DAYS`) |
 | `tasks.auto-archive` | `40 4 * * *` | `src/lib/tasks/auto-archive.ts` → `archiveStaleDoneTasks` (tasks and bugs `done` and untouched for `TASKS_AUTO_ARCHIVE_DAYS`, default 30) |
 | `skills.schedule` | `*/5 * * * *` | `src/lib/skills/schedules.ts` → `scheduleDueSkills` |

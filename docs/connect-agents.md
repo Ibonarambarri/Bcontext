@@ -173,3 +173,16 @@ Questions about the workspace go to `ask_rag` (a cited answer over the
 ranked passages; `synthesize: false` for the passages alone). The
 workspace's skills are listed with `skills({ op: "list" })` and fetched as
 instructions with `skills({ op: "get" })`.
+
+## Other MCP servers, through Bcontext
+
+Bcontext can also be the one MCP server your agents are configured with.
+A workspace admin registers the other MCP servers the team uses in **Tools**
+(URL plus a bearer token or custom header, or OAuth; secrets are kept in
+Supabase Vault and never shown again), Bcontext imports their tools, and the
+admin approves the provider and grants it to agents from each agent's edit
+window on **Agents**. An agent then finds what it was granted with
+`capability_search({ query })` and calls it with
+`capability_call({ ref, args })`; nothing is added to the agent's own MCP
+config, and revoking a grant takes effect on the next call. Admin agents can
+do the same from MCP with `capabilities` / `capabilities_write`.
