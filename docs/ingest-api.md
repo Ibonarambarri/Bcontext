@@ -95,6 +95,12 @@ definition })` and `admin_write({ op: "delete_record_type", key })`.
   probabilities) or `none` (a year, a rank). Leave it out and it is inferred
   from the key: money sums, `rating`/`score`/`probability`/`…_rate` average,
   `year`/`rank`/`code` show nothing, other numbers sum.
+- **`unit: "money"`** on a `number` field shows it as an amount in the
+  workspace's reporting currency: cells, table footers and board totals
+  read "€9.99" instead of "9.99", and the column sums unless `total` says
+  otherwise. The value stays a plain number. It is how a dataset-backed type,
+  which cannot have `money` fields, carries an amount: the b2c template's
+  customer `mrr` uses it. Records are sent the same way, `"mrr": 9.99`.
 - **`promotes_from`** (node types only) lists the dataset-backed types whose
   rows this type is made from, for example `["supplier"]` on a
   `lead_instructor`. **Convert to …** on a row offers a node type only when
@@ -256,20 +262,41 @@ curl "$BCONTEXT/api/workspaces/denak/metrics/summary?period=month" -H "Cookie: <
 The read verb is enough. Agents get the same answer from `data({ op: "metrics" })`.
 The response is `MetricsSummary` (`packages/contract/src/business/metrics.ts`).
 For each KPI it carries `current`, `previous`, `delta`, `delta_pct`,
-`year_ago`, `yoy_delta_pct` and a 12-month `series`. It also includes the
-current month's `expenses_by_category`.
+`year_ago`, `yoy_delta_pct`, the `comparison` those were made on and a
+12-month `series`. It also includes the current month's
+`expenses_by_category` and a `comparison_note` that says the comparison in
+one sentence.
 
 Definitions. Days are UTC; the current month is month-to-date. Percentages
 are fractions. A KPI whose inputs are missing is `null`, never 0.
 
-KPIs that add up over the month (expenses, net and burn; GMV, take and
-bookings) are partial while the month runs: mid-month, net is the revenue
-recognised up to today minus every expense booked so far, which reads low
-until the month's revenue catches up with bills paid at its start. Each KPI
-therefore carries `current_label`, `current_definition` and
-`current_is_partial`: "Net (month to date)" and a definition that says so
-for the running month, plain "Net" for a closed one. The dashboard shows
-those; keys never change.
+Flow KPIs, the ones that build up over the month, are partial while the
+month runs. These are expenses, net and burn; new, expansion, contraction,
+churned and net new MRR, MRR growth, new customers and the churn rates and
+NRR; GMV, take, bookings and the marketplace's rates and active, new and
+repeat buyers and suppliers. Mid-month, net is the revenue recognised up to
+today minus every expense booked so far, which reads low until the month's
+revenue catches up with bills paid at its start. Each KPI therefore carries
+`current_label`, `current_definition` and `current_is_partial`: "Net (month
+to date)" and a definition that says so for the running month, plain "Net"
+for a closed one. The dashboard shows those; keys never change.
+
+Comparisons are like for like. While the month runs, a flow KPI is
+compared with the previous month and with the same month a year earlier,
+each cut at the same day. On November 12, November 1–12 is set against
+October 1–12 and November 1–12 of last year, summed from the day rollups
+and capped at a shorter month's end. Stock KPIs are compared end of month
+with end of month: MRR, active customers, ARPA and runway. Each KPI's
+`comparison` says which it got:
+
+| `comparison.basis` | Meaning |
+|---|---|
+| `same_days` | Same days of the earlier months, through `through_day` |
+| `full_period` | End of month against end of month (stocks, or a closed month) |
+| `none` | No like-for-like figure exists: active suppliers, active buyers and the repeat-buyer rate count distinct people, and daily counts don't add up to that. `previous` and the deltas are `null` until the month closes |
+
+The dashboard shows a count's change in units ("−2"), not in percent, and
+its delta chip's tooltip says what was compared ("Nov 1–12 vs Oct 1–12").
 
 **SaaS** (`b2b`, `b2c`):
 
@@ -288,7 +315,7 @@ those; keys never change.
 | Revenue (recognised) | Each day's MRR ÷ days in its month, summed (MRR prorated per day) |
 | Expenses, net | Expenses = sum of `expense.recorded`; net = revenue − expenses |
 | Burn | Expenses − revenue when positive, else 0 |
-| Runway | Latest `cash.balance` ÷ the month's burn. It is `null` without cash, or when burn is 0 |
+| Runway | Latest `cash.balance` ÷ the average burn of the last three **closed** months (fewer when the history is shorter). The running month's burn is never used, since a fortnight's burn against the whole balance overstates runway. It is `null` without cash, or when that average burn is 0 |
 
 **Marketplace:**
 
