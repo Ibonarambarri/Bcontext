@@ -140,6 +140,19 @@ an agent or a person accepts or dismisses.
 
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+
+**📈 The business, not only the code**<br>
+A workspace can be a B2B or B2C SaaS or a marketplace. It defines its own
+record types (`account`, `deal`, `zone`…) that agents write as ordinary
+kinds with validated fields. Your product pushes customers and events
+(subscriptions, bookings, expenses) through a write-only ingest API, and
+Bcontext computes MRR, churn, NRR, GMV, take rate and runway — one read for a
+dashboard, one call for an agent. See [docs/ingest-api.md](docs/ingest-api.md).
+
+</td>
+</tr>
 </table>
 
 ## Screenshots
@@ -220,7 +233,7 @@ plugin, which adds the working conventions as a skill and a
 | `caddy` | A single origin for everything: the web app, the API, `/mcp` and the Supabase gateway, with automatic HTTPS |
 | `web` | The Next.js app (`apps/web`). It has no data of its own and calls the API over HTTP |
 | `api` | REST, the MCP server and realtime WebSockets (`apps/api`) |
-| `worker` | pg-boss queues: outbound webhooks, MCP-server health checks and OAuth expiry, scheduled skills, retention (same image as `api`) |
+| `worker` | pg-boss queues: outbound webhooks, MCP-server health checks and OAuth expiry, scheduled skills, business metric rollups, retention (same image as `api`) |
 | `migrate` | One-shot: applies pending migrations, then exits; `api` and `worker` wait for it |
 | `db` | Postgres 15 with pgvector (`supabase/postgres`) |
 | `auth`, `rest`, `storage`, `kong` | Supabase Auth, PostgREST, Storage (files on a volume) and its gateway |
