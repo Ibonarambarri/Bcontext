@@ -87,8 +87,6 @@ services:
       API_ORIGIN: http://api:4000
       ERRORS_INGEST_URL: ${ERRORS_INGEST_URL:-}
       ERRORS_INGEST_KEY: ${ERRORS_INGEST_KEY}
-      NANGO_PUBLIC_HOST: ${NANGO_PUBLIC_URL:-}
-      NANGO_CONNECT_URL: ${NANGO_CONNECT_URL:-}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/env.js"]
       interval: 10s

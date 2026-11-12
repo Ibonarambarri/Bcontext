@@ -154,7 +154,7 @@ Finish with a short summary:
 - the URL of the instance, and that `/admin` is open to the admin email;
 - where the checkout and `.env` live, and that `.env` must be backed up and
   kept private;
-- what was left out (AI, email, integrations) and the
+- what was left out (AI, email) and the
   [self-hosting guide](self-hosting.md) section for each;
 - day-to-day commands: `docker compose ps`, `docker compose logs -f api`,
   and to update: `git pull && docker compose pull && docker compose up -d`.
