@@ -93,7 +93,7 @@ describe("convert to node", () => {
 describe("v0.4.2 wiring", () => {
   it("names a running month's KPI as the contract does on cards and figure lists", () => {
     const card = read("components/business/kpi-card.tsx");
-    expect(card).toContain("{kpi.current_label ?? kpi.label}");
+    expect(card).toContain("const currentLabel = kpi.current_label ?? kpi.label;");
     expect(card).toContain("title={kpi.current_definition ?? kpi.definition}");
     expect(read("components/business/business-overview.tsx")).toContain("{kpi.current_label ?? kpi.label}");
   });

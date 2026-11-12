@@ -45,6 +45,10 @@ export function KpiCard({
   className?: string;
 }) {
   const delta = yoy ? (yoyLabel(kpi) ?? deltaLabel(kpi)) : deltaLabel(kpi);
+  const currentLabel = kpi.current_label ?? kpi.label;
+  // "(month to date)" is set smaller, so "GMV (month to date)" still fits a
+  // quarter-width card beside its delta chip instead of truncating.
+  const suffix = currentLabel !== kpi.label && currentLabel.startsWith(kpi.label) ? currentLabel.slice(kpi.label.length) : null;
   const values = kpi.series.map((point) => point.value);
   return (
     <KPI
@@ -52,7 +56,14 @@ export function KpiCard({
       title={kpi.current_definition ?? kpi.definition}
     >
       <KPI.Header>
-        <KPI.Title className="truncate">{kpi.current_label ?? kpi.label}</KPI.Title>
+        <KPI.Title className="min-w-0 truncate" aria-label={currentLabel}>
+          {suffix ? (
+            <>
+              {kpi.label}
+              <span className="text-[0.8em] text-muted">{suffix}</span>
+            </>
+          ) : currentLabel}
+        </KPI.Title>
         {delta ? (
           <Chip size="sm" variant="soft" color={TONE_COLOR[delta.tone]} className="ml-auto shrink-0">
             <Chip.Label className="tabular-nums">{delta.text}</Chip.Label>
