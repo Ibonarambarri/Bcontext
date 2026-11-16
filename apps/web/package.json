@@ -75,13 +75,13 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9.16.0",
     "eslint-config-next": "^16.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.12"
   },
   "license": "AGPL-3.0-only"
 }
