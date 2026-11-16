@@ -13,15 +13,24 @@ Tasks, decisions and docs in one workspace that Claude Code, Cursor, Codex and
 your teammates all work from, over [MCP](https://modelcontextprotocol.io).
 Self-hosted, open source, one `docker compose up`.
 
-[![CI](https://github.com/Ibonarambarri/bcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/Ibonarambarri/bcontext/actions/workflows/ci.yml)
+[![CI](https://github.com/Ibonarambarri/Bcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/Ibonarambarri/Bcontext/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/Ibonarambarri/Bcontext?sort=semver&label=version)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-black)](docs/connect-agents.md)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-docker_compose-2496ED?logo=docker&logoColor=white)](docs/self-hosting.md)
 
-[Quickstart](#quickstart) · [Install with an agent](docs/install-with-an-agent.md) · [Self-hosting](docs/self-hosting.md) · [Connect an agent](docs/connect-agents.md) · [Configuration](docs/configuration.md)
+[Quickstart](#quickstart) · [Examples](examples) · [Connect an agent](docs/connect-agents.md) · [Self-hosting](docs/self-hosting.md) · [Configuration](docs/configuration.md) · [Contributing](CONTRIBUTING.md)
+
+**English** · [Español](README.es.md)
 
 <br>
 
+<!--
+  DEMO GIF placeholder. Replace the image below with docs/images/demo.gif
+  (see launch/checklist.md, "Record the demo"): ~20 s, 1200 px wide,
+  an agent in Claude Code calling brief, taking a task and writing its
+  ## Result, while the web app's What's new shows the change arrive.
+-->
 <img src="docs/images/dashboard.png" alt="The Bcontext workspace dashboard" width="900">
 
 </div>
@@ -38,11 +47,9 @@ Bcontext is the place that work lands. An agent starts by asking for a
 **brief**: what is unblocked, which decisions are open, what changed since it
 last looked. It picks a task, does the work and closes it with a
 **`## Result`** the next agent or person builds on. People see the same graph
-in the web app and steer it: review what agents wrote, fix it, decide. The
-web is built for reading, not data entry: **What's new** lists what agents
-and teammates changed since your last visit (proposals to accept or dismiss
-on top), and **Ask the brain…** answers from the workspace with links to the
-nodes it cites. Writing is your agent's job.
+in the web app and steer it: **What's new** lists what agents and teammates
+changed since your last visit, and **Ask the brain…** answers from the
+workspace with links to the nodes it cites. Writing is your agent's job.
 
 ```mermaid
 flowchart LR
@@ -91,7 +98,7 @@ instead of from scratch.
 
 **🧠 A typed knowledge graph**<br>
 Tasks, decisions, ADRs, docs, meetings, bugs, entities, datasets and goals,
-with typed links (`depends_on`, `supersedes`…), hierarchical tags, subtasks
+with typed links (`blocked_by`, `supersedes`…), hierarchical tags, subtasks
 and a status lifecycle. Every `##` heading is an addressable block
 (`/n/<id>#result`), so agents edit one section without clobbering another.
 
@@ -147,21 +154,13 @@ an agent or a person accepts or dismisses.
 <tr>
 <td colspan="2" valign="top">
 
-**📈 The business, not only the code**<br>
-A workspace can be a B2B or B2C SaaS or a marketplace. It defines its own
-record types (`account`, `deal`, `zone`…) that agents write as ordinary
-kinds with validated fields. Your product pushes customers and events
-(subscriptions, bookings, expenses) through a write-only ingest API, and
-Bcontext computes MRR, churn, NRR, GMV, take rate and runway — one read for a
-dashboard, one call for an agent. Choose b2b, b2c or marketplace when creating
-the workspace and it starts from a template (a deal pipeline with stage
-totals, renewals, supply vs demand by zone and week, KPI cards with
-year-on-year comparison) that the team edits from there. In the web app a
-business workspace opens on its KPIs, charts and the accounts, renewals and
-pipeline to act on, and each customer has a 360 page; settings → Business
-holds the model, the record types and the ingest keys. See
-[docs/ingest-api.md](docs/ingest-api.md) and
-[docs/business-views.md](docs/business-views.md).
+**📈 Optional: the business, not only the code**<br>
+A workspace can also know a SaaS or marketplace business: its own record
+types (`account`, `deal`, `zone`…) that agents write as ordinary kinds, a
+write-only ingest API your product pushes customers and events to, and
+computed MRR, churn, NRR, GMV, take rate and runway, served to agents in one
+call and to people as dashboards. See [docs/ingest-api.md](docs/ingest-api.md)
+and [docs/business-views.md](docs/business-views.md).
 
 </td>
 </tr>
@@ -187,8 +186,8 @@ holds the model, the record types and the ingest keys. See
 Paste this into Claude Code, Codex, Cursor or any agent with a shell:
 
 ```text
-Install Bcontext (https://github.com/Ibonarambarri/bcontext) on this machine.
-Follow https://raw.githubusercontent.com/Ibonarambarri/bcontext/main/docs/install-with-an-agent.md
+Install Bcontext (https://github.com/Ibonarambarri/Bcontext) on this machine.
+Follow https://raw.githubusercontent.com/Ibonarambarri/Bcontext/main/docs/install-with-an-agent.md
 step by step: clone or update the repo, configure it, start it, wait until it
 is healthy, then connect yourself to my workspace over MCP. Ask me only for
 what you cannot decide.
@@ -205,15 +204,23 @@ You need Docker with Compose v2, `openssl` and about 4 GB of free RAM to build
 (the running stack uses under 1 GB).
 
 ```bash
-git clone https://github.com/Ibonarambarri/bcontext.git && cd bcontext
-./setup.sh --domain localhost --admin-email you@example.com -y
-docker compose up -d
+git clone https://github.com/Ibonarambarri/Bcontext.git bcontext && cd bcontext && make up ADMIN_EMAIL=you@example.com
 ```
 
-Open <http://localhost>, create your account and your first workspace at `/start`,
-and you're in. The first `up` builds the images from source when no release
-image is available, which takes a few minutes. Port 80 taken? Add
-`--http-port 8080` to `setup.sh`.
+`make up` writes `.env` with fresh secrets (`./setup.sh`; `ADMIN_EMAIL` may
+open `/admin`), runs `docker compose up -d` and waits until the instance is
+healthy. Open
+<http://localhost:8080>, create your account and your first workspace at
+`/start`, and you're in. Without `make`:
+
+```bash
+./setup.sh --domain localhost --admin-email you@example.com -y
+docker compose up -d     # then open http://localhost
+```
+
+The images come pre-built from GHCR for amd64 and arm64; the first `up`
+builds them from source only when no release image is available, which takes
+a few minutes. Port 80 taken? Add `--http-port 8080` to `setup.sh`.
 
 On a server with a real domain, Caddy gets the HTTPS certificate
 automatically: see [docs/self-hosting.md](docs/self-hosting.md) for DNS, email,
@@ -232,6 +239,55 @@ Claude Code opens the browser to approve the connection (OAuth). For the
 plugin, which adds the working conventions as a skill and a
 `/bcontext:brief` command, and for Cursor, Codex and token auth, see
 [docs/connect-agents.md](docs/connect-agents.md).
+
+## Your first call
+
+No client needed: every tool is a JSON-RPC call over HTTP. Create a token in
+**Agents → Add agent → API key**, then ask for the brief:
+
+```bash
+export BCONTEXT_TOKEN=bctx_live_…
+curl -s http://localhost:8080/mcp/<workspace> \
+  -H "Authorization: Bearer $BCONTEXT_TOKEN" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"brief","arguments":{}}}'
+```
+
+[examples/](examples) has the whole loop (brief → take a task → close it with
+a `## Result`) in curl and with the MCP TypeScript SDK, a shared skill, and
+client configs for Claude Code, Cursor and Codex.
+
+## How it compares
+
+Bcontext sits between the places teams keep agent context today. It does
+not replace your issue tracker or your editor's own memory; it is the shared
+layer agents write to while they work.
+
+| | Files in the repo (`CLAUDE.md`, `AGENTS.md`, rules) | A tracker over MCP (Linear, Jira, GitHub Issues) | Bcontext |
+|---|---|---|---|
+| Shared across people, machines and agent tools | through git | ✅ | ✅ |
+| Typed tasks, decisions and ADRs with status and dependencies | — | tasks, yes | ✅ |
+| Written by agents mid-task, one section at a time | whole-file edits | comments | `##` blocks, `if_updated_at`, `## Result` |
+| One read to start a session (`brief`) and a change feed | — | — | ✅ |
+| Who wrote what, person or agent, per token | git blame | per user | ✅ audit log with a hash chain |
+| Self-hosted, your data | ✅ | depends on the product | ✅ |
+
+## Roadmap
+
+Bcontext is maintained on a best-effort basis, so these are the known gaps
+to close next, not dated promises:
+
+- **Embeddings that are not 1536-dimensional**: today semantic search needs a
+  1536-dimension model, so many local models fall back to keyword search
+  ([docs/self-hosting.md](docs/self-hosting.md)).
+- **Safer re-indexing**: a node keeps its search rows if a new embedding
+  cannot be stored.
+- **More examples**: a Python client, and configs for more MCP clients.
+- **Releases on GitHub** with notes from the [changelog](CHANGELOG.md) for
+  every tag.
+
+Ideas and bigger proposals go in an
+[issue](https://github.com/Ibonarambarri/Bcontext/issues/new/choose) first.
 
 ## Architecture
 
@@ -272,9 +328,16 @@ Supabase Auth/Storage · pg-boss · Vercel AI SDK · HeroUI · Caddy
 Bcontext started as a commercial product and is now released as open
 source for anyone who wants to run it. It ran in production and works end
 to end, but it is maintained on a best-effort basis: issues and pull requests
-are welcome, and there are no response-time promises. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md). Agents working on the codebase, start
-with [AGENTS.md](AGENTS.md).
+are welcome, and there are no response-time promises.
+
+## Contributing
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md): `make install && make verify`
+is the whole set-up for code changes. Issues labelled
+[`good first issue`](https://github.com/Ibonarambarri/Bcontext/labels/good%20first%20issue)
+are scoped for a first PR. Agents working on the codebase, start with
+[AGENTS.md](AGENTS.md). Please follow the [Code of Conduct](CODE_OF_CONDUCT.md),
+and report security issues privately ([SECURITY.md](SECURITY.md)).
 
 ## License
 
