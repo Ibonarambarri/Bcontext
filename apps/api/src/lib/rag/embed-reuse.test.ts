@@ -43,8 +43,15 @@ const { embedNode } = await import("./embed");
 const BODY_V1 = "## Goal\n\nShip the worker on pg-boss so the crons leave the host scheduler.\n\n## Result\n\nDone on 2026-09-08.";
 const BODY_V2 = "## Goal\n\nShip the worker on pg-boss so the crons leave the host scheduler.\n\n## Result\n\nDone on 2026-09-08. The three scheduled tasks still need deleting.";
 
-function fakeSupabase(node: Record<string, unknown>, prior: Array<Record<string, unknown>>) {
+function fakeSupabase(
+  node: Record<string, unknown>,
+  prior: Array<Record<string, unknown>>,
+  opts: { insertError?: string } = {},
+) {
   const inserted: Array<Record<string, unknown>> = [];
+  // Every delete the code issues, recorded so a test can tell whether the
+  // prior rows were touched at all.
+  const deletes: Array<{ column: string; value: unknown }> = [];
   const client = {
     from: (table: string) => {
       if (table === "nodes") {
@@ -52,15 +59,25 @@ function fakeSupabase(node: Record<string, unknown>, prior: Array<Record<string,
       }
       return {
         select: () => ({ eq: async () => ({ data: prior, error: null }) }),
-        delete: () => ({ eq: async () => ({ error: null }) }),
+        delete: () => ({
+          eq: async (column: string, value: unknown) => {
+            deletes.push({ column, value });
+            return { error: null };
+          },
+          in: async (column: string, value: unknown[]) => {
+            deletes.push({ column, value });
+            return { error: null };
+          },
+        }),
         insert: async (rows: Array<Record<string, unknown>>) => {
+          if (opts.insertError) return { error: { message: opts.insertError } };
           inserted.push(...rows);
           return { error: null };
         },
       };
     },
   } as unknown as SupabaseClient;
-  return { client, inserted };
+  return { client, inserted, deletes };
 }
 
 const node = (content_md: string) => ({ id: "task-1", workspace_id: "ws-1", title: "Worker on pg-boss", content_md, kind: "task", data: null });
@@ -170,5 +187,38 @@ describe("embedNode reuse of unchanged chunks", () => {
     expect(contextualized).toHaveLength(0);
     expect(embedMany.mock.calls[0]![0].values).toHaveLength(1);
     expect(inserted.filter((r) => r.embedding === "[0.2,0.2]")).toHaveLength(prior.length - 1);
+  });
+});
+
+describe("embedNode replacing a node's rows", () => {
+  async function priorRows() {
+    const first = fakeSupabase(node(BODY_V1), []);
+    await embedNode(first.client, "task-1");
+    return first.inserted.map((r, i) => ({
+      id: `row-${i}`,
+      content: r.content,
+      context_prefix: r.context_prefix,
+      embedding: "[0.5,0]",
+      embedding_version: "test-model",
+    }));
+  }
+
+  it("a failed insert leaves the old rows untouched", async () => {
+    // The real-world trigger: an embedding model whose vectors are not
+    // 1536-dimensional, which the `vector(1536)` column rejects.
+    const prior = await priorRows();
+    const { client, deletes } = fakeSupabase(node(BODY_V2), prior, {
+      insertError: "expected 1536 dimensions, not 1024",
+    });
+    await expect(embedNode(client, "task-1")).rejects.toThrow(/1536 dimensions/);
+    expect(deletes).toEqual([]);
+  });
+
+  it("retires exactly the prior rows, by id, after the new ones are in", async () => {
+    const prior = await priorRows();
+    const { client, inserted, deletes } = fakeSupabase(node(BODY_V2), prior);
+    await embedNode(client, "task-1");
+    expect(inserted).toHaveLength(prior.length);
+    expect(deletes).toEqual([{ column: "id", value: prior.map((p) => p.id) }]);
   });
 });
