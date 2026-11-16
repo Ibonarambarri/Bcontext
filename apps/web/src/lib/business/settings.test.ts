@@ -101,7 +101,7 @@ describe("ingest examples", () => {
   });
 
   it("match the business model: subscriptions for b2b and b2c, bookings for a marketplace", () => {
-    const first = (model: (typeof BUSINESS_MODELS)[number]) => ingestExamples({ origin: "o", slug: "acme", model })[0]!.body as Record<string, any>;
+    const first = (model: (typeof BUSINESS_MODELS)[number]) => ingestExamples({ origin: "o", slug: "acme", model })[0]!.body as { type: string; subject_type?: string; amount: number; properties: { fee: number } & Record<string, unknown> };
     expect(first("b2b")).toMatchObject({ type: "subscription.started", subject_type: "account" });
     expect(first("product")).toMatchObject({ type: "subscription.started" });
     expect(first("b2c")).toMatchObject({ type: "subscription.started", subject_type: "customer" });

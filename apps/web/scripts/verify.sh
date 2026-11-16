@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Everything a change to the web app has to pass: typecheck, tests, the
-# production build and the bundle budgets. CI runs exactly this
+# Everything a change to the web app has to pass: typecheck, lint, tests,
+# the production build and the bundle budgets. CI runs exactly this
 # (.github/workflows/ci.yml); `npm run verify -w bcontext-web` locally.
 #
 #   VERIFY_QUICK=1 scripts/verify.sh   skip `next build` while iterating
@@ -26,6 +26,7 @@ run() {
 }
 
 run "typecheck"     npm run -s typecheck
+SHOW=20 run "lint"  npm run -s lint -- --quiet
 SHOW=6 run "test"   npm run -s test -- --reporter=dot
 if [ "${VERIFY_QUICK:-}" = "1" ]; then
   printf '\n(VERIFY_QUICK: next build skipped — run the full verify before the PR)\n'
