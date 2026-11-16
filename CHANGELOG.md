@@ -20,8 +20,22 @@ and `bcontext-web` images for amd64 and arm64.
 ### Changed
 - The web verify (and so CI) runs ESLint; CI checks the examples.
 
+### Fixed
+- Re-embedding a node no longer drops it from search when the write of the
+  new chunks fails (for example an embedding model whose dimension is not
+  1536): the new rows go in first and the old ones are retired after, so a
+  failed insert leaves the node's vectors and keyword index as they were
+  (#28).
+
 ### Security
 - Next.js 16.4.6, out of the range of GHSA-mfr8-8qww-v76h (16.3.0 – 16.4.4).
+- `maplibre-gl` removed from the web app, which never imported it
+  (GHSA-jrc7-96c5-q579, critical).
+- In-range updates for undici, body-parser, hono, `@hono/node-server`,
+  minimatch, fast-uri and vitest 4.1.12 (`@vitest/mocker`).
+- Known and not yet fixed: zod 3 is affected by GHSA-mrhx-c7xc-m3w5 (memory
+  exhaustion validating oversized arrays); the fix is zod 4. Reachable only
+  by authenticated callers, within the request size caps.
 
 ## [0.4.3] - 2026-11-12
 

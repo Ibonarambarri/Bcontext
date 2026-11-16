@@ -45,10 +45,10 @@
     "@types/node": "^22.10.0",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "^0.28.2",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.12"
   },
   "license": "AGPL-3.0-only"
 }

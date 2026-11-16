@@ -47,7 +47,6 @@
     "highlight.js": "^11.11.1",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.460.0",
-    "maplibre-gl": "^5.24.0",
     "marked": "^18.0.0",
     "mermaid": "^11.16.0",
     "motion": "^12.42.2",
@@ -75,13 +74,13 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9.16.0",
     "eslint-config-next": "^16.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.12"
   },
   "license": "AGPL-3.0-only"
 }

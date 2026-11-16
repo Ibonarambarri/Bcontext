@@ -57,8 +57,9 @@ export interface EmbedNodeResult {
 }
 
 /**
- * (Re-)embed a single node by id. Idempotent: removes any prior chunks
- * for the node before writing the new ones, so retries converge.
+ * (Re-)embed a single node by id. Idempotent: writes the new chunks first
+ * and only then removes the rows that were there before, so retries
+ * converge and a failed write never leaves the node out of the index.
  */
 export async function embedNode(
   client: SupabaseClient,
@@ -80,6 +81,8 @@ export async function embedNode(
   // in node.data.fields, never content_md, but even a keyword-matchable
   // title/content trace of a credential's existence in the vector index
   // is more agent-surface than the invariant allows — skip entirely.
+  // Deleting outright is right here: there is no replacement set to wait
+  // for, the point is that nothing of this node stays in the index.
   if (node.kind === "credential") {
     await client.from("embeddings").delete().eq("node_id", node.id);
     return { status: "skipped", chunks: 0, reason: "credential" };
@@ -95,6 +98,8 @@ export async function embedNode(
     data: node.data as Record<string, unknown> | null,
   });
   const chunks = chunkMarkdown(source);
+  // The node is now empty: its old chunks describe content that no longer
+  // exists, and there is no new set whose write could fail first.
   if (chunks.length === 0) {
     await client.from("embeddings").delete().eq("node_id", node.id);
     return { status: "embedded", chunks: 0 };
@@ -112,12 +117,18 @@ export async function embedNode(
   // past gateway outage looks like, and this is where it heals.
   const wantPrefix = contextualRetrievalEnabled();
   const reusable = new Map<string, { context_prefix: string; embedding: unknown }>();
+  // The ids of the rows this embed replaces. They are deleted only after the
+  // new rows are in, so if this read fails we must stop: without the ids we
+  // could not retire the old rows and would leave the node indexed twice.
+  const priorIds: string[] = [];
   {
-    const { data: prior } = await client
+    const { data: prior, error: priorErr } = await client
       .from("embeddings")
-      .select("content, context_prefix, embedding, embedding_version")
+      .select("id, content, context_prefix, embedding, embedding_version")
       .eq("node_id", node.id);
+    if (priorErr) throw new Error(`embedNode: ${priorErr.message}`);
     for (const row of prior ?? []) {
+      if (row.id) priorIds.push(row.id as string);
       if (row.embedding_version !== model || !row.embedding) continue;
       if (wantPrefix && !row.context_prefix) continue;
       reusable.set(row.content as string, {
@@ -203,8 +214,6 @@ export async function embedNode(
     });
   }
 
-  await client.from("embeddings").delete().eq("node_id", node.id);
-
   // Tag every chunk with the model id that produced it. Retrieval filters
   // on this so we never mix vector spaces across models.
   //
@@ -224,8 +233,32 @@ export async function embedNode(
     embedding_version: model,
     metadata: { heading_path: c.heading_path, tokens: c.tokens, block_id: c.block_id },
   }));
+  // Insert first, retire the old rows second. Deleting first meant that any
+  // insert failure (an embedding model whose dimension is not the column's
+  // 1536, a transient PostgREST error) left the node with no rows at all,
+  // and since `content_tsv` lives on the same rows it dropped out of keyword
+  // search too. Nothing unique is keyed on (node_id, chunk_index), so old
+  // and new rows can coexist for the moment between the two statements.
+  //
+  // Deleting by the ids read above, not by node_id, is what makes this safe:
+  // a "delete everything but my rows" would let two concurrent embeds of the
+  // same node each delete the other's rows and leave none. The worst case
+  // here is the opposite, a duplicate set until the next embed of the node
+  // (which reads every row as prior and retires them all).
   const { error: insErr } = await client.from("embeddings").insert(rows);
   if (insErr) throw new Error(`embedNode: ${insErr.message}`);
+  // Batched so the id list stays well inside PostgREST's URL length limit
+  // for nodes with hundreds of chunks.
+  const DELETE_BATCH = 100;
+  for (let i = 0; i < priorIds.length; i += DELETE_BATCH) {
+    const { error: delErr } = await client
+      .from("embeddings")
+      .delete()
+      .in("id", priorIds.slice(i, i + DELETE_BATCH));
+    // The new rows are already in; a failed cleanup only leaves stale
+    // duplicates that the next embed of this node retires.
+    if (delErr) throw new Error(`embedNode: retiring old chunks: ${delErr.message}`);
+  }
   return { status: "embedded", chunks: rows.length };
 }
 
