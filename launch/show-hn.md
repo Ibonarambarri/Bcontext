@@ -1,5 +1,16 @@
 # Show HN
 
+## Before posting, fill in
+
+- [ ] `[TODO: your story]` in the first comment: the opening paragraph
+      ("my team worked with several agents…") is a placeholder in your
+      voice. Keep it only if it is what happened; otherwise replace it with
+      one concrete example of your own.
+- [ ] Re-check on `main` the morning you post: the tool names (`brief`,
+      `list_changes`, `ask_rag`), ~4 GB RAM to build from source, the
+      images on GHCR, the 1536-dimension embedding limit. All four were
+      checked against `docs/open-source-polish` on 2026-11-16.
+
 Post at <https://news.ycombinator.com/submit> with the repository URL as the
 link. Post the first comment yourself right after submitting. Do not ask
 anyone to upvote, and do not share the HN link asking for votes (HN
@@ -19,6 +30,7 @@ Alternative if the first reads too long:
 ```text
 Hi HN, I'm the maintainer of Bcontext.
 
+[TODO: your story — keep or replace this paragraph]
 The problem: my team worked with several agents (Claude Code, Cursor,
 Codex) on different machines, and every session started from zero. What
 one agent decided on Monday lived in a chat nobody reopened, so the next
@@ -70,6 +82,4 @@ stack, the license).
 Repo: https://github.com/Ibonarambarri/Bcontext
 ```
 
-Before posting, check the claims still hold on `main` (build RAM, images on
-GHCR, the tool names), and replace the opening story with your own words if
-it differs from what happened. [TODO: your story]
+Delete the `[TODO: …]` line from the comment before posting.

@@ -35,7 +35,10 @@ demo instance unless it is running and safe to expose (sign-up off,
 
 ## Social preview
 
-Settings → General → Social preview, 1280×640 PNG. Suggested layout:
+Settings → General → Social preview, 1280×640 PNG. A ready file is
+`docs/images/social-preview.png` (a crop of the demo GIF's last moment:
+What's new with the agent's change and the bug open at its `## Result`).
+To make a designed one instead, a suggested layout:
 logo (`docs/images/logo-light.svg`) and the tagline "The shared memory your
 AI agents read and write" on the left; a crop of `docs/images/graph.png` or
 `docs/images/node.png` (the `## Result` section visible) on the right. Keep
