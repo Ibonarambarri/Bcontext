@@ -25,13 +25,7 @@ Self-hosted, open source, one `docker compose up`.
 
 <br>
 
-<!--
-  DEMO GIF placeholder. Replace the image below with docs/images/demo.gif
-  (see launch/checklist.md, "Record the demo"): ~20 s, 1200 px wide,
-  an agent in Claude Code calling brief, taking a task and writing its
-  ## Result, while the web app's What's new shows the change arrive.
--->
-<img src="docs/images/dashboard.png" alt="The Bcontext workspace dashboard" width="900">
+<img src="docs/images/demo.gif" alt="Demo: Claude Code calls brief on a Bcontext workspace, takes the top high-priority bug, reads the decision that applies, appends a ## Result and sets the bug to done; the web app's What's new then shows the change by the agent, and the bug opens with its Result section." width="900">
 
 </div>
 

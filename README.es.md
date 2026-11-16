@@ -25,8 +25,7 @@ Autoalojado, open source, un `docker compose up`.
 
 <br>
 
-<!-- DEMO GIF: sustituir por docs/images/demo.gif, igual que en README.md -->
-<img src="docs/images/dashboard.png" alt="El dashboard de un workspace de Bcontext" width="900">
+<img src="docs/images/demo.gif" alt="Demo: Claude Code llama a brief en un workspace de Bcontext, toma el bug de prioridad alta, lee la decisión que aplica, añade un ## Result y marca el bug como done; después, What's new en la web muestra el cambio hecho por el agente y el bug se abre con su sección Result." width="900">
 
 </div>
 

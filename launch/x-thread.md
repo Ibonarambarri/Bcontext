@@ -1,6 +1,6 @@
 # X thread
 
-Attach the demo GIF (see the README placeholder) to the first post; a
+Attach the demo GIF (`docs/images/demo.gif`) to the first post; a
 screenshot of a node with its `## Result` to the third. Each post is under
 280 characters.
 
