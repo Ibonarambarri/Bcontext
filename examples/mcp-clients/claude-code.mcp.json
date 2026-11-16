@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "bcontext": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp/demo",
+      "headers": { "Authorization": "Bearer ${BCONTEXT_MCP_TOKEN}" }
+    }
+  }
+}

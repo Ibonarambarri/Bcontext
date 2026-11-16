@@ -26,3 +26,6 @@ npm-debug.log*
 .mcp.json
 !plugin/.mcp.json
 .claude/
+
+# examples install their own dependencies; no lockfile to keep in sync
+examples/**/package-lock.json

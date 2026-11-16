@@ -1,12 +1,27 @@
 {
   "name": "bcontext",
-  "version": "0.1.0",
+  "version": "0.4.3",
   "private": true,
-  "description": "Bcontext: a self-hostable, MCP-first context layer for teams that work with AI agents.",
+  "description": "Self-hosted shared memory for teams of AI agents: tasks, decisions and docs that Claude Code, Cursor, Codex and people read and write over MCP.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "agent-memory",
+    "claude-code",
+    "knowledge-graph",
+    "self-hosted",
+    "pgvector"
+  ],
+  "homepage": "https://github.com/Ibonarambarri/Bcontext#readme",
+  "bugs": {
+    "url": "https://github.com/Ibonarambarri/Bcontext/issues"
+  },
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ibonarambarri/bcontext.git"
+    "url": "git+https://github.com/Ibonarambarri/Bcontext.git"
   },
   "engines": {
     "node": ">=24"

@@ -1,0 +1,12 @@
+{
+  "name": "bcontext-example-node",
+  "private": true,
+  "type": "module",
+  "description": "The Bcontext agent loop with the MCP TypeScript SDK.",
+  "scripts": {
+    "start": "node agent-loop.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}

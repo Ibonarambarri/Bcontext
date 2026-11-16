@@ -40,3 +40,17 @@ jobs:
         run: ./setup.sh --domain localhost --admin-email ci@example.com -y
       - run: docker compose config -q
       - run: sh -n deploy/migrate/migrate.sh && bash -n setup.sh
+
+  examples:
+    name: examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # shellcheck is preinstalled on the ubuntu runners.
+      - run: shellcheck examples/curl/*.sh examples/mcp-clients/*.sh
+      - run: for f in examples/mcp-clients/*.json; do jq -e . "$f" > /dev/null; done
+      - run: node --check examples/node/agent-loop.mjs
+      - run: make -n up verify examples > /dev/null

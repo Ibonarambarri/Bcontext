@@ -1,0 +1,63 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security issues go through private reporting instead, see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did and what you saw. Paste error messages as text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. ./setup.sh --domain localhost --admin-email you@example.com -y && docker compose up -d
+        2. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - MCP server / agent tools
+        - Web app
+        - REST API
+        - Self-hosting (setup.sh, docker compose, migrations)
+        - Claude Code plugin
+        - Business layer (ingest, metrics)
+        - Search / Ask the brain
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Bcontext version or commit
+      description: "`BCONTEXT_VERSION` in .env, or `git rev-parse --short HEAD`"
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Agent client, if relevant
+      placeholder: Claude Code 2.x, Cursor, Codex CLI, custom (MCP SDK)…
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`docker compose logs api worker web` around the failure. Remove secrets and tokens."
+      render: text
