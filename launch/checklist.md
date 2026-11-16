@@ -3,7 +3,7 @@
 ## Before launch day (all must be true)
 
 - [ ] `docs/open-source-polish` is merged to `main` and CI is green.
-- [ ] The demo GIF is recorded and replaces the README placeholder (see
+- [x] The demo GIF is recorded and replaces the README placeholder (see
       [Record the demo](#record-the-demo)).
 - [ ] GitHub Releases exist for the tags `v0.2.0` … `v0.4.3` (only `v0.1.0`
       has one today); the latest has release notes and points at the GHCR
@@ -11,7 +11,8 @@
 - [ ] A fresh clone on a clean machine follows the README quickstart to a
       working workspace, and `examples/curl/agent-loop.sh` runs against it.
 - [ ] Repository description, topics and homepage set ([github.md](github.md)).
-- [ ] Social preview image uploaded.
+- [ ] Social preview image uploaded (`docs/images/social-preview.png`,
+      1280×640; Settings → General → Social preview, web UI only).
 - [ ] Private vulnerability reporting enabled (CONTRIBUTING.md and
       SECURITY.md point to it).
 - [ ] Discussions enabled with a Q&A category.
@@ -20,9 +21,12 @@
 
 ## Record the demo
 
-The README's hero image is a still of the dashboard, with an HTML comment
-marking where the GIF goes. Record `docs/images/demo.gif` (about 20 s,
-1200 px wide, under ~5 MB so GitHub renders it inline):
+Done: `docs/images/demo.gif` is the README hero. It was assembled from
+stills of a real run on a local stack (a fictional "Fernwood" workspace),
+not a screen recording: the board, a terminal frame rendered from a real
+`claude -p … --output-format stream-json` log, What's new and the node with
+its `## Result`. To re-record it as a live split-screen video, the original
+script (about 20 s, 1200 px wide, under ~5 MB so GitHub renders it inline):
 
 1. Split screen: Claude Code on the left, the web app's **What's new** on the
    right, on a workspace with a few real-looking tasks and one accepted
@@ -33,9 +37,8 @@ marking where the GIF goes. Record `docs/images/demo.gif` (about 20 s,
 4. The right side updates: the change appears in What's new with the agent
    as its author; click into the task to show the `## Result` block.
 
-Then replace the `<img src="docs/images/dashboard.png" …>` in `README.md` and
-`README.es.md` with `docs/images/demo.gif` and delete the comment. A 1280×640
-crop of the same moment makes a good social preview image.
+Then overwrite `docs/images/demo.gif` (both READMEs point at it) and, if you
+like the new moment better, `docs/images/social-preview.png` (1280×640).
 
 ## When to post
 

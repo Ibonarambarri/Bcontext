@@ -13,7 +13,7 @@ Shared PR body (adapt per list):
 Adds Bcontext, a self-hosted MCP server and web app that gives a team's AI
 agents one shared memory: a typed graph of tasks, decisions and docs that
 Claude Code, Cursor, Codex and people read and write, with scoped tokens
-and an audit trail. TypeScript, AGPL-3.0, actively maintained.
+and an audit trail. TypeScript, AGPL-3.0, maintained on a best-effort basis.
 
 I'm the author. I've read the contribution guidelines and placed the entry
 in <section> following the list's format.

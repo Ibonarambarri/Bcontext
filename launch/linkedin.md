@@ -1,6 +1,6 @@
 # LinkedIn post
 
-Attach the demo GIF or `docs/images/node.png`. Put the link in the post
+Attach the demo GIF (`docs/images/demo.gif`) or `docs/images/node.png`. Put the link in the post
 (LinkedIn may show less reach for posts with links; a first comment with
 the link is the common workaround — your choice).
 

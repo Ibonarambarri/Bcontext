@@ -38,7 +38,7 @@ Streamable HTTP); people use a web app over the same data.
 ### A typed graph, not a pile of notes
 
 Everything is a node with a kind: task, decision, ADR, doc, meeting, bug,
-entity, dataset, goal. Nodes have a status lifecycle, subtasks, tags and
+entity, data (datasets), goal, credential. Nodes have a status lifecycle, subtasks, tags and
 typed links (`blocked_by`, `supersedes`, `references`…). Typed links are
 what let an agent ask "what can I start now?" —
 `nodes({ op: "list", kind: "task", unblocked: true })` — instead of
