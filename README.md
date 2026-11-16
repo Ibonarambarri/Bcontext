@@ -209,8 +209,7 @@ git clone https://github.com/Ibonarambarri/Bcontext.git bcontext && cd bcontext 
 
 `make up` writes `.env` with fresh secrets (`./setup.sh`; `ADMIN_EMAIL` may
 open `/admin`), runs `docker compose up -d` and waits until the instance is
-healthy. Open
-<http://localhost:8080>, create your account and your first workspace at
+healthy. Open <http://localhost:8080>, create your account and your first workspace at
 `/start`, and you're in. Without `make`:
 
 ```bash
@@ -314,8 +313,10 @@ apps/web            Next.js web app
 packages/contract   types and helpers both apps share
 deploy/             Caddyfile, Supabase gateway and init SQL, migration runner
 plugin/             Claude Code plugin: conventions skill and /bcontext:brief
+examples/           runnable examples: the agent loop, a skill, client configs
 docker-compose.yml  the self-hosted stack
 setup.sh            writes .env with fresh secrets
+Makefile            shortcuts: make up, make verify, make examples
 ```
 
 **Stack:** TypeScript · Hono · Next.js 16 · React 19 · Postgres + pgvector ·

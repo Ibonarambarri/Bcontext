@@ -3,9 +3,8 @@
 ## Before launch day (all must be true)
 
 - [ ] `docs/open-source-polish` is merged to `main` and CI is green.
-- [ ] The demo GIF is recorded and replaces the README placeholder (an agent
-      calling `brief`, closing a task with `## Result`, the result showing
-      in the web app).
+- [ ] The demo GIF is recorded and replaces the README placeholder (see
+      [Record the demo](#record-the-demo)).
 - [ ] GitHub Releases exist for the tags `v0.2.0` … `v0.4.3` (only `v0.1.0`
       has one today); the latest has release notes and points at the GHCR
       images.
@@ -18,6 +17,25 @@
 - [ ] Discussions enabled with a Q&A category.
 - [ ] 5–10 `good first issue` issues opened ([good-first-issues.md](good-first-issues.md)).
 - [ ] You have a free day to answer comments.
+
+## Record the demo
+
+The README's hero image is a still of the dashboard, with an HTML comment
+marking where the GIF goes. Record `docs/images/demo.gif` (about 20 s,
+1200 px wide, under ~5 MB so GitHub renders it inline):
+
+1. Split screen: Claude Code on the left, the web app's **What's new** on the
+   right, on a workspace with a few real-looking tasks and one accepted
+   decision (not the empty `demo` workspace).
+2. In Claude Code: "Pick up the next task." It calls `brief`, names the task
+   and the decision that applies.
+3. Cut the coding part. It appends `## Result` and sets the task to `done`.
+4. The right side updates: the change appears in What's new with the agent
+   as its author; click into the task to show the `## Result` block.
+
+Then replace the `<img src="docs/images/dashboard.png" …>` in `README.md` and
+`README.es.md` with `docs/images/demo.gif` and delete the comment. A 1280×640
+crop of the same moment makes a good social preview image.
 
 ## When to post
 
