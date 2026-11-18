@@ -40,6 +40,9 @@ vi.mock("@/lib/telemetry/ai-usage", () => ({
 
 const { embedNode } = await import("./embed");
 
+/** A freshly embedded vector: the column is vector(1536), so `embedNode` rejects any other size. */
+const fresh = (i: number) => [0.5, i, ...new Array(1534).fill(0)];
+
 const BODY_V1 = "## Goal\n\nShip the worker on pg-boss so the crons leave the host scheduler.\n\n## Result\n\nDone on 2026-09-08.";
 const BODY_V2 = "## Goal\n\nShip the worker on pg-boss so the crons leave the host scheduler.\n\n## Result\n\nDone on 2026-09-08. The three scheduled tasks still need deleting.";
 
@@ -74,7 +77,7 @@ beforeEach(() => {
   recorded.length = 0;
   embedMany.mockReset();
   embedMany.mockImplementation(async ({ values }: { values: string[] }) => ({
-    embeddings: values.map((_, i) => [0.5, i]),
+    embeddings: values.map((_, i) => fresh(i)),
     usage: { tokens: values.length },
   }));
 });
@@ -124,7 +127,7 @@ describe("embedNode reuse of unchanged chunks", () => {
     expect(goal.embedding).toBe("[0.5,0]");
     const changed = inserted.find((r) => String(r.content).includes("still need deleting"))!;
     expect(changed.context_prefix).toMatch(/^fresh prefix/);
-    expect(changed.embedding).toEqual([0.5, 0]);
+    expect(changed.embedding).toEqual(fresh(0));
     // Telemetry says how much was reused.
     const ctx = recorded.find((e) => e.surface === "contextualize");
     expect(ctx).toBeUndefined(); // the mocked contextualizer reports no usage

@@ -50,6 +50,9 @@ export function embeddingSourceFor(node: {
   return `# ${node.title}\n\n${node.content_md ?? ""}`;
 }
 
+/** Width of the `embeddings.embedding` pgvector column; see `lib/ai/provider`. */
+const EMBEDDING_DIMENSIONS = 1536;
+
 export interface EmbedNodeResult {
   status: "embedded" | "skipped";
   chunks: number;
@@ -192,6 +195,20 @@ export async function embedNode(
       model: embeddingModel(model),
       values: toEmbed.map((c) => c.embedding_input.slice(0, MAX_EMBED_CHARS)),
     });
+    // The `embeddings.embedding` column is `vector(1536)` (see `lib/ai/provider`).
+    // A model that returns another size (nomic-embed-text is 768, mxbai-embed-large
+    // 1024) would only fail at the insert further down, which runs AFTER the
+    // delete: the node would lose its previous chunks and, since `content_tsv`
+    // lives on the same rows, its keyword-search hits too. Check here, before
+    // the table is touched, so a misconfigured `EMBEDDING_MODEL` leaves the
+    // existing index as it was. Reused vectors need no check: they were read
+    // from that column.
+    const wrong = embeddings.find((v) => v.length !== EMBEDDING_DIMENSIONS);
+    if (wrong) {
+      throw new Error(
+        `embedNode: EMBEDDING_MODEL "${model}" returned ${wrong.length}-dimensional vectors, but the embeddings column holds ${EMBEDDING_DIMENSIONS}; existing chunks for node ${node.id} were left untouched`,
+      );
+    }
     toEmbed.forEach((c, i) => vectors.set(c.content, embeddings[i]));
     void recordAiUsageEvent({
       workspaceId: node.workspace_id as string,

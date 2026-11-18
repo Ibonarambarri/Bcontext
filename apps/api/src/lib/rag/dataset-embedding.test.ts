@@ -71,7 +71,8 @@ beforeEach(() => {
   process.env.AI_GATEWAY_API_KEY = "test-key";
   embedMany.mockReset();
   embedMany.mockImplementation(async ({ values }: { values: string[] }) => ({
-    embeddings: values.map(() => [0.1, 0.2]),
+    // the column is vector(1536); `embedNode` rejects any other size
+    embeddings: values.map(() => new Array(1536).fill(0.1)),
     usage: { tokens: 1 },
   }));
 });
